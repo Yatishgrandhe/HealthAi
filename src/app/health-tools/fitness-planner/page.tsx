@@ -1,36 +1,54 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { 
   Box, 
   Container, 
   Typography, 
-  Paper, 
   Button, 
-  IconButton,
+  Paper, 
+  TextField,
   Card,
   CardContent,
   Chip,
   Alert,
   CircularProgress,
-  FormControl,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Grid,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  IconButton,
+  Menu,
+  MenuItem,
   Stepper,
   Step,
   StepLabel,
-  StepContent,
-  Radio,
-  RadioGroup,
-  FormControlLabel,
-  FormLabel,
-  Divider
+  StepContent
 } from "@mui/material";
 import { 
   FitnessCenter, 
-  ArrowBack, 
-  CloudUpload,
-  Restaurant,
-  DirectionsRun,
-  Save
+  Add, 
+  Save, 
+  Delete, 
+  Edit, 
+  PlayArrow, 
+  Stop, 
+  Timer,
+  TrendingUp,
+  Psychology,
+  CameraAlt,
+  MoreVert,
+  CheckCircle,
+  Warning,
+  Info,
+  ArrowBack,
+  CloudUpload
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -68,6 +86,8 @@ const steps = [
   "Review Your Plan",
   "Start Your Journey"
 ];
+
+export const dynamic = 'force-dynamic';
 
 export default function FitnessPlannerPage() {
   const [activeStep, setActiveStep] = useState(0);

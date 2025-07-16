@@ -1,41 +1,51 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Box, 
   Container, 
   Typography, 
-  Paper, 
   Button, 
-  IconButton,
+  Paper, 
   Card,
   CardContent,
   Chip,
-  LinearProgress,
+  Alert,
+  CircularProgress,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
+  Grid,
+  Divider,
   List,
   ListItem,
   ListItemText,
-  ListItemIcon
+  ListItemIcon,
+  IconButton,
+  LinearProgress
 } from "@mui/material";
 import { 
   FitnessCenter, 
-  ArrowBack, 
-  PlayArrow,
-  Delete,
+  PlayArrow, 
+  Edit, 
+  Delete, 
+  Save, 
+  Timer,
   TrendingUp,
-  CalendarToday,
-  Restaurant,
-  DirectionsRun,
+  Psychology,
+  CameraAlt,
   CheckCircle,
+  Warning,
+  Info,
+  ArrowBack,
+  CalendarToday,
   Schedule
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import Link from "next/link";
 
+export const dynamic = 'force-dynamic';
 
 interface SavedRoutine {
   id: string;
@@ -89,7 +99,7 @@ const mockSavedRoutines: SavedRoutine[] = [
   }
 ];
 
-export default function SavedRoutinesPage() {
+function SavedRoutinesPageInner(props: any) {
   const [routines, setRoutines] = useState<SavedRoutine[]>(mockSavedRoutines);
   const [selectedRoutine, setSelectedRoutine] = useState<SavedRoutine | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
@@ -115,9 +125,9 @@ export default function SavedRoutinesPage() {
 
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case "fitness": return <DirectionsRun />;
-      case "nutrition": return <Restaurant />;
-      case "wellness": return <FitnessCenter />;
+      case "fitness": return <FitnessCenter />;
+      case "nutrition": return <Psychology />;
+      case "wellness": return <CameraAlt />;
       default: return <FitnessCenter />;
     }
   };
@@ -624,4 +634,8 @@ export default function SavedRoutinesPage() {
       </Dialog>
     </Box>
   );
+}
+
+export default function SavedRoutinesPage() {
+  return <SavedRoutinesPageInner />;
 } 

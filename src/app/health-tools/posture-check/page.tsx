@@ -5,51 +5,58 @@ import {
   Box, 
   Container, 
   Typography, 
-  Paper, 
   Button, 
+  Paper, 
   IconButton,
+  Card,
+  CardContent,
   Chip,
   Alert,
   CircularProgress,
-  Snackbar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Grid,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Snackbar
 } from "@mui/material";
 import { 
   CameraAlt, 
-  ArrowBack, 
-  CheckCircle,
-  Error,
-  Warning,
+  PlayArrow, 
+  Stop, 
+  Refresh, 
+  Save, 
+  Delete, 
+  CheckCircle, 
+  Warning, 
   Info,
+  TrendingUp,
+  FitnessCenter,
+  Psychology,
+  Visibility,
+  VisibilityOff,
+  Settings,
+  BugReport,
+  PowerSettingsNew,
+  ArrowBack,
   Videocam,
   VideocamOff,
-  Refresh,
-  Close
+  ErrorOutline
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import Link from "next/link";
 
-interface PostureAnalysis {
-  score: number;
-  status: "good" | "fair" | "poor";
-  feedback: string[];
-  recommendations: string[];
-  confidence: number;
-  personDetected: boolean;
-  faceDetected: boolean;
-  capturedImage?: string;
-  timestamp?: string;
-}
+import { PostureAnalysis, ProgressReport } from "@/types/posture";
 
-interface ProgressReport {
-  id: string;
-  timestamp: string;
-  score: number;
-  status: string;
-  imageUrl: string;
-  analysis: PostureAnalysis;
-}
+export const dynamic = 'force-dynamic';
 
-export default function PostureCheckPage() {
+function PostureCheckPageInner() {
   const [cameraPermission, setCameraPermission] = useState<"granted" | "denied" | "pending">("pending");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<PostureAnalysis | null>(null);
@@ -119,7 +126,7 @@ export default function PostureCheckPage() {
       
       // Use basic constraints for better compatibility
       const constraints = {
-        video: {
+        video: { 
           facingMode: "user",
           width: { ideal: 640, min: 320 },
           height: { ideal: 480, min: 240 }
@@ -134,9 +141,9 @@ export default function PostureCheckPage() {
       console.log("Track settings:", stream.getVideoTracks()[0]?.getSettings());
       
       // IMMEDIATELY set camera as on when we get the stream
-      streamRef.current = stream;
-      setIsCameraOn(true);
-      setCameraPermission("granted");
+        streamRef.current = stream;
+        setIsCameraOn(true);
+        setCameraPermission("granted");
       
       if (videoRef.current) {
         // Set up video element
@@ -426,7 +433,7 @@ export default function PostureCheckPage() {
     switch (status) {
       case "good": return <CheckCircle />;
       case "fair": return <Warning />;
-      case "poor": return <Error />;
+      case "poor": return <ErrorOutline color="error" />;
       default: return <Info />;
     }
   };
@@ -512,16 +519,16 @@ export default function PostureCheckPage() {
               </Box>
             </Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-              <Chip
-                label={isCameraOn ? "Camera Active" : "Camera Off"}
-                size="small"
-                icon={isCameraOn ? <Videocam /> : <VideocamOff />}
-                sx={{
-                  background: isCameraOn ? "rgba(76, 175, 80, 0.2)" : "rgba(255, 255, 255, 0.2)",
-                  color: "white",
-                  fontWeight: 500
-                }}
-              />
+            <Chip
+              label={isCameraOn ? "Camera Active" : "Camera Off"}
+              size="small"
+              icon={isCameraOn ? <Videocam /> : <VideocamOff />}
+              sx={{
+                background: isCameraOn ? "rgba(76, 175, 80, 0.2)" : "rgba(255, 255, 255, 0.2)",
+                color: "white",
+                fontWeight: 500
+              }}
+            />
               <Chip
                 label={
                   apiStatus === "ready" ? "AI Ready" :
@@ -532,7 +539,7 @@ export default function PostureCheckPage() {
                 icon={
                   apiStatus === "ready" ? <CheckCircle /> :
                   apiStatus === "checking" ? <CircularProgress size={16} /> :
-                  apiStatus === "error" ? <Error /> : <Info />
+                  apiStatus === "error" ? <ErrorOutline color="error" /> : <Info />
                 }
                 sx={{
                   background: 
@@ -674,37 +681,37 @@ export default function PostureCheckPage() {
         {/* Main Camera and Analysis Section */}
         <Box sx={{ width: '100%' }}>
           {/* Large Camera Section */}
-          <motion.div
+            <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <Paper
-              elevation={8}
-              sx={{
-                borderRadius: 3,
-                overflow: "hidden",
-                background: "rgba(255, 255, 255, 0.95)",
-                backdropFilter: "blur(20px)",
+              transition={{ duration: 0.6 }}
+            >
+              <Paper
+                elevation={8}
+                sx={{
+                  borderRadius: 3,
+                  overflow: "hidden",
+                  background: "rgba(255, 255, 255, 0.95)",
+                  backdropFilter: "blur(20px)",
                 border: "1px solid rgba(255, 255, 255, 0.2)",
                 width: '100%'
-              }}
-            >
+                }}
+              >
               {/* Large Camera Feed */}
-              <Box
-                sx={{
-                  position: "relative",
-                  background: "#000",
+                <Box
+                  sx={{
+                    position: "relative",
+                    background: "#000",
                   height: { xs: '400px', md: '500px', lg: '600px' },
-                  display: "flex",
-                  alignItems: "center",
+                    display: "flex",
+                    alignItems: "center",
                   justifyContent: "center",
                   overflow: "hidden"
                 }}
               >
                 {!isBrowserSupported() && (
                   <Box sx={{ textAlign: "center", color: "white", p: 4 }}>
-                    <Error sx={{ fontSize: 64, mb: 2 }} />
+                    <ErrorOutline sx={{ fontSize: 64, mb: 2, color: 'error.main' }} />
                     <Typography variant="h5" sx={{ mb: 1 }}>
                       Browser Not Supported
                     </Typography>
@@ -716,71 +723,71 @@ export default function PostureCheckPage() {
 
                 {cameraPermission === "pending" && isBrowserSupported() && (
                   <Box sx={{ textAlign: "center", color: "white", p: 4 }}>
-                    <CircularProgress sx={{ color: "white", mb: 2 }} />
+                      <CircularProgress sx={{ color: "white", mb: 2 }} />
                     <Typography variant="h6" sx={{ mb: 1 }}>
                       Requesting Camera Permission...
                     </Typography>
                     <Typography variant="body2">
                       Please allow camera access when prompted
                     </Typography>
-                  </Box>
-                )}
+                    </Box>
+                  )}
 
-                {cameraPermission === "denied" && (
+                  {cameraPermission === "denied" && (
                   <Box sx={{ textAlign: "center", color: "white", p: 4 }}>
-                    <Error sx={{ fontSize: 64, mb: 2 }} />
+                    <ErrorOutline sx={{ fontSize: 64, mb: 2, color: 'error.main' }} />
                     <Typography variant="h5" sx={{ mb: 1 }}>
-                      Camera Access Required
-                    </Typography>
+                        Camera Access Required
+                      </Typography>
                     <Typography variant="body1" sx={{ mb: 3 }}>
-                      Please allow camera access to analyze your posture
-                    </Typography>
-                    <Button
-                      variant="contained"
+                        Please allow camera access to analyze your posture
+                      </Typography>
+                      <Button
+                        variant="contained"
                       size="large"
-                      onClick={requestCameraPermission}
-                      sx={{
-                        background: "linear-gradient(135deg, #7B61FF, #4CAF50)",
+                        onClick={requestCameraPermission}
+                        sx={{
+                          background: "linear-gradient(135deg, #7B61FF, #4CAF50)",
                         px: 4,
                         py: 1.5,
-                        "&:hover": {
-                          background: "linear-gradient(135deg, #6B51EF, #45A049)",
-                        },
-                      }}
-                    >
-                      Enable Camera
-                    </Button>
-                  </Box>
-                )}
+                          "&:hover": {
+                            background: "linear-gradient(135deg, #6B51EF, #45A049)",
+                          },
+                        }}
+                      >
+                        Enable Camera
+                      </Button>
+                    </Box>
+                  )}
 
-                {cameraPermission === "granted" && !isCameraOn && (
+                  {cameraPermission === "granted" && !isCameraOn && (
                   <Box sx={{ textAlign: "center", color: "white", p: 4 }}>
                     <CameraAlt sx={{ fontSize: 64, mb: 2 }} />
                     <Typography variant="h5" sx={{ mb: 1 }}>
-                      Camera Ready
-                    </Typography>
+                        Camera Ready
+                      </Typography>
                     <Typography variant="body1" sx={{ mb: 3 }}>
-                      Click start to begin posture analysis
-                    </Typography>
-                    <Button
-                      variant="contained"
+                        Click start to begin posture analysis
+                      </Typography>
+                      <Button
+                        variant="contained"
                       size="large"
-                      onClick={requestCameraPermission}
-                      sx={{
-                        background: "linear-gradient(135deg, #7B61FF, #4CAF50)",
+                        onClick={requestCameraPermission}
+                        sx={{
+                          background: "linear-gradient(135deg, #7B61FF, #4CAF50)",
                         px: 4,
                         py: 1.5,
-                        "&:hover": {
-                          background: "linear-gradient(135deg, #6B51EF, #45A049)",
-                        },
-                      }}
-                    >
-                      Start Camera
-                    </Button>
-                  </Box>
-                )}
+                          "&:hover": {
+                            background: "linear-gradient(135deg, #6B51EF, #45A049)",
+                          },
+                        }}
+                      >
+                        Start Camera
+                      </Button>
+                    </Box>
+                  )}
 
-                {isCameraOn && (
+                  {isCameraOn && (
                   <>
                     <video
                       ref={videoRef}
@@ -879,25 +886,25 @@ export default function PostureCheckPage() {
                       </Button>
                     </Box>
                   </>
-                )}
+                  )}
 
-                {isAnalyzing && (
-                  <Box
-                    sx={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
+                  {isAnalyzing && (
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
                       background: "rgba(0, 0, 0, 0.8)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
                       color: "white",
                       zIndex: 3
-                    }}
-                  >
-                    <Box sx={{ textAlign: "center" }}>
+                      }}
+                    >
+                      <Box sx={{ textAlign: "center" }}>
                       <CircularProgress size={60} sx={{ color: "white", mb: 3 }} />
                       <Typography variant="h5" sx={{ mb: 1 }}>
                         Analyzing Posture...
@@ -905,49 +912,73 @@ export default function PostureCheckPage() {
                       <Typography variant="body1">
                         Please stay still and face the camera
                       </Typography>
+                      </Box>
                     </Box>
-                  </Box>
-                )}
+                  )}
 
                 {/* Hidden canvas for capturing frames */}
                 <canvas
                   ref={canvasRef}
                   style={{ display: 'none' }}
                 />
-              </Box>
+                </Box>
 
-              {/* Camera Controls */}
-              <Box sx={{ p: 3 }}>
+                {/* Camera Controls */}
+                <Box sx={{ p: 3 }}>
                 <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                    size="large"
+                      onClick={isCameraOn ? stopCamera : requestCameraPermission}
+                      startIcon={isCameraOn ? <VideocamOff /> : <Videocam />}
+                      sx={{
+                        background: isCameraOn 
+                          ? "linear-gradient(135deg, #F44336, #D32F2F)"
+                          : "linear-gradient(135deg, #7B61FF, #4CAF50)",
+                      py: 1.5,
+                        "&:hover": {
+                          background: isCameraOn 
+                            ? "linear-gradient(135deg, #D32F2F, #B71C1C)"
+                            : "linear-gradient(135deg, #6B51EF, #45A049)",
+                        },
+                      }}
+                    >
+                      {isCameraOn ? "Stop Camera" : "Start Camera"}
+                    </Button>
+                    <IconButton
+                    onClick={restartCamera}
+                      disabled={!isCameraOn}
+                    size="large"
+                      sx={{
+                        background: "linear-gradient(135deg, #FF9800, #F57C00)",
+                        color: "white",
+                        "&:hover": {
+                          background: "linear-gradient(135deg, #F57C00, #E65100)",
+                        },
+                        "&:disabled": {
+                          background: "rgba(0, 0, 0, 0.12)",
+                          color: "rgba(0, 0, 0, 0.38)",
+                        },
+                      }}
+                    >
+                      <Refresh />
+                    </IconButton>
+                  </Box>
+
                   <Button
                     fullWidth
                     variant="contained"
-                    size="large"
-                    onClick={isCameraOn ? stopCamera : requestCameraPermission}
-                    startIcon={isCameraOn ? <VideocamOff /> : <Videocam />}
+                  size="large"
+                    onClick={analyzePosture}
+                  disabled={!isCameraOn || isAnalyzing || apiStatus !== "ready"}
                     sx={{
-                      background: isCameraOn 
-                        ? "linear-gradient(135deg, #F44336, #D32F2F)"
-                        : "linear-gradient(135deg, #7B61FF, #4CAF50)",
-                      py: 1.5,
+                      background: "linear-gradient(135deg, #E573B7, #7B61FF)",
+                    py: 2,
+                    fontSize: "1.1rem",
+                    fontWeight: 600,
                       "&:hover": {
-                        background: isCameraOn 
-                          ? "linear-gradient(135deg, #D32F2F, #B71C1C)"
-                          : "linear-gradient(135deg, #6B51EF, #45A049)",
-                      },
-                    }}
-                  >
-                    {isCameraOn ? "Stop Camera" : "Start Camera"}
-                  </Button>
-                  <IconButton
-                    onClick={restartCamera}
-                    disabled={!isCameraOn}
-                    size="large"
-                    sx={{
-                      background: "linear-gradient(135deg, #FF9800, #F57C00)",
-                      color: "white",
-                      "&:hover": {
-                        background: "linear-gradient(135deg, #F57C00, #E65100)",
+                        background: "linear-gradient(135deg, #D563A7, #6B51EF)",
                       },
                       "&:disabled": {
                         background: "rgba(0, 0, 0, 0.12)",
@@ -955,33 +986,9 @@ export default function PostureCheckPage() {
                       },
                     }}
                   >
-                    <Refresh />
-                  </IconButton>
-                </Box>
-
-                <Button
-                  fullWidth
-                  variant="contained"
-                  size="large"
-                  onClick={analyzePosture}
-                  disabled={!isCameraOn || isAnalyzing || apiStatus !== "ready"}
-                  sx={{
-                    background: "linear-gradient(135deg, #E573B7, #7B61FF)",
-                    py: 2,
-                    fontSize: "1.1rem",
-                    fontWeight: 600,
-                    "&:hover": {
-                      background: "linear-gradient(135deg, #D563A7, #6B51EF)",
-                    },
-                    "&:disabled": {
-                      background: "rgba(0, 0, 0, 0.12)",
-                      color: "rgba(0, 0, 0, 0.38)",
-                    },
-                  }}
-                >
                   {isAnalyzing ? "Analyzing..." : 
                    apiStatus !== "ready" ? "AI Not Ready" : "Analyze Posture"}
-                </Button>
+                  </Button>
                 
                 {apiStatus === "error" && (
                   <Button
@@ -1002,9 +1009,9 @@ export default function PostureCheckPage() {
                     Retry AI Connection
                   </Button>
                 )}
-              </Box>
-            </Paper>
-          </motion.div>
+                </Box>
+              </Paper>
+            </motion.div>
 
           {/* Analysis Results Section - Under Camera */}
           {!analysis ? (
@@ -1013,31 +1020,31 @@ export default function PostureCheckPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
             >
-              <Paper
-                elevation={4}
-                sx={{
-                  p: 4,
-                  borderRadius: 3,
-                  background: "rgba(255, 255, 255, 0.95)",
-                  backdropFilter: "blur(20px)",
-                  border: "1px solid rgba(255, 255, 255, 0.2)",
+                <Paper
+                  elevation={4}
+                  sx={{
+                    p: 4,
+                    borderRadius: 3,
+                    background: "rgba(255, 255, 255, 0.95)",
+                    backdropFilter: "blur(20px)",
+                    border: "1px solid rgba(255, 255, 255, 0.2)",
                   mt: 3,
                   width: '100%',
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  textAlign: "center"
-                }}
-              >
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    textAlign: "center"
+                  }}
+                >
                 <CameraAlt sx={{ fontSize: 80, color: "#7B61FF", mb: 3 }} />
-                <Typography variant="h5" sx={{ fontWeight: 600, mb: 2 }}>
-                  Ready to Check Your Posture?
-                </Typography>
-                <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+                  <Typography variant="h5" sx={{ fontWeight: 600, mb: 2 }}>
+                    Ready to Check Your Posture?
+                  </Typography>
+                  <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
                   Enable your camera and click "Analyze Posture" to get started. 
                   Make sure you're in a well-lit area and facing the camera.
-                </Typography>
+                  </Typography>
                 
                 {/* Camera Status Info */}
                 <Box sx={{ mb: 3, width: '100%' }}>
@@ -1081,21 +1088,21 @@ export default function PostureCheckPage() {
                     </Typography>
                   </Box>
                 </Box>
-              </Paper>
+                </Paper>
             </motion.div>
-          ) : (
+              ) : (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
             >
-              <Paper
-                elevation={4}
-                sx={{
-                  p: 4,
-                  borderRadius: 3,
-                  background: "rgba(255, 255, 255, 0.95)",
-                  backdropFilter: "blur(20px)",
+                <Paper
+                  elevation={4}
+                  sx={{
+                    p: 4,
+                    borderRadius: 3,
+                    background: "rgba(255, 255, 255, 0.95)",
+                    backdropFilter: "blur(20px)",
                   border: "1px solid rgba(255, 255, 255, 0.2)",
                   mt: 3,
                   width: '100%'
@@ -1109,7 +1116,7 @@ export default function PostureCheckPage() {
                   <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
                     <Chip
                       label={analysis.personDetected ? "Person Detected" : "No Person Found"}
-                      icon={analysis.personDetected ? <CheckCircle /> : <Error />}
+                      icon={analysis.personDetected ? <CheckCircle /> : <ErrorOutline color="error" />}
                       sx={{
                         background: analysis.personDetected ? "rgba(76, 175, 80, 0.2)" : "rgba(244, 67, 54, 0.2)",
                         color: analysis.personDetected ? "#4CAF50" : "#F44336",
@@ -1144,99 +1151,99 @@ export default function PostureCheckPage() {
                   )}
                 </Box>
 
-                {/* Score Display */}
-                <Box sx={{ textAlign: "center", mb: 4 }}>
-                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-                    Posture Score
-                  </Typography>
-                  <Box
-                    sx={{
-                      width: 140,
-                      height: 140,
-                      borderRadius: "50%",
-                      background: `conic-gradient(${getStatusColor(analysis.status)} ${analysis.score * 3.6}deg, #f0f0f0 0deg)`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      mx: "auto",
-                      mb: 2,
-                      position: "relative"
-                    }}
-                  >
+                  {/* Score Display */}
+                  <Box sx={{ textAlign: "center", mb: 4 }}>
+                    <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
+                      Posture Score
+                    </Typography>
                     <Box
                       sx={{
-                        width: 120,
-                        height: 120,
+                      width: 140,
+                      height: 140,
                         borderRadius: "50%",
-                        background: "white",
+                        background: `conic-gradient(${getStatusColor(analysis.status)} ${analysis.score * 3.6}deg, #f0f0f0 0deg)`,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        flexDirection: "column"
+                        mx: "auto",
+                        mb: 2,
+                        position: "relative"
                       }}
                     >
+                      <Box
+                        sx={{
+                        width: 120,
+                        height: 120,
+                          borderRadius: "50%",
+                          background: "white",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexDirection: "column"
+                        }}
+                      >
                       <Typography variant="h2" sx={{ fontWeight: 700, color: getStatusColor(analysis.status) }}>
-                        {analysis.score}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        / 100
-                      </Typography>
+                          {analysis.score}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          / 100
+                        </Typography>
+                      </Box>
                     </Box>
-                  </Box>
-                  <Chip
-                    label={analysis.status.toUpperCase()}
-                    icon={getStatusIcon(analysis.status)}
-                    sx={{
-                      background: `${getStatusColor(analysis.status)}20`,
-                      color: getStatusColor(analysis.status),
-                      fontWeight: 600,
-                      fontSize: "1rem",
-                      px: 2,
-                      py: 1
-                    }}
-                  />
+                    <Chip
+                      label={analysis.status.toUpperCase()}
+                      icon={getStatusIcon(analysis.status)}
+                      sx={{
+                        background: `${getStatusColor(analysis.status)}20`,
+                        color: getStatusColor(analysis.status),
+                        fontWeight: 600,
+                        fontSize: "1rem",
+                        px: 2,
+                        py: 1
+                      }}
+                    />
                   {analysis.confidence && (
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                       Confidence: {Math.round(analysis.confidence * 100)}%
                     </Typography>
                   )}
-                </Box>
+                  </Box>
 
-                {/* Feedback */}
-                <Box sx={{ mb: 4 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                    Analysis Feedback
-                  </Typography>
-                  {analysis.feedback.map((item, index) => (
-                    <Box key={index} sx={{ display: "flex", alignItems: "center", mb: 1 }}>
-                      <CheckCircle sx={{ color: "#4CAF50", mr: 1, fontSize: 20 }} />
-                      <Typography variant="body2">{item}</Typography>
-                    </Box>
-                  ))}
-                </Box>
+                  {/* Feedback */}
+                  <Box sx={{ mb: 4 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                      Analysis Feedback
+                    </Typography>
+                    {analysis.feedback.map((item, index) => (
+                      <Box key={index} sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+                        <CheckCircle sx={{ color: "#4CAF50", mr: 1, fontSize: 20 }} />
+                        <Typography variant="body2">{item}</Typography>
+                      </Box>
+                    ))}
+                  </Box>
 
-                {/* Recommendations */}
+                  {/* Recommendations */}
                 <Box sx={{ mb: 4 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                    Recommendations
-                  </Typography>
-                  {analysis.recommendations.map((item, index) => (
-                    <Box key={index} sx={{ display: "flex", alignItems: "flex-start", mb: 1 }}>
-                      <Box
-                        sx={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: "50%",
-                          background: "#7B61FF",
-                          mt: 0.5,
-                          mr: 1,
-                          flexShrink: 0
-                        }}
-                      />
-                      <Typography variant="body2">{item}</Typography>
-                    </Box>
-                  ))}
-                </Box>
+                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                      Recommendations
+                    </Typography>
+                    {analysis.recommendations.map((item, index) => (
+                      <Box key={index} sx={{ display: "flex", alignItems: "flex-start", mb: 1 }}>
+                        <Box
+                          sx={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: "50%",
+                            background: "#7B61FF",
+                            mt: 0.5,
+                            mr: 1,
+                            flexShrink: 0
+                          }}
+                        />
+                        <Typography variant="body2">{item}</Typography>
+                      </Box>
+                    ))}
+                  </Box>
 
                 {/* Image Options */}
                 {showImageOptions && capturedImage && (
@@ -1274,11 +1281,11 @@ export default function PostureCheckPage() {
                       >
                         Save to Progress Report
                       </Button>
-                      <Button
-                        fullWidth
-                        variant="outlined"
+                  <Button
+                    fullWidth
+                    variant="outlined"
                         onClick={deleteCapturedImage}
-                        sx={{
+                    sx={{
                           borderColor: "#F44336",
                           color: "#F44336",
                           py: 1.5,
@@ -1303,18 +1310,18 @@ export default function PostureCheckPage() {
                     setShowImageOptions(false);
                   }}
                   sx={{
-                    borderColor: "#7B61FF",
-                    color: "#7B61FF",
+                      borderColor: "#7B61FF",
+                      color: "#7B61FF",
                     py: 1.5,
-                    "&:hover": {
-                      borderColor: "#6B51EF",
-                      background: "rgba(123, 97, 255, 0.05)",
-                    },
-                  }}
-                >
-                  Analyze Again
-                </Button>
-              </Paper>
+                      "&:hover": {
+                        borderColor: "#6B51EF",
+                        background: "rgba(123, 97, 255, 0.05)",
+                      },
+                    }}
+                  >
+                    Analyze Again
+                  </Button>
+                </Paper>
             </motion.div>
           )}
         </Box>
@@ -1337,4 +1344,8 @@ export default function PostureCheckPage() {
       </Snackbar>
     </Box>
   );
+}
+
+export default function PostureCheckPageWrapper(props: any) {
+  return <PostureCheckPageInner {...props} />;
 } 

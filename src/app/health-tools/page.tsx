@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { 
   Box, 
   Container, 
@@ -25,7 +26,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import APIStatusChecker from "@/components/APIStatusChecker";
 
-
+export const dynamic = 'force-dynamic';
 
 const healthTools = [
   {

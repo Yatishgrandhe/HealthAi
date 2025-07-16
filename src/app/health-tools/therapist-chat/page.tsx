@@ -1,32 +1,52 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { 
   Box, 
+  Container, 
   Typography, 
   Button, 
-  IconButton,
+  Paper, 
   TextField,
-  Avatar,
+  Card,
+  CardContent,
+  Chip,
+  Alert,
   CircularProgress,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Divider
+  Grid,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  IconButton,
+  Avatar
 } from "@mui/material";
 import { 
-  Send, 
   Psychology, 
-  Add,
-  Delete,
-  Chat,
-  Mic,
-  GraphicEq,
+  Send, 
+  Save, 
+  Delete, 
+  Edit, 
+  PlayArrow, 
+  Stop, 
+  Timer,
+  TrendingUp,
+  FitnessCenter,
+  CameraAlt,
+  CheckCircle,
+  Warning,
+  Info,
+  Person,
+  SmartToy,
   ArrowBack,
-  CheckCircle
+  Add
 } from "@mui/icons-material";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import aiService from "@/utils/aiService";
 
@@ -87,6 +107,8 @@ interface ChatSession {
   updatedAt: Date;
 }
 
+export const dynamic = 'force-dynamic';
+
 export default function TherapistChatPage() {
   const [currentChat, setCurrentChat] = useState<ChatSession | null>(null);
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
@@ -138,7 +160,7 @@ export default function TherapistChatPage() {
     }
   }, [isVoiceChat]);
 
-  const generateResponse = useCallback(async (userMessage: string) => {
+  const generateResponse = useEffect(async (userMessage: string) => {
     if (!currentChat) return;
 
     setLoading(true);
@@ -266,7 +288,7 @@ export default function TherapistChatPage() {
     }
   }, [currentChat]);
 
-  const handleVoiceMessage = useCallback((message: string) => {
+  const handleVoiceMessage = useEffect((message: string) => {
     if (!currentChat) return;
     
     const userMessage: Message = {
@@ -369,7 +391,7 @@ export default function TherapistChatPage() {
   }, [currentChat?.messages, isTyping]);
 
   // Ensure user messages are always visible - fallback mechanism
-  const ensureUserMessageVisible = useCallback((message: string) => {
+  const ensureUserMessageVisible = useEffect((message: string) => {
     if (!currentChat) return;
     
     // Check if the message is already in the chat
@@ -793,7 +815,7 @@ export default function TherapistChatPage() {
             </Box>
           ) : (
             <>
-              <AnimatePresence>
+              {/* AnimatePresence is removed as per new_code, but motion.div is kept */}
                 {currentChat.messages.map((message) => (
                   <motion.div
                     key={message.id}
@@ -839,7 +861,6 @@ export default function TherapistChatPage() {
                     </Box>
                   </motion.div>
                 ))}
-              </AnimatePresence>
               
               {isTyping && (
                 <motion.div

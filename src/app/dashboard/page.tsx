@@ -68,6 +68,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const fetchUser = async () => {
+      if (!supabase) {
+        console.error('Supabase client not initialized');
+        return;
+      }
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push("/login");
@@ -92,6 +97,11 @@ export default function DashboardPage() {
   }, [router]);
 
   const fetchHealthData = async (userId: string) => {
+    if (!supabase) {
+      console.error('Supabase client not initialized');
+      return;
+    }
+    
     try {
       // Fetch health sessions
       const { data: sessions } = await supabase
@@ -277,56 +287,48 @@ export default function DashboardPage() {
           </Box>
 
           {/* Stats Cards */}
-          <Grid container spacing={3} sx={{ mb: 6 }}>
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard
-                title="Therapy Sessions"
-                value={stats.totalSessions}
-                icon={<BrainIcon />}
-                color="#0066CC"
-                subtitle="This month"
-                progress={Math.min(100, (stats.totalSessions / 10) * 100)}
-              />
-            </Grid>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 3, mb: 6 }}>
+            <StatCard
+              title="Therapy Sessions"
+              value={stats.totalSessions}
+              icon={<BrainIcon />}
+              color="#0066CC"
+              subtitle="This month"
+              progress={Math.min(100, (stats.totalSessions / 10) * 100)}
+            />
 
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard
-                title="Workouts"
-                value={stats.fitnessWorkouts}
-                icon={<DumbbellIcon />}
-                color="#3399FF"
-                subtitle="Completed"
-                progress={Math.min(100, (stats.fitnessWorkouts / 20) * 100)}
-              />
-            </Grid>
+            <StatCard
+              title="Workouts"
+              value={stats.fitnessWorkouts}
+              icon={<DumbbellIcon />}
+              color="#3399FF"
+              subtitle="Completed"
+              progress={Math.min(100, (stats.fitnessWorkouts / 20) * 100)}
+            />
 
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard
-                title="Posture Checks"
-                value={stats.postureChecks}
-                icon={<RulerIcon />}
-                color="#004499"
-                subtitle="This week"
-                progress={Math.min(100, (stats.postureChecks / 7) * 100)}
-              />
-            </Grid>
+            <StatCard
+              title="Posture Checks"
+              value={stats.postureChecks}
+              icon={<RulerIcon />}
+              color="#004499"
+              subtitle="This week"
+              progress={Math.min(100, (stats.postureChecks / 7) * 100)}
+            />
 
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard
-                title="Health Score"
-                value={stats.healthScore}
-                icon={<TrendingUpIcon />}
-                color="#000000"
-                subtitle="Overall wellness"
-                progress={stats.healthScore}
-              />
-            </Grid>
-          </Grid>
+            <StatCard
+              title="Health Score"
+              value={stats.healthScore}
+              icon={<TrendingUpIcon />}
+              color="#000000"
+              subtitle="Overall wellness"
+              progress={stats.healthScore}
+            />
+          </Box>
 
           {/* Main Content Grid */}
-          <Grid container spacing={4}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' }, gap: 4 }}>
             {/* Recent Activities */}
-            <Grid item xs={12} lg={8}>
+            <Box>
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -419,10 +421,10 @@ export default function DashboardPage() {
                   </CardContent>
                 </Card>
               </motion.div>
-            </Grid>
+            </Box>
 
             {/* Quick Actions */}
-            <Grid item xs={12} lg={4}>
+            <Box>
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -513,8 +515,8 @@ export default function DashboardPage() {
                   </CardContent>
                 </Card>
               </motion.div>
-            </Grid>
-          </Grid>
+            </Box>
+          </Box>
         </motion.div>
       </Container>
       

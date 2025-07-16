@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Remove white backgrounds from Material-UI icons */
+.MuiSvgIcon-root {
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Ensure all Material-UI icons have transparent backgrounds */
+.MuiIconButton-root .MuiSvgIcon-root,
+.MuiListItemIcon-root .MuiSvgIcon-root,
+.MuiBox-root .MuiSvgIcon-root {
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backgroundColor: transparent !important;
+}
+
+/* Additional rules for SVG elements */
+svg {
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backgroundColor: transparent !important;
+}
+
+/* Ensure all SVG paths, circles, and rectangles use currentColor */
+svg path,
+svg circle,
+svg rect {
+  fill: currentColor !important;
+}
+
+/* Specific rules for stats section */
+.MuiPaper-root svg,
+.MuiBox-root svg {
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backgroundColor: transparent !important;
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #000000;
+  --healthai-blue: #0066CC;
+  --healthai-darkBlue: #004499;
+  --healthai-lightBlue: #3399FF;
+  --healthai-black: #000000;
+  --healthai-darkGray: #1A1A1A;
+  --healthai-gray: #333333;
+  --healthai-lightGray: #666666;
+  --healthai-white: #FFFFFF;
+  --healthai-silver: #C0C0C0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #000000;
+    --foreground: #ffffff;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', 'Montserrat', 'Poppins', 'Roboto', Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+  transition: background 0.3s, color 0.3s;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+img, svg {
+  background: var(--healthai-white);
+}
+
+/* Health AI specific styles */
+.healthai-gradient {
+  background: linear-gradient(135deg, #0066CC 0%, #004499 50%, #000000 100%);
+}
+
+.healthai-blue-gradient {
+  background: linear-gradient(135deg, #0066CC 0%, #3399FF 100%);
+}
+
+.healthai-dark-gradient {
+  background: linear-gradient(135deg, #000000 0%, #1A1A1A 50%, #333333 100%);
+}
+
+.healthai-glow {
+  box-shadow: 0 0 20px rgba(0, 102, 204, 0.5);
+}
+
+.healthai-glow:hover {
+  box-shadow: 0 0 40px rgba(0, 102, 204, 0.8);
+}

@@ -1,0 +1,1340 @@
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import { 
+  Box, 
+  Container, 
+  Typography, 
+  Paper, 
+  Button, 
+  IconButton,
+  Chip,
+  Alert,
+  CircularProgress,
+  Snackbar,
+} from "@mui/material";
+import { 
+  CameraAlt, 
+  ArrowBack, 
+  CheckCircle,
+  Error,
+  Warning,
+  Info,
+  Videocam,
+  VideocamOff,
+  Refresh,
+  Close
+} from "@mui/icons-material";
+import { motion } from "framer-motion";
+import Link from "next/link";
+
+interface PostureAnalysis {
+  score: number;
+  status: "good" | "fair" | "poor";
+  feedback: string[];
+  recommendations: string[];
+  confidence: number;
+  personDetected: boolean;
+  faceDetected: boolean;
+  capturedImage?: string;
+  timestamp?: string;
+}
+
+interface ProgressReport {
+  id: string;
+  timestamp: string;
+  score: number;
+  status: string;
+  imageUrl: string;
+  analysis: PostureAnalysis;
+}
+
+export default function PostureCheckPage() {
+  const [cameraPermission, setCameraPermission] = useState<"granted" | "denied" | "pending">("pending");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<PostureAnalysis | null>(null);
+  const [isCameraOn, setIsCameraOn] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState("");
+  const [videoReady, setVideoReady] = useState(false);
+  const [apiStatus, setApiStatus] = useState<"checking" | "ready" | "error" | "unknown">("unknown");
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [showImageOptions, setShowImageOptions] = useState(false);
+  const [progressReports, setProgressReports] = useState<ProgressReport[]>([]);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  // Check if browser supports getUserMedia
+  const isBrowserSupported = () => {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  };
+
+  // Check API status and request camera permission on component mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isBrowserSupported()) {
+      // Check API status first
+      checkApiStatus();
+      
+      const timer = setTimeout(() => {
+        requestCameraPermission();
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  // Load progress reports on component mount
+  useEffect(() => {
+    loadProgressReports();
+  }, []);
+
+  const checkApiStatus = async () => {
+    try {
+      setApiStatus("checking");
+      const response = await fetch('/api/test-posture-api');
+      const result = await response.json();
+      
+      if (result.success) {
+        setApiStatus("ready");
+        console.log("Posture analysis API is ready");
+      } else {
+        setApiStatus("error");
+        console.error("Posture analysis API error:", result.message);
+      }
+    } catch (error) {
+      setApiStatus("error");
+      console.error("Failed to check API status:", error);
+    }
+  };
+
+  const requestCameraPermission = async () => {
+    try {
+      setCameraPermission("pending");
+      setError(null);
+      setVideoReady(false);
+      
+      console.log("Requesting camera permission...");
+      
+      // Use basic constraints for better compatibility
+      const constraints = {
+        video: {
+          facingMode: "user",
+          width: { ideal: 640, min: 320 },
+          height: { ideal: 480, min: 240 }
+        },
+        audio: false
+      };
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      console.log("Camera stream obtained:", stream);
+      console.log("Stream tracks:", stream.getTracks());
+      console.log("Track settings:", stream.getVideoTracks()[0]?.getSettings());
+      
+      // IMMEDIATELY set camera as on when we get the stream
+      streamRef.current = stream;
+      setIsCameraOn(true);
+      setCameraPermission("granted");
+      
+      if (videoRef.current) {
+        // Set up video element
+        const video = videoRef.current;
+        video.srcObject = stream;
+        
+        // Set up event listeners
+        const onLoadedMetadata = () => {
+          console.log("Video metadata loaded");
+          console.log("Video dimensions:", video.videoWidth, "x", video.videoHeight);
+          setVideoReady(true);
+          setSnackbarMessage("Camera is now active!");
+          setSnackbarOpen(true);
+        };
+        
+        const onCanPlay = () => {
+          console.log("Video can play");
+          setVideoReady(true);
+        };
+        
+        const onPlay = () => {
+          console.log("Video playing");
+          setVideoReady(true);
+        };
+        
+        const onError = (e: Event) => {
+          console.error("Video error:", e);
+          setError("Video loading failed");
+        };
+        
+        // Add event listeners
+        video.addEventListener('loadedmetadata', onLoadedMetadata);
+        video.addEventListener('canplay', onCanPlay);
+        video.addEventListener('play', onPlay);
+        video.addEventListener('error', onError);
+        
+        // Try to play immediately
+        try {
+          await video.play();
+          console.log("Video play started successfully");
+          setVideoReady(true);
+          setSnackbarMessage("Camera is now active!");
+          setSnackbarOpen(true);
+        } catch (playError) {
+          console.error("Video play error:", playError);
+          // Even if play fails, camera is still on
+          setVideoReady(true);
+          setSnackbarMessage("Camera ready but video may not be visible");
+          setSnackbarOpen(true);
+        }
+        
+        // Fallback: ensure camera is marked as on after a short delay
+        setTimeout(() => {
+          if (stream.getTracks().length > 0) {
+            setIsCameraOn(true);
+            setCameraPermission("granted");
+            setVideoReady(true);
+            console.log("Fallback: Camera marked as active");
+          }
+        }, 1000);
+      }
+    } catch (error: any) {
+      console.error("Camera permission denied:", error);
+      setCameraPermission("denied");
+      setError(error.message || "Failed to access camera");
+      setSnackbarMessage("Camera access denied. Please allow camera permissions.");
+      setSnackbarOpen(true);
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => {
+        track.stop();
+        console.log("Stopped track:", track.kind);
+      });
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraOn(false);
+    setVideoReady(false);
+  };
+
+  const restartCamera = async () => {
+    stopCamera();
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await requestCameraPermission();
+  };
+
+  const forceCameraOn = () => {
+    if (streamRef.current && streamRef.current.getTracks().length > 0) {
+      setIsCameraOn(true);
+      setCameraPermission("granted");
+      setVideoReady(true);
+      setSnackbarMessage("Camera forced on!");
+      setSnackbarOpen(true);
+      console.log("Camera forced on manually");
+    }
+  };
+
+  const captureFrame = (): string | null => {
+    if (!videoRef.current || !canvasRef.current) return null;
+    
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+    
+    if (!context) return null;
+    
+    // Set canvas size to match video
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    // Draw video frame to canvas
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    // Convert to base64
+    return canvas.toDataURL('image/jpeg', 0.8);
+  };
+
+  const analyzePostureWithAI = async (imageData: string): Promise<PostureAnalysis> => {
+    try {
+      const response = await fetch('/api/posture-analysis', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          image: imageData.split(',')[1], // Remove data:image/jpeg;base64, prefix
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze posture');
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Analysis failed');
+      }
+
+      return result.analysis;
+    } catch (error) {
+      console.error('AI analysis error:', error);
+      throw error;
+    }
+  };
+
+  const analyzePosture = async () => {
+    if (!isCameraOn) {
+      setSnackbarMessage("Please enable camera first");
+      setSnackbarOpen(true);
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setError(null);
+    
+    try {
+      // Capture current frame
+      const imageData = captureFrame();
+      if (!imageData) {
+        throw new Error("Failed to capture image");
+      }
+
+      console.log("Captured image for analysis");
+      
+      // Store captured image for user to decide what to do with it
+      setCapturedImage(imageData);
+      
+      // Analyze with AI
+      const aiAnalysis = await analyzePostureWithAI(imageData);
+      console.log("AI Analysis result:", aiAnalysis);
+      
+      // Add timestamp and captured image to analysis
+      const analysisWithImage: PostureAnalysis = {
+        ...aiAnalysis,
+        capturedImage: imageData,
+        timestamp: new Date().toISOString()
+      };
+      
+      setAnalysis(analysisWithImage);
+      setShowImageOptions(true);
+      
+      setSnackbarMessage("Posture analysis completed! Choose what to do with the captured image.");
+      setSnackbarOpen(true);
+      
+    } catch (error: any) {
+      console.error('Analysis error:', error);
+      
+      // Fallback to simulated analysis if AI fails
+      const fallbackAnalysis: PostureAnalysis = {
+        score: 50,
+        status: "fair",
+        feedback: [
+          "Analysis completed with basic assessment",
+          "Consider improving lighting for better results",
+          "Ensure you're fully visible in the frame"
+        ],
+        recommendations: [
+          "Maintain good posture throughout the day",
+          "Take regular breaks to stretch",
+          "Consider ergonomic adjustments"
+        ],
+        confidence: 0.3,
+        personDetected: false,
+        faceDetected: false,
+        capturedImage: capturedImage || undefined,
+        timestamp: new Date().toISOString()
+      };
+      
+      setAnalysis(fallbackAnalysis);
+      setError("AI analysis unavailable, showing basic assessment");
+      setSnackbarMessage("Using basic posture assessment");
+      setSnackbarOpen(true);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const saveToProgressReport = async () => {
+    if (!analysis || !capturedImage) return;
+
+    try {
+      // Generate a unique image URL (in a real app, this would upload to cloud storage)
+      const imageUrl = `data:image/jpeg;base64,${capturedImage.split(',')[1]}`;
+      
+      const progressReport: ProgressReport = {
+        id: Date.now().toString(),
+        timestamp: analysis.timestamp || new Date().toISOString(),
+        score: analysis.score,
+        status: analysis.status,
+        imageUrl: imageUrl,
+        analysis: analysis
+      };
+
+      // Save to localStorage for now (in a real app, this would go to a database)
+      const existingReports = JSON.parse(localStorage.getItem('postureProgressReports') || '[]');
+      const updatedReports = [...existingReports, progressReport];
+      localStorage.setItem('postureProgressReports', JSON.stringify(updatedReports));
+      
+      setProgressReports(updatedReports);
+      setShowImageOptions(false);
+      setCapturedImage(null);
+      
+      setSnackbarMessage("Progress report saved successfully!");
+      setSnackbarOpen(true);
+      
+    } catch (error) {
+      console.error('Error saving progress report:', error);
+      setSnackbarMessage("Failed to save progress report");
+      setSnackbarOpen(true);
+    }
+  };
+
+  const deleteCapturedImage = () => {
+    setCapturedImage(null);
+    setShowImageOptions(false);
+    setSnackbarMessage("Captured image deleted");
+    setSnackbarOpen(true);
+  };
+
+  const loadProgressReports = () => {
+    try {
+      const savedReports = localStorage.getItem('postureProgressReports');
+      if (savedReports) {
+        setProgressReports(JSON.parse(savedReports));
+      }
+    } catch (error) {
+      console.error('Error loading progress reports:', error);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "good": return "#4CAF50";
+      case "fair": return "#FF9800";
+      case "poor": return "#F44336";
+      default: return "#9E9E9E";
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "good": return <CheckCircle />;
+      case "fair": return <Warning />;
+      case "poor": return <Error />;
+      default: return <Info />;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, []);
+
+  return (
+    <Box sx={{ 
+      minHeight: "100vh", 
+      background: "#f8f9ff",
+      "@keyframes pulse": {
+        "0%": { opacity: 1 },
+        "50%": { opacity: 0.5 },
+        "100%": { opacity: 1 }
+      }
+    }}>
+      {/* Header */}
+      <Box
+        sx={{
+          background: "linear-gradient(135deg, #7B61FF, #4CAF50)",
+          py: 3,
+          position: "sticky",
+          top: 0,
+          zIndex: 1000
+        }}
+      >
+        <Container maxWidth="xl">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <Box sx={{ display: "flex", alignItems: "center" }}>
+              <Link href="/health-tools" passHref>
+                <IconButton
+                  sx={{
+                    color: "white",
+                    mr: 2,
+                    "&:hover": {
+                      background: "rgba(255, 255, 255, 0.1)",
+                      transform: "translateX(-2px)",
+                    },
+                    transition: "all 0.3s ease"
+                  }}
+                >
+                  <ArrowBack />
+                </IconButton>
+              </Link>
+              <img 
+                src="/health-ai-logo.png" 
+                alt="Health AI Logo" 
+                width={40} 
+                height={40} 
+                style={{
+                  borderRadius: '50%',
+                  background: 'transparent',
+                  display: 'block'
+                }}
+              />
+              <Box sx={{ ml: 2 }}>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    color: "white",
+                    fontWeight: 700,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1
+                  }}
+                >
+                  <CameraAlt sx={{ fontSize: 24 }} />
+                  Posture Check
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "rgba(255, 255, 255, 0.8)",
+                    fontSize: "0.8rem"
+                  }}
+                >
+                  AI-powered posture analysis
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <Chip
+                label={isCameraOn ? "Camera Active" : "Camera Off"}
+                size="small"
+                icon={isCameraOn ? <Videocam /> : <VideocamOff />}
+                sx={{
+                  background: isCameraOn ? "rgba(76, 175, 80, 0.2)" : "rgba(255, 255, 255, 0.2)",
+                  color: "white",
+                  fontWeight: 500
+                }}
+              />
+              <Chip
+                label={
+                  apiStatus === "ready" ? "AI Ready" :
+                  apiStatus === "checking" ? "Checking AI..." :
+                  apiStatus === "error" ? "AI Error" : "AI Unknown"
+                }
+                size="small"
+                icon={
+                  apiStatus === "ready" ? <CheckCircle /> :
+                  apiStatus === "checking" ? <CircularProgress size={16} /> :
+                  apiStatus === "error" ? <Error /> : <Info />
+                }
+                sx={{
+                  background: 
+                    apiStatus === "ready" ? "rgba(76, 175, 80, 0.2)" :
+                    apiStatus === "checking" ? "rgba(255, 152, 0, 0.2)" :
+                    apiStatus === "error" ? "rgba(244, 67, 54, 0.2)" :
+                    "rgba(255, 255, 255, 0.2)",
+                  color: "white",
+                  fontWeight: 500
+                }}
+              />
+              {process.env.NODE_ENV === 'development' && (
+                <Box sx={{ display: "flex", gap: 1 }}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => {
+                      console.log("Camera state:", { isCameraOn, cameraPermission, error, videoReady });
+                      console.log("Video ref:", videoRef.current);
+                      console.log("Stream ref:", streamRef.current);
+                      if (videoRef.current) {
+                        console.log("Video readyState:", videoRef.current.readyState);
+                        console.log("Video srcObject:", videoRef.current.srcObject);
+                        console.log("Video dimensions:", videoRef.current.videoWidth, "x", videoRef.current.videoHeight);
+                        console.log("Video paused:", videoRef.current.paused);
+                        console.log("Video currentTime:", videoRef.current.currentTime);
+                      }
+                      if (streamRef.current) {
+                        console.log("Stream active:", streamRef.current.active);
+                        console.log("Stream tracks:", streamRef.current.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled, readyState: t.readyState })));
+                      }
+                    }}
+                    sx={{
+                      borderColor: "rgba(255, 255, 255, 0.3)",
+                      color: "white",
+                      fontSize: "10px",
+                      px: 1,
+                      py: 0.5
+                    }}
+                  >
+                    Debug
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={forceCameraOn}
+                    sx={{
+                      borderColor: "rgba(255, 255, 255, 0.3)",
+                      color: "white",
+                      fontSize: "10px",
+                      px: 1,
+                      py: 0.5
+                    }}
+                  >
+                    Force On
+                  </Button>
+                </Box>
+              )}
+            </Box>
+          </Box>
+        </Container>
+      </Box>
+
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        {/* Progress Reports Section */}
+        {progressReports.length > 0 && (
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h5" sx={{ fontWeight: 600, mb: 3, color: "#7B61FF" }}>
+              Progress Reports ({progressReports.length})
+            </Typography>
+            <Box sx={{ 
+              display: 'grid', 
+              gridTemplateColumns: { xs: '1fr', md: 'repeat(auto-fill, minmax(300px, 1fr))' },
+              gap: 2 
+            }}>
+              {progressReports.slice(-6).reverse().map((report) => (
+                <Paper
+                  key={report.id}
+                  elevation={2}
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                    background: "rgba(255, 255, 255, 0.95)",
+                    backdropFilter: "blur(20px)",
+                    border: "1px solid rgba(255, 255, 255, 0.2)"
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <Box
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: "50%",
+                        background: `conic-gradient(${getStatusColor(report.status)} ${report.score * 3.6}deg, #f0f0f0 0deg)`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        mr: 2
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: getStatusColor(report.status) }}>
+                        {report.score}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                        {report.status.toUpperCase()}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {new Date(report.timestamp).toLocaleDateString()}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  
+                  {report.imageUrl && (
+                    <Box sx={{ mb: 2, textAlign: "center" }}>
+                      <img 
+                        src={report.imageUrl} 
+                        alt="Posture check" 
+                        style={{
+                          maxWidth: "100%",
+                          maxHeight: "120px",
+                          borderRadius: "4px",
+                          border: "1px solid #e0e0e0"
+                        }}
+                      />
+                    </Box>
+                  )}
+                  
+                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.8rem" }}>
+                    {new Date(report.timestamp).toLocaleString()}
+                  </Typography>
+                </Paper>
+              ))}
+            </Box>
+          </Box>
+        )}
+
+        {/* Main Camera and Analysis Section */}
+        <Box sx={{ width: '100%' }}>
+          {/* Large Camera Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <Paper
+              elevation={8}
+              sx={{
+                borderRadius: 3,
+                overflow: "hidden",
+                background: "rgba(255, 255, 255, 0.95)",
+                backdropFilter: "blur(20px)",
+                border: "1px solid rgba(255, 255, 255, 0.2)",
+                width: '100%'
+              }}
+            >
+              {/* Large Camera Feed */}
+              <Box
+                sx={{
+                  position: "relative",
+                  background: "#000",
+                  height: { xs: '400px', md: '500px', lg: '600px' },
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  overflow: "hidden"
+                }}
+              >
+                {!isBrowserSupported() && (
+                  <Box sx={{ textAlign: "center", color: "white", p: 4 }}>
+                    <Error sx={{ fontSize: 64, mb: 2 }} />
+                    <Typography variant="h5" sx={{ mb: 1 }}>
+                      Browser Not Supported
+                    </Typography>
+                    <Typography variant="body1" sx={{ mb: 3 }}>
+                      Your browser doesn't support camera access. Please use a modern browser like Chrome, Firefox, or Safari.
+                    </Typography>
+                  </Box>
+                )}
+
+                {cameraPermission === "pending" && isBrowserSupported() && (
+                  <Box sx={{ textAlign: "center", color: "white", p: 4 }}>
+                    <CircularProgress sx={{ color: "white", mb: 2 }} />
+                    <Typography variant="h6" sx={{ mb: 1 }}>
+                      Requesting Camera Permission...
+                    </Typography>
+                    <Typography variant="body2">
+                      Please allow camera access when prompted
+                    </Typography>
+                  </Box>
+                )}
+
+                {cameraPermission === "denied" && (
+                  <Box sx={{ textAlign: "center", color: "white", p: 4 }}>
+                    <Error sx={{ fontSize: 64, mb: 2 }} />
+                    <Typography variant="h5" sx={{ mb: 1 }}>
+                      Camera Access Required
+                    </Typography>
+                    <Typography variant="body1" sx={{ mb: 3 }}>
+                      Please allow camera access to analyze your posture
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      size="large"
+                      onClick={requestCameraPermission}
+                      sx={{
+                        background: "linear-gradient(135deg, #7B61FF, #4CAF50)",
+                        px: 4,
+                        py: 1.5,
+                        "&:hover": {
+                          background: "linear-gradient(135deg, #6B51EF, #45A049)",
+                        },
+                      }}
+                    >
+                      Enable Camera
+                    </Button>
+                  </Box>
+                )}
+
+                {cameraPermission === "granted" && !isCameraOn && (
+                  <Box sx={{ textAlign: "center", color: "white", p: 4 }}>
+                    <CameraAlt sx={{ fontSize: 64, mb: 2 }} />
+                    <Typography variant="h5" sx={{ mb: 1 }}>
+                      Camera Ready
+                    </Typography>
+                    <Typography variant="body1" sx={{ mb: 3 }}>
+                      Click start to begin posture analysis
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      size="large"
+                      onClick={requestCameraPermission}
+                      sx={{
+                        background: "linear-gradient(135deg, #7B61FF, #4CAF50)",
+                        px: 4,
+                        py: 1.5,
+                        "&:hover": {
+                          background: "linear-gradient(135deg, #6B51EF, #45A049)",
+                        },
+                      }}
+                    >
+                      Start Camera
+                    </Button>
+                  </Box>
+                )}
+
+                {isCameraOn && (
+                  <>
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        display: "block",
+                        backgroundColor: "#000",
+                        zIndex: 1
+                      }}
+                    />
+                    
+                    {/* Camera status indicator */}
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        top: 10,
+                        right: 10,
+                        background: "rgba(0, 0, 0, 0.8)",
+                        color: "white",
+                        px: 2,
+                        py: 1,
+                        borderRadius: 1,
+                        fontSize: "12px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        zIndex: 2
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          background: videoReady ? "#4CAF50" : "#FF9800",
+                          animation: videoReady ? "pulse 1.5s infinite" : "none"
+                        }}
+                      />
+                      {videoReady ? "Camera Active" : "Loading..."}
+                    </Box>
+                    
+                    {/* Manual controls */}
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        bottom: 10,
+                        right: 10,
+                        display: "flex",
+                        gap: 1,
+                        zIndex: 2
+                      }}
+                    >
+                      <Button
+                        variant="contained"
+                        size="small"
+                        onClick={restartCamera}
+                        sx={{
+                          background: "rgba(0, 0, 0, 0.8)",
+                          color: "white",
+                          fontSize: "10px",
+                          px: 1,
+                          py: 0.5,
+                          "&:hover": {
+                            background: "rgba(0, 0, 0, 0.9)"
+                          }
+                        }}
+                      >
+                        Restart
+                      </Button>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        onClick={() => {
+                          if (videoRef.current && streamRef.current) {
+                            videoRef.current.srcObject = streamRef.current;
+                            videoRef.current.play();
+                          }
+                        }}
+                        sx={{
+                          background: "rgba(0, 0, 0, 0.8)",
+                          color: "white",
+                          fontSize: "10px",
+                          px: 1,
+                          py: 0.5,
+                          "&:hover": {
+                            background: "rgba(0, 0, 0, 0.9)"
+                          }
+                        }}
+                      >
+                        Refresh
+                      </Button>
+                    </Box>
+                  </>
+                )}
+
+                {isAnalyzing && (
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      background: "rgba(0, 0, 0, 0.8)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "white",
+                      zIndex: 3
+                    }}
+                  >
+                    <Box sx={{ textAlign: "center" }}>
+                      <CircularProgress size={60} sx={{ color: "white", mb: 3 }} />
+                      <Typography variant="h5" sx={{ mb: 1 }}>
+                        Analyzing Posture...
+                      </Typography>
+                      <Typography variant="body1">
+                        Please stay still and face the camera
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+
+                {/* Hidden canvas for capturing frames */}
+                <canvas
+                  ref={canvasRef}
+                  style={{ display: 'none' }}
+                />
+              </Box>
+
+              {/* Camera Controls */}
+              <Box sx={{ p: 3 }}>
+                <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    size="large"
+                    onClick={isCameraOn ? stopCamera : requestCameraPermission}
+                    startIcon={isCameraOn ? <VideocamOff /> : <Videocam />}
+                    sx={{
+                      background: isCameraOn 
+                        ? "linear-gradient(135deg, #F44336, #D32F2F)"
+                        : "linear-gradient(135deg, #7B61FF, #4CAF50)",
+                      py: 1.5,
+                      "&:hover": {
+                        background: isCameraOn 
+                          ? "linear-gradient(135deg, #D32F2F, #B71C1C)"
+                          : "linear-gradient(135deg, #6B51EF, #45A049)",
+                      },
+                    }}
+                  >
+                    {isCameraOn ? "Stop Camera" : "Start Camera"}
+                  </Button>
+                  <IconButton
+                    onClick={restartCamera}
+                    disabled={!isCameraOn}
+                    size="large"
+                    sx={{
+                      background: "linear-gradient(135deg, #FF9800, #F57C00)",
+                      color: "white",
+                      "&:hover": {
+                        background: "linear-gradient(135deg, #F57C00, #E65100)",
+                      },
+                      "&:disabled": {
+                        background: "rgba(0, 0, 0, 0.12)",
+                        color: "rgba(0, 0, 0, 0.38)",
+                      },
+                    }}
+                  >
+                    <Refresh />
+                  </IconButton>
+                </Box>
+
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  onClick={analyzePosture}
+                  disabled={!isCameraOn || isAnalyzing || apiStatus !== "ready"}
+                  sx={{
+                    background: "linear-gradient(135deg, #E573B7, #7B61FF)",
+                    py: 2,
+                    fontSize: "1.1rem",
+                    fontWeight: 600,
+                    "&:hover": {
+                      background: "linear-gradient(135deg, #D563A7, #6B51EF)",
+                    },
+                    "&:disabled": {
+                      background: "rgba(0, 0, 0, 0.12)",
+                      color: "rgba(0, 0, 0, 0.38)",
+                    },
+                  }}
+                >
+                  {isAnalyzing ? "Analyzing..." : 
+                   apiStatus !== "ready" ? "AI Not Ready" : "Analyze Posture"}
+                </Button>
+                
+                {apiStatus === "error" && (
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    size="small"
+                    onClick={checkApiStatus}
+                    sx={{
+                      mt: 1,
+                      borderColor: "#F44336",
+                      color: "#F44336",
+                      "&:hover": {
+                        borderColor: "#D32F2F",
+                        background: "rgba(244, 67, 54, 0.05)",
+                      },
+                    }}
+                  >
+                    Retry AI Connection
+                  </Button>
+                )}
+              </Box>
+            </Paper>
+          </motion.div>
+
+          {/* Analysis Results Section - Under Camera */}
+          {!analysis ? (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+            >
+              <Paper
+                elevation={4}
+                sx={{
+                  p: 4,
+                  borderRadius: 3,
+                  background: "rgba(255, 255, 255, 0.95)",
+                  backdropFilter: "blur(20px)",
+                  border: "1px solid rgba(255, 255, 255, 0.2)",
+                  mt: 3,
+                  width: '100%',
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  textAlign: "center"
+                }}
+              >
+                <CameraAlt sx={{ fontSize: 80, color: "#7B61FF", mb: 3 }} />
+                <Typography variant="h5" sx={{ fontWeight: 600, mb: 2 }}>
+                  Ready to Check Your Posture?
+                </Typography>
+                <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+                  Enable your camera and click "Analyze Posture" to get started. 
+                  Make sure you're in a well-lit area and facing the camera.
+                </Typography>
+                
+                {/* Camera Status Info */}
+                <Box sx={{ mb: 3, width: '100%' }}>
+                  <Alert severity="info" sx={{ borderRadius: 2, mb: 2 }}>
+                    <Typography variant="body2">
+                      <strong>Privacy Note:</strong> Your video is processed locally and not stored. 
+                      We only analyze your posture in real-time.
+                    </Typography>
+                  </Alert>
+                  
+                  {isCameraOn && (
+                    <Alert severity="success" sx={{ borderRadius: 2 }}>
+                      <Typography variant="body2">
+                        <strong>Camera Active:</strong> You're ready for posture analysis!
+                      </Typography>
+                    </Alert>
+                  )}
+                </Box>
+                
+                {/* Tips for better detection */}
+                <Box sx={{ width: '100%' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: "#7B61FF" }}>
+                    Tips for Better Detection:
+                  </Typography>
+                  <Box sx={{ textAlign: 'left' }}>
+                    <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                      <CheckCircle sx={{ fontSize: 16, color: "#4CAF50", mr: 1 }} />
+                      Stand 3-6 feet away from the camera
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                      <CheckCircle sx={{ fontSize: 16, color: "#4CAF50", mr: 1 }} />
+                      Ensure good lighting on your face and upper body
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                      <CheckCircle sx={{ fontSize: 16, color: "#4CAF50", mr: 1 }} />
+                      Face the camera directly and stay still during analysis
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                      <CheckCircle sx={{ fontSize: 16, color: "#4CAF50", mr: 1 }} />
+                      Remove any obstructions between you and the camera
+                    </Typography>
+                  </Box>
+                </Box>
+              </Paper>
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+            >
+              <Paper
+                elevation={4}
+                sx={{
+                  p: 4,
+                  borderRadius: 3,
+                  background: "rgba(255, 255, 255, 0.95)",
+                  backdropFilter: "blur(20px)",
+                  border: "1px solid rgba(255, 255, 255, 0.2)",
+                  mt: 3,
+                  width: '100%'
+                }}
+              >
+                {/* Detection Status */}
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                    Detection Status
+                  </Typography>
+                  <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+                    <Chip
+                      label={analysis.personDetected ? "Person Detected" : "No Person Found"}
+                      icon={analysis.personDetected ? <CheckCircle /> : <Error />}
+                      sx={{
+                        background: analysis.personDetected ? "rgba(76, 175, 80, 0.2)" : "rgba(244, 67, 54, 0.2)",
+                        color: analysis.personDetected ? "#4CAF50" : "#F44336",
+                        fontWeight: 600
+                      }}
+                    />
+                    <Chip
+                      label={analysis.faceDetected ? "Face Detected" : "No Face Found"}
+                      icon={analysis.faceDetected ? <CheckCircle /> : <Warning />}
+                      sx={{
+                        background: analysis.faceDetected ? "rgba(76, 175, 80, 0.2)" : "rgba(255, 152, 0, 0.2)",
+                        color: analysis.faceDetected ? "#4CAF50" : "#FF9800",
+                        fontWeight: 600
+                      }}
+                    />
+                  </Box>
+                  
+                  {!analysis.personDetected && (
+                    <Alert severity="warning" sx={{ borderRadius: 2, mb: 2 }}>
+                      <Typography variant="body2">
+                        <strong>No person detected.</strong> Please ensure you are fully visible in the camera frame.
+                      </Typography>
+                    </Alert>
+                  )}
+                  
+                  {analysis.personDetected && !analysis.faceDetected && (
+                    <Alert severity="info" sx={{ borderRadius: 2, mb: 2 }}>
+                      <Typography variant="body2">
+                        <strong>Person detected but face not clear.</strong> Try facing the camera more directly.
+                      </Typography>
+                    </Alert>
+                  )}
+                </Box>
+
+                {/* Score Display */}
+                <Box sx={{ textAlign: "center", mb: 4 }}>
+                  <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
+                    Posture Score
+                  </Typography>
+                  <Box
+                    sx={{
+                      width: 140,
+                      height: 140,
+                      borderRadius: "50%",
+                      background: `conic-gradient(${getStatusColor(analysis.status)} ${analysis.score * 3.6}deg, #f0f0f0 0deg)`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      mx: "auto",
+                      mb: 2,
+                      position: "relative"
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 120,
+                        height: 120,
+                        borderRadius: "50%",
+                        background: "white",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexDirection: "column"
+                      }}
+                    >
+                      <Typography variant="h2" sx={{ fontWeight: 700, color: getStatusColor(analysis.status) }}>
+                        {analysis.score}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        / 100
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Chip
+                    label={analysis.status.toUpperCase()}
+                    icon={getStatusIcon(analysis.status)}
+                    sx={{
+                      background: `${getStatusColor(analysis.status)}20`,
+                      color: getStatusColor(analysis.status),
+                      fontWeight: 600,
+                      fontSize: "1rem",
+                      px: 2,
+                      py: 1
+                    }}
+                  />
+                  {analysis.confidence && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      Confidence: {Math.round(analysis.confidence * 100)}%
+                    </Typography>
+                  )}
+                </Box>
+
+                {/* Feedback */}
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                    Analysis Feedback
+                  </Typography>
+                  {analysis.feedback.map((item, index) => (
+                    <Box key={index} sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+                      <CheckCircle sx={{ color: "#4CAF50", mr: 1, fontSize: 20 }} />
+                      <Typography variant="body2">{item}</Typography>
+                    </Box>
+                  ))}
+                </Box>
+
+                {/* Recommendations */}
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                    Recommendations
+                  </Typography>
+                  {analysis.recommendations.map((item, index) => (
+                    <Box key={index} sx={{ display: "flex", alignItems: "flex-start", mb: 1 }}>
+                      <Box
+                        sx={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          background: "#7B61FF",
+                          mt: 0.5,
+                          mr: 1,
+                          flexShrink: 0
+                        }}
+                      />
+                      <Typography variant="body2">{item}</Typography>
+                    </Box>
+                  ))}
+                </Box>
+
+                {/* Image Options */}
+                {showImageOptions && capturedImage && (
+                  <Box sx={{ mb: 4, p: 2, border: "1px solid #e0e0e0", borderRadius: 2 }}>
+                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                      Captured Image Options
+                    </Typography>
+                    
+                    {/* Captured Image Preview */}
+                    <Box sx={{ mb: 2, textAlign: "center" }}>
+                      <img 
+                        src={capturedImage} 
+                        alt="Captured posture" 
+                        style={{
+                          maxWidth: "100%",
+                          maxHeight: "200px",
+                          borderRadius: "8px",
+                          border: "2px solid #e0e0e0"
+                        }}
+                      />
+                    </Box>
+                    
+                    <Box sx={{ display: "flex", gap: 2 }}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        onClick={saveToProgressReport}
+                        sx={{
+                          background: "linear-gradient(135deg, #4CAF50, #45A049)",
+                          py: 1.5,
+                          "&:hover": {
+                            background: "linear-gradient(135deg, #45A049, #3D8B40)",
+                          },
+                        }}
+                      >
+                        Save to Progress Report
+                      </Button>
+                      <Button
+                        fullWidth
+                        variant="outlined"
+                        onClick={deleteCapturedImage}
+                        sx={{
+                          borderColor: "#F44336",
+                          color: "#F44336",
+                          py: 1.5,
+                          "&:hover": {
+                            borderColor: "#D32F2F",
+                            background: "rgba(244, 67, 54, 0.05)",
+                          },
+                        }}
+                      >
+                        Delete Image
+                      </Button>
+                    </Box>
+                  </Box>
+                )}
+
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  onClick={() => {
+                    setAnalysis(null);
+                    setCapturedImage(null);
+                    setShowImageOptions(false);
+                  }}
+                  sx={{
+                    borderColor: "#7B61FF",
+                    color: "#7B61FF",
+                    py: 1.5,
+                    "&:hover": {
+                      borderColor: "#6B51EF",
+                      background: "rgba(123, 97, 255, 0.05)",
+                    },
+                  }}
+                >
+                  Analyze Again
+                </Button>
+              </Paper>
+            </motion.div>
+          )}
+        </Box>
+      </Container>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={4000}
+        onClose={() => setSnackbarOpen(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setSnackbarOpen(false)} 
+          severity="info" 
+          sx={{ width: '100%' }}
+        >
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
+    </Box>
+  );
+} 

@@ -360,25 +360,67 @@ function analyzeSpineAlignment(bodyParts: string[]): { score: number; issues: st
   let score = 100;
   const issues: string[] = [];
 
-  // Spine analysis
-  if (bodyParts.some(part => part.includes('spine') || part.includes('back'))) {
-    if (bodyParts.some(part => part.includes('curved') || part.includes('bent'))) {
-      score -= 50;
+  // Enhanced spine analysis with specific bending detection
+  if (bodyParts.some(part => part.includes('spine') || part.includes('back') || part.includes('torso') || part.includes('body'))) {
+    
+    // CRITICAL: Detect bending at 90 degrees or severe forward flexion
+    if (bodyParts.some(part => 
+      part.includes('bent') || 
+      part.includes('bending') || 
+      part.includes('stooped') || 
+      part.includes('stooping') ||
+      part.includes('forward') ||
+      part.includes('flexed') ||
+      part.includes('curved') ||
+      part.includes('hunched') ||
+      part.includes('crouched') ||
+      part.includes('leaning')
+    )) {
+      score -= 80; // Severe penalty for bending
+      issues.push("🚨 CRITICAL: SEVERE BENDING/FORWARD FLEXION DETECTED - This is extremely dangerous for your spine");
+      issues.push("💀 90-degree bending puts massive stress on your lumbar spine");
+      issues.push("⚠️ This posture can cause herniated discs and chronic back pain");
+    }
+
+    // Detect slouching and poor alignment
+    if (bodyParts.some(part => part.includes('slouched') || part.includes('slumped'))) {
+      score -= 60;
+      issues.push("😴 SEVERE SLOUCHING DETECTED - Your spine is in a dangerous position");
+    }
+
+    // Detect spinal curvature
+    if (bodyParts.some(part => part.includes('curved') || part.includes('kyphosis'))) {
+      score -= 70;
       issues.push("🦴 SPINAL CURVATURE DETECTED - This is extremely serious");
     }
 
-    if (bodyParts.some(part => part.includes('slouched') || part.includes('slumped'))) {
-      score -= 40;
-      issues.push("😴 SLOUCHING DETECTED - Your spine is in a dangerous position");
-    }
-
+    // Detect twisting
     if (bodyParts.some(part => part.includes('twisted') || part.includes('rotated'))) {
-      score -= 35;
+      score -= 50;
       issues.push("🔄 Spinal rotation detected - This can cause serious injury");
     }
+
+    // Detect any forward head posture
+    if (bodyParts.some(part => part.includes('forward') && part.includes('head'))) {
+      score -= 40;
+      issues.push("📱 Forward head posture - This strains your neck and upper back");
+    }
+
   } else {
-    score -= 25;
-    issues.push("❓ Spine alignment unclear - Ensure back is visible");
+    score -= 30;
+    issues.push("❓ Spine alignment unclear - Ensure back and torso are clearly visible");
+  }
+
+  // Additional checks for overall body position
+  if (bodyParts.some(part => 
+    part.includes('bent') || 
+    part.includes('leaning') || 
+    part.includes('forward') ||
+    part.includes('stooped')
+  )) {
+    score -= 70;
+    issues.push("🚨 BODY BENDING DETECTED - Your entire posture is compromised");
+    issues.push("💀 This position is extremely harmful to your spine and joints");
   }
 
   return { score: Math.max(0, score), issues };
@@ -411,22 +453,52 @@ function analyzeOverallPosture(bodyParts: string[], faces: any[], imagePropertie
   let score = 100;
   const issues: string[] = [];
 
-  // Overall posture assessment
-  if (bodyParts.some(part => part.includes('poor') || part.includes('bad'))) {
-    score -= 40;
-    issues.push("🚨 OVERALL POOR POSTURE DETECTED - Immediate correction needed");
+  // CRITICAL: Enhanced overall posture assessment with strict bending detection
+  if (bodyParts.some(part => 
+    part.includes('poor') || 
+    part.includes('bad') || 
+    part.includes('bent') ||
+    part.includes('bending') ||
+    part.includes('stooped') ||
+    part.includes('stooping') ||
+    part.includes('hunched') ||
+    part.includes('crouched') ||
+    part.includes('leaning') ||
+    part.includes('forward')
+  )) {
+    score -= 75; // Severe penalty for any bending/poor posture
+    issues.push("🚨 CRITICAL: SEVERE POSTURE ISSUES DETECTED - Immediate correction required");
+    issues.push("💀 Your posture is severely damaging your spine and joints");
+    issues.push("⚠️ 90-degree bending or forward flexion is extremely dangerous");
   }
 
-  if (bodyParts.some(part => part.includes('strain') || part.includes('stress'))) {
-    score -= 30;
-    issues.push("💪 Muscle strain indicators present - Your body is under stress");
+  // Detect muscle strain and stress
+  if (bodyParts.some(part => part.includes('strain') || part.includes('stress') || part.includes('tension'))) {
+    score -= 40;
+    issues.push("💪 Muscle strain indicators present - Your body is under excessive stress");
+  }
+
+  // Detect any forward positioning
+  if (bodyParts.some(part => part.includes('forward'))) {
+    score -= 60;
+    issues.push("📱 Forward positioning detected - This strains your entire musculoskeletal system");
+  }
+
+  // Detect poor alignment
+  if (bodyParts.some(part => 
+    part.includes('misaligned') || 
+    part.includes('uneven') || 
+    part.includes('asymmetric')
+  )) {
+    score -= 50;
+    issues.push("⚖️ Body misalignment detected - This creates muscle imbalances");
   }
 
   // Image quality assessment
   if (imageProperties) {
     const dominantColors = imageProperties.dominantColors?.colors || [];
     if (dominantColors.length < 3) {
-      score -= 15;
+      score -= 20;
       issues.push("📸 Poor image quality - Better lighting needed for accurate analysis");
     }
   }
@@ -451,37 +523,43 @@ function calculateOverallScore(detailedAnalysis: any): number {
 }
 
 function determineStatus(score: number): "good" | "fair" | "poor" {
-  if (score >= 80) return "good";
-  if (score >= 50) return "fair";
+  if (score >= 85) return "good";
+  if (score >= 60) return "fair";
   return "poor";
 }
 
 function generateHarshFeedback(detailedAnalysis: any, overallScore: number): string[] {
   const feedback: string[] = [];
   
-  if (overallScore < 30) {
+  if (overallScore < 25) {
     feedback.push("🚨 CRITICAL POSTURE ISSUES - Immediate intervention required");
     feedback.push("💀 Your posture is severely damaging your health");
-    feedback.push("⚠️ Professional consultation strongly recommended");
-  } else if (overallScore < 60) {
-    feedback.push("⚠️ SIGNIFICANT POSTURE PROBLEMS - Action required immediately");
-    feedback.push("🦴 Multiple posture issues detected");
+    feedback.push("⚠️ 90-degree bending detected - This is extremely dangerous");
+    feedback.push("🆘 Professional consultation strongly recommended");
+  } else if (overallScore < 50) {
+    feedback.push("⚠️ SEVERE POSTURE PROBLEMS - Action required immediately");
+    feedback.push("🦴 Multiple posture issues detected including bending");
+    feedback.push("💀 Forward flexion is damaging your spine");
     feedback.push("💪 Start corrective exercises today");
-  } else if (overallScore < 80) {
-    feedback.push("📉 MODERATE POSTURE ISSUES - Improvement needed");
-    feedback.push("🔧 Several areas need attention");
-    feedback.push("📚 Educate yourself on proper posture");
+  } else if (overallScore < 70) {
+    feedback.push("⚠️ MODERATE POSTURE ISSUES - Improvement needed");
+    feedback.push("📱 Some bending or poor alignment detected");
+    feedback.push("💪 Focus on core strengthening exercises");
+  } else if (overallScore < 85) {
+    feedback.push("✅ Generally good posture with minor issues");
+    feedback.push("💪 Continue with posture maintenance exercises");
   } else {
-    feedback.push("✅ Good posture detected - Keep it up!");
-    feedback.push("🎯 Minor improvements possible");
+    feedback.push("🎉 EXCELLENT POSTURE - Keep up the great work!");
+    feedback.push("💪 Maintain your current posture habits");
   }
 
-  // Add specific feedback for each body part
-  Object.entries(detailedAnalysis).forEach(([part, analysis]: [string, any]) => {
-    if (analysis.score < 60) {
-      feedback.push(`🔴 ${part.toUpperCase()}: ${analysis.issues.join(', ')}`);
-    }
-  });
+  // Add specific feedback for bending
+  if (detailedAnalysis.spine.issues.some((issue: string) => issue.includes('BENDING') || issue.includes('bent'))) {
+    feedback.push("🚨 CRITICAL: Bending at 90 degrees detected");
+    feedback.push("💀 This position puts massive stress on your lumbar spine");
+    feedback.push("⚠️ Can cause herniated discs and chronic back pain");
+    feedback.push("📏 Stand upright with your back straight");
+  }
 
   return feedback;
 }

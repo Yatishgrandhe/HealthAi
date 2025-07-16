@@ -1207,14 +1207,85 @@ export default function PostureCheckPage() {
                   )}
                   </Box>
 
+                  {/* Detailed Analysis */}
+                  {analysis.detailedAnalysis && (
+                    <Box sx={{ mb: 4 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                        Detailed Body Analysis
+                      </Typography>
+                      <Grid container spacing={2}>
+                        {Object.entries(analysis.detailedAnalysis).map(([part, data]: [string, any]) => (
+                          <Grid xs={12} sm={6} key={part}>
+                            <Card 
+                              sx={{ 
+                                p: 2, 
+                                border: `2px solid ${data.score >= 80 ? '#4CAF50' : data.score >= 60 ? '#FF9800' : '#F44336'}`,
+                                background: data.score >= 80 ? 'rgba(76, 175, 80, 0.05)' : data.score >= 60 ? 'rgba(255, 152, 0, 0.05)' : 'rgba(244, 67, 54, 0.05)'
+                              }}
+                            >
+                              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 600, textTransform: 'capitalize', flex: 1 }}>
+                                  {part.replace(/([A-Z])/g, ' $1').trim()}
+                                </Typography>
+                                <Chip 
+                                  label={`${data.score}/100`}
+                                  size="small"
+                                  sx={{
+                                    background: data.score >= 80 ? '#4CAF50' : data.score >= 60 ? '#FF9800' : '#F44336',
+                                    color: 'white',
+                                    fontWeight: 600
+                                  }}
+                                />
+                              </Box>
+                              {data.issues.length > 0 && (
+                                <Box sx={{ mt: 1 }}>
+                                  {data.issues.map((issue: string, index: number) => (
+                                    <Typography 
+                                      key={index} 
+                                      variant="body2" 
+                                      sx={{ 
+                                        color: '#F44336', 
+                                        fontSize: '0.75rem',
+                                        mb: 0.5,
+                                        display: 'flex',
+                                        alignItems: 'flex-start'
+                                      }}
+                                    >
+                                      <ErrorOutline sx={{ fontSize: 14, mr: 0.5, mt: 0.1 }} />
+                                      {issue}
+                                    </Typography>
+                                  ))}
+                                </Box>
+                              )}
+                              {data.score >= 80 && (
+                                <Typography variant="body2" sx={{ color: '#4CAF50', fontSize: '0.75rem', mt: 1 }}>
+                                  <CheckCircle sx={{ fontSize: 14, mr: 0.5 }} />
+                                  Good posture detected
+                                </Typography>
+                              )}
+                            </Card>
+                          </Grid>
+                        ))}
+                      </Grid>
+                    </Box>
+                  )}
+
                   {/* Feedback */}
                   <Box sx={{ mb: 4 }}>
                     <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
                       Analysis Feedback
                     </Typography>
                     {analysis.feedback.map((item, index) => (
-                      <Box key={index} sx={{ display: "flex", alignItems: "center", mb: 1 }}>
-                        <CheckCircle sx={{ color: "#4CAF50", mr: 1, fontSize: 20 }} />
+                      <Box key={index} sx={{ display: "flex", alignItems: "flex-start", mb: 1 }}>
+                        {item.includes('🚨') || item.includes('❌') || item.includes('💀') ? (
+                          <ErrorOutline sx={{ color: "#F44336", mr: 1, fontSize: 20, mt: 0.1 }} />
+                        ) : item.includes('⚠️') ? (
+                          <Warning sx={{ color: "#FF9800", mr: 1, fontSize: 20, mt: 0.1 }} />
+                        ) : item.includes('✅') ? (
+                          <CheckCircle sx={{ color: "#4CAF50", mr: 1, fontSize: 20, mt: 0.1 }} />
+                        ) : (
+                          <Info sx={{ color: "#2196F3", mr: 1, fontSize: 20, mt: 0.1 }} />
+                        )}
                         <Typography variant="body2">{item}</Typography>
                       </Box>
                     ))}

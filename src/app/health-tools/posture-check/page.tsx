@@ -72,9 +72,13 @@ export default function PostureCheckPage() {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [maxZoom, setMaxZoom] = useState(3);
   const [minZoom, setMinZoom] = useState(0.5);
+  const [isZooming, setIsZooming] = useState(false);
+  const [zoomStartDistance, setZoomStartDistance] = useState(0);
+  const [zoomStartLevel, setZoomStartLevel] = useState(1);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const cameraContainerRef = useRef<HTMLDivElement>(null);
 
   // Check if browser supports getUserMedia
   const isBrowserSupported = () => {
@@ -120,6 +124,24 @@ export default function PostureCheckPage() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isCameraOn, zoomLevel, maxZoom, minZoom]);
+
+  // Add touch and wheel zoom event listeners
+  useEffect(() => {
+    const container = cameraContainerRef.current;
+    if (container && isCameraOn) {
+      container.addEventListener('wheel', handleWheel, { passive: false });
+      container.addEventListener('touchstart', handleTouchStart, { passive: false });
+      container.addEventListener('touchmove', handleTouchMove, { passive: false });
+      container.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+      return () => {
+        container.removeEventListener('wheel', handleWheel);
+        container.removeEventListener('touchstart', handleTouchStart);
+        container.removeEventListener('touchmove', handleTouchMove);
+        container.removeEventListener('touchend', handleTouchEnd);
+      };
+    }
+  }, [isCameraOn, zoomLevel, maxZoom, minZoom, isZooming, zoomStartDistance, zoomStartLevel]);
 
   const checkApiStatus = async () => {
     try {
@@ -288,6 +310,48 @@ export default function PostureCheckPage() {
 
   const resetZoom = () => {
     setZoomLevel(1);
+  };
+
+  // Calculate distance between two touch points
+  const getDistance = (touch1: Touch, touch2: Touch) => {
+    const dx = touch1.clientX - touch2.clientX;
+    const dy = touch1.clientY - touch2.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  // Handle wheel zoom
+  const handleWheel = (event: WheelEvent) => {
+    if (isCameraOn) {
+      event.preventDefault();
+      const delta = event.deltaY > 0 ? -0.1 : 0.1;
+      const newZoom = Math.max(minZoom, Math.min(maxZoom, zoomLevel + delta));
+      setZoomLevel(newZoom);
+    }
+  };
+
+  // Handle touch start for pinch zoom
+  const handleTouchStart = (event: TouchEvent) => {
+    if (event.touches.length === 2) {
+      setIsZooming(true);
+      setZoomStartDistance(getDistance(event.touches[0], event.touches[1]));
+      setZoomStartLevel(zoomLevel);
+    }
+  };
+
+  // Handle touch move for pinch zoom
+  const handleTouchMove = (event: TouchEvent) => {
+    if (isZooming && event.touches.length === 2) {
+      event.preventDefault();
+      const currentDistance = getDistance(event.touches[0], event.touches[1]);
+      const scale = currentDistance / zoomStartDistance;
+      const newZoom = Math.max(minZoom, Math.min(maxZoom, zoomStartLevel * scale));
+      setZoomLevel(newZoom);
+    }
+  };
+
+  // Handle touch end
+  const handleTouchEnd = () => {
+    setIsZooming(false);
   };
 
   const captureFrame = (): string | null => {
@@ -775,6 +839,7 @@ export default function PostureCheckPage() {
               >
               {/* Large Camera Feed */}
                 <Box
+                  ref={cameraContainerRef}
                   sx={{
                     position: "relative",
                     background: "#000",
@@ -782,9 +847,11 @@ export default function PostureCheckPage() {
                     display: "flex",
                     alignItems: "center",
                   justifyContent: "center",
-                  overflow: "hidden"
-                }}
-              >
+                  overflow: "hidden",
+                    cursor: "zoom-in",
+                    userSelect: "none"
+                  }}
+                >
                 {!isBrowserSupported() && (
                   <Box sx={{ textAlign: "center", color: "white", p: 4 }}>
                     <ErrorOutline sx={{ fontSize: 64, mb: 2, color: 'error.main' }} />
@@ -965,6 +1032,28 @@ export default function PostureCheckPage() {
                         {Math.round(zoomLevel * 100)}%
                       </Typography>
                     </Box>
+
+                    {/* Zoom Instructions */}
+                    {zoomLevel === 1 && (
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          top: 20,
+                          left: 20,
+                          bgcolor: "rgba(0, 0, 0, 0.7)",
+                          color: "white",
+                          px: 2,
+                          py: 1,
+                          borderRadius: 1,
+                          zIndex: 3,
+                          maxWidth: "200px"
+                        }}
+                      >
+                        <Typography variant="caption" sx={{ fontSize: "10px" }}>
+                          💡 Scroll wheel or pinch to zoom • Use buttons for precise control
+                        </Typography>
+                      </Box>
+                    )}
                     
                     {/* Positioning guide overlay */}
                     <Box

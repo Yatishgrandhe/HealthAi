@@ -75,6 +75,8 @@ export default function PostureCheckPage() {
   const [isZooming, setIsZooming] = useState(false);
   const [zoomStartDistance, setZoomStartDistance] = useState(0);
   const [zoomStartLevel, setZoomStartLevel] = useState(1);
+  const [countdown, setCountdown] = useState(0);
+  const [isCountingDown, setIsCountingDown] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -415,6 +417,27 @@ export default function PostureCheckPage() {
       setSnackbarOpen(true);
       return;
     }
+
+    // Start 3-second countdown
+    setIsCountingDown(true);
+    setCountdown(3);
+    setSnackbarMessage("Get ready! Analysis starting in 3 seconds...");
+    setSnackbarOpen(true);
+
+    // Countdown timer
+    for (let i = 3; i > 0; i--) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setCountdown(i - 1);
+      if (i > 1) {
+        setSnackbarMessage(`Get ready! Analysis starting in ${i - 1} seconds...`);
+        setSnackbarOpen(true);
+      }
+    }
+
+    setIsCountingDown(false);
+    setCountdown(0);
+    setSnackbarMessage("Analyzing posture...");
+    setSnackbarOpen(true);
 
     setIsAnalyzing(true);
     setError(null);
@@ -1033,8 +1056,59 @@ export default function PostureCheckPage() {
                       </Typography>
                     </Box>
 
+                    {/* Countdown Overlay */}
+                    {isCountingDown && (
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          top: "50%",
+                          left: "50%",
+                          transform: "translate(-50%, -50%)",
+                          zIndex: 10,
+                          textAlign: "center"
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            width: 120,
+                            height: 120,
+                            borderRadius: "50%",
+                            background: "rgba(0, 0, 0, 0.8)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            border: "4px solid #7B61FF",
+                            animation: "pulse 1s infinite"
+                          }}
+                        >
+                          <Typography
+                            variant="h1"
+                            sx={{
+                              color: "white",
+                              fontWeight: 700,
+                              fontSize: "3rem",
+                              textShadow: "2px 2px 4px rgba(0,0,0,0.8)"
+                            }}
+                          >
+                            {countdown}
+                          </Typography>
+                        </Box>
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            color: "white",
+                            mt: 2,
+                            fontWeight: 600,
+                            textShadow: "2px 2px 4px rgba(0,0,0,0.8)"
+                          }}
+                        >
+                          Get Ready!
+                        </Typography>
+                      </Box>
+                    )}
+
                     {/* Zoom Instructions */}
-                    {zoomLevel === 1 && (
+                    {zoomLevel === 1 && !isCountingDown && (
                       <Box
                         sx={{
                           position: "absolute",
@@ -1254,7 +1328,7 @@ export default function PostureCheckPage() {
                     variant="contained"
                   size="large"
                     onClick={analyzePosture}
-                  disabled={!isCameraOn || isAnalyzing || apiStatus !== "ready"}
+                  disabled={!isCameraOn || isAnalyzing || isCountingDown || apiStatus !== "ready"}
                     sx={{
                       background: "linear-gradient(135deg, #E573B7, #7B61FF)",
                     py: 2,
@@ -1269,7 +1343,8 @@ export default function PostureCheckPage() {
                       },
                     }}
                   >
-                  {isAnalyzing ? "Analyzing..." : 
+                  {isCountingDown ? `Get Ready... (${countdown}s)` :
+                   isAnalyzing ? "Analyzing..." : 
                    apiStatus !== "ready" ? "AI Not Ready" : "Analyze Posture"}
                   </Button>
                 

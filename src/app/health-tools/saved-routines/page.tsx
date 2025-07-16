@@ -45,8 +45,6 @@ import {
 import { motion } from "framer-motion";
 import Link from "next/link";
 
-export const dynamic = 'force-dynamic';
-
 interface SavedRoutine {
   id: string;
   name: string;

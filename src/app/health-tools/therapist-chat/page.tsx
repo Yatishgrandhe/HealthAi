@@ -107,8 +107,6 @@ interface ChatSession {
   updatedAt: Date;
 }
 
-export const dynamic = 'force-dynamic';
-
 export default function TherapistChatPage() {
   const [currentChat, setCurrentChat] = useState<ChatSession | null>(null);
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);

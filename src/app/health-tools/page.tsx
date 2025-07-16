@@ -26,8 +26,6 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import APIStatusChecker from "@/components/APIStatusChecker";
 
-export const dynamic = 'force-dynamic';
-
 const healthTools = [
   {
           id: "therapist-chat",

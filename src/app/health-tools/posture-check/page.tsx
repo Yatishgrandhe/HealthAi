@@ -33,8 +33,8 @@ import {
   Refresh, 
   Save, 
   Delete, 
-  CheckCircle, 
-  Warning, 
+  CheckCircle,
+  Warning,
   Info,
   TrendingUp,
   FitnessCenter,
@@ -54,9 +54,7 @@ import Link from "next/link";
 
 import { PostureAnalysis, ProgressReport } from "@/types/posture";
 
-export const dynamic = 'force-dynamic';
-
-function PostureCheckPageInner() {
+export default function PostureCheckPage() {
   const [cameraPermission, setCameraPermission] = useState<"granted" | "denied" | "pending">("pending");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<PostureAnalysis | null>(null);
@@ -1344,8 +1342,4 @@ function PostureCheckPageInner() {
       </Snackbar>
     </Box>
   );
-}
-
-export default function PostureCheckPageWrapper(props: any) {
-  return <PostureCheckPageInner {...props} />;
 } 

@@ -3,9 +3,6 @@
 import { Box } from "@mui/material";
 import { Suspense } from "react";
 
-// Force dynamic rendering to avoid build issues with useSearchParams
-export const dynamic = 'force-dynamic';
-
 export default function HealthToolsLayout({
   children,
 }: {

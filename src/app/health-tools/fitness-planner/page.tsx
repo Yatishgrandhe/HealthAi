@@ -87,8 +87,6 @@ const steps = [
   "Start Your Journey"
 ];
 
-export const dynamic = 'force-dynamic';
-
 export default function FitnessPlannerPage() {
   const [activeStep, setActiveStep] = useState(0);
   const [dietaryPreference, setDietaryPreference] = useState<DietaryPreference>("vegetarian");

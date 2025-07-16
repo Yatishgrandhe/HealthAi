@@ -122,12 +122,14 @@ export default function PostureCheckPage() {
       
       console.log("Requesting camera permission...");
       
-      // Use basic constraints for better compatibility
+      // Enhanced constraints for better person detection
       const constraints = {
         video: { 
           facingMode: "user",
-          width: { ideal: 640, min: 320 },
-          height: { ideal: 480, min: 240 }
+          width: { ideal: 1280, min: 640, max: 1920 },
+          height: { ideal: 720, min: 480, max: 1080 },
+          aspectRatio: { ideal: 16/9 },
+          frameRate: { ideal: 30, min: 15 }
         },
         audio: false
       };
@@ -139,9 +141,9 @@ export default function PostureCheckPage() {
       console.log("Track settings:", stream.getVideoTracks()[0]?.getSettings());
       
       // IMMEDIATELY set camera as on when we get the stream
-        streamRef.current = stream;
-        setIsCameraOn(true);
-        setCameraPermission("granted");
+      streamRef.current = stream;
+      setIsCameraOn(true);
+      setCameraPermission("granted");
       
       if (videoRef.current) {
         // Set up video element
@@ -153,7 +155,7 @@ export default function PostureCheckPage() {
           console.log("Video metadata loaded");
           console.log("Video dimensions:", video.videoWidth, "x", video.videoHeight);
           setVideoReady(true);
-          setSnackbarMessage("Camera is now active!");
+          setSnackbarMessage("Camera is now active! Position yourself in the center.");
           setSnackbarOpen(true);
         };
         
@@ -183,7 +185,7 @@ export default function PostureCheckPage() {
           await video.play();
           console.log("Video play started successfully");
           setVideoReady(true);
-          setSnackbarMessage("Camera is now active!");
+          setSnackbarMessage("Camera is now active! Position yourself in the center.");
           setSnackbarOpen(true);
         } catch (playError) {
           console.error("Video play error:", playError);
@@ -253,15 +255,21 @@ export default function PostureCheckPage() {
     
     if (!context) return null;
     
-    // Set canvas size to match video
+    // Set canvas size to match video dimensions for better quality
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     
-    // Draw video frame to canvas
+    // Ensure video is playing and has valid dimensions
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      console.error("Video has no valid dimensions");
+      return null;
+    }
+    
+    // Draw video frame to canvas with high quality
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     
-    // Convert to base64
-    return canvas.toDataURL('image/jpeg', 0.8);
+    // Convert to base64 with higher quality for better detection
+    return canvas.toDataURL('image/jpeg', 0.95);
   };
 
   const analyzePostureWithAI = async (imageData: string): Promise<PostureAnalysis> => {
@@ -594,6 +602,32 @@ export default function PostureCheckPage() {
                   >
                     Force On
                   </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={async () => {
+                      try {
+                        const response = await fetch('/api/posture-analysis');
+                        const result = await response.json();
+                        console.log("API test result:", result);
+                        setSnackbarMessage(`API Status: ${result.success ? 'OK' : 'Error'}`);
+                        setSnackbarOpen(true);
+                      } catch (error) {
+                        console.error("API test error:", error);
+                        setSnackbarMessage("API test failed");
+                        setSnackbarOpen(true);
+                      }
+                    }}
+                    sx={{
+                      borderColor: "rgba(255, 255, 255, 0.3)",
+                      color: "white",
+                      fontSize: "10px",
+                      px: 1,
+                      py: 0.5
+                    }}
+                  >
+                    Test API
+                  </Button>
                 </Box>
               )}
             </Box>
@@ -801,6 +835,38 @@ export default function PostureCheckPage() {
                         zIndex: 1
                       }}
                     />
+                    
+                    {/* Positioning guide overlay */}
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        top: "50%",
+                        left: "50%",
+                        transform: "translate(-50%, -50%)",
+                        width: "200px",
+                        height: "300px",
+                        border: "2px dashed rgba(255, 255, 255, 0.6)",
+                        borderRadius: "10px",
+                        pointerEvents: "none",
+                        zIndex: 2,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center"
+                      }}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: "rgba(255, 255, 255, 0.8)",
+                          textAlign: "center",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          textShadow: "1px 1px 2px rgba(0,0,0,0.8)"
+                        }}
+                      >
+                        Position yourself here
+                      </Typography>
+                    </Box>
                     
                     {/* Camera status indicator */}
                     <Box
@@ -1215,7 +1281,7 @@ export default function PostureCheckPage() {
                       </Typography>
                       <Grid container spacing={2}>
                         {Object.entries(analysis.detailedAnalysis).map(([part, data]: [string, any]) => (
-                          <Grid xs={12} sm={6} key={part}>
+                          <Grid item xs={12} sm={6} key={part}>
                             <Card 
                               sx={{ 
                                 p: 2, 

@@ -18,6 +18,17 @@ interface PostureAnalysis {
   };
 }
 
+export async function GET() {
+  return NextResponse.json({
+    success: true,
+    message: 'Posture analysis API is running',
+    config: {
+      hasApiKey: !!API_CONFIG.CLOUD_VISION.API_KEY,
+      features: ['LABEL_DETECTION', 'FACE_DETECTION', 'OBJECT_LOCALIZATION', 'SAFE_SEARCH_DETECTION', 'IMAGE_PROPERTIES']
+    }
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { image } = await request.json();
@@ -197,36 +208,63 @@ function performAdvancedPostureAnalysis(visionData: any): PostureAnalysis {
 }
 
 function detectPersonStrict(labels: any[], objects: any[]): boolean {
-  // Very strict person detection criteria
+  // More reliable person detection criteria
   const personLabels = [
     'person', 'human', 'people', 'man', 'woman', 'boy', 'girl', 'child',
-    'adult', 'human body', 'portrait', 'face', 'head', 'torso', 'body'
+    'adult', 'human body', 'portrait', 'face', 'head', 'torso', 'body',
+    'selfie', 'portrait', 'figure', 'individual'
   ];
   
   const hasPersonLabel = labels.some((label: any) => 
     personLabels.some(personLabel => 
       label.description?.toLowerCase().includes(personLabel)
-    ) && label.score > 0.85 // Higher threshold
+    ) && label.score > 0.7 // Lower threshold for better detection
   );
 
   const hasPersonObject = objects.some((obj: any) => 
-    obj.name?.toLowerCase() === 'person' && obj.score > 0.85
+    obj.name?.toLowerCase() === 'person' && obj.score > 0.7
   );
 
   const clothingLabels = [
     'clothing', 'shirt', 't-shirt', 'dress', 'pants', 'jeans', 'jacket',
-    'sweater', 'blouse', 'skirt', 'suit', 'uniform', 'top', 'bottom'
+    'sweater', 'blouse', 'skirt', 'suit', 'uniform', 'top', 'bottom',
+    'apparel', 'garment', 'outfit', 'attire'
   ];
   
   const hasClothing = labels.some((label: any) => 
     clothingLabels.some(clothingLabel => 
       label.description?.toLowerCase().includes(clothingLabel)
-    ) && label.score > 0.8
+    ) && label.score > 0.6
   );
 
-  // Must have at least 2 out of 3 indicators
-  const indicators = [hasPersonLabel, hasPersonObject, hasClothing];
-  return indicators.filter(Boolean).length >= 2;
+  // Body part indicators
+  const bodyPartLabels = [
+    'face', 'head', 'hair', 'eye', 'nose', 'mouth', 'ear', 'neck',
+    'shoulder', 'arm', 'hand', 'finger', 'chest', 'torso', 'waist',
+    'leg', 'foot', 'shoe'
+  ];
+  
+  const hasBodyParts = labels.some((label: any) => 
+    bodyPartLabels.some(bodyPart => 
+      label.description?.toLowerCase().includes(bodyPart)
+    ) && label.score > 0.6
+  );
+
+  // More flexible detection - need at least 2 out of 4 indicators
+  const indicators = [hasPersonLabel, hasPersonObject, hasClothing, hasBodyParts];
+  const detectedCount = indicators.filter(Boolean).length;
+  
+  console.log('Person detection indicators:', {
+    hasPersonLabel,
+    hasPersonObject,
+    hasClothing,
+    hasBodyParts,
+    detectedCount,
+    labels: labels.map((l: any) => ({ description: l.description, score: l.score })),
+    objects: objects.map((o: any) => ({ name: o.name, score: o.score }))
+  });
+  
+  return detectedCount >= 2;
 }
 
 function performDetailedPostureAnalysis(faces: any[], labels: any[], objects: any[], imageProperties: any) {

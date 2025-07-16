@@ -47,7 +47,9 @@ import {
   ArrowBack,
   Videocam,
   VideocamOff,
-  ErrorOutline
+  ErrorOutline,
+  ZoomIn,
+  ZoomOut
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -67,6 +69,9 @@ export default function PostureCheckPage() {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [showImageOptions, setShowImageOptions] = useState(false);
   const [progressReports, setProgressReports] = useState<ProgressReport[]>([]);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [maxZoom, setMaxZoom] = useState(3);
+  const [minZoom, setMinZoom] = useState(0.5);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -94,6 +99,27 @@ export default function PostureCheckPage() {
   useEffect(() => {
     loadProgressReports();
   }, []);
+
+  // Add keyboard shortcuts for zoom
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isCameraOn) {
+        if ((event.ctrlKey || event.metaKey) && event.key === '=') {
+          event.preventDefault();
+          zoomIn();
+        } else if ((event.ctrlKey || event.metaKey) && event.key === '-') {
+          event.preventDefault();
+          zoomOut();
+        } else if ((event.ctrlKey || event.metaKey) && event.key === '0') {
+          event.preventDefault();
+          resetZoom();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isCameraOn, zoomLevel, maxZoom, minZoom]);
 
   const checkApiStatus = async () => {
     try {
@@ -236,14 +262,32 @@ export default function PostureCheckPage() {
   };
 
   const forceCameraOn = () => {
+    console.log("Force camera on called");
     if (streamRef.current && streamRef.current.getTracks().length > 0) {
       setIsCameraOn(true);
       setCameraPermission("granted");
       setVideoReady(true);
-      setSnackbarMessage("Camera forced on!");
-      setSnackbarOpen(true);
-      console.log("Camera forced on manually");
+      console.log("Camera forced on");
+    } else {
+      console.log("No stream available, requesting permission");
+      requestCameraPermission();
     }
+  };
+
+  const zoomIn = () => {
+    if (zoomLevel < maxZoom) {
+      setZoomLevel(prev => Math.min(prev + 0.25, maxZoom));
+    }
+  };
+
+  const zoomOut = () => {
+    if (zoomLevel > minZoom) {
+      setZoomLevel(prev => Math.max(prev - 0.25, minZoom));
+    }
+  };
+
+  const resetZoom = () => {
+    setZoomLevel(1);
   };
 
   const captureFrame = (): string | null => {
@@ -832,9 +876,95 @@ export default function PostureCheckPage() {
                         objectFit: "cover",
                         display: "block",
                         backgroundColor: "#000",
-                        zIndex: 1
+                        zIndex: 1,
+                        transform: `scale(${zoomLevel})`,
+                        transformOrigin: "center center",
+                        transition: "transform 0.3s ease"
                       }}
                     />
+                    
+                    {/* Zoom Controls */}
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        bottom: 20,
+                        right: 20,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 1,
+                        zIndex: 3
+                      }}
+                    >
+                      <IconButton
+                        onClick={zoomIn}
+                        disabled={zoomLevel >= maxZoom}
+                        sx={{
+                          bgcolor: "rgba(0, 0, 0, 0.6)",
+                          color: "white",
+                          "&:hover": {
+                            bgcolor: "rgba(0, 0, 0, 0.8)"
+                          },
+                          "&:disabled": {
+                            bgcolor: "rgba(0, 0, 0, 0.3)",
+                            color: "rgba(255, 255, 255, 0.5)"
+                          }
+                        }}
+                      >
+                        <ZoomIn />
+                      </IconButton>
+                      <IconButton
+                        onClick={zoomOut}
+                        disabled={zoomLevel <= minZoom}
+                        sx={{
+                          bgcolor: "rgba(0, 0, 0, 0.6)",
+                          color: "white",
+                          "&:hover": {
+                            bgcolor: "rgba(0, 0, 0, 0.8)"
+                          },
+                          "&:disabled": {
+                            bgcolor: "rgba(0, 0, 0, 0.3)",
+                            color: "rgba(255, 255, 255, 0.5)"
+                          }
+                        }}
+                      >
+                        <ZoomOut />
+                      </IconButton>
+                      {zoomLevel !== 1 && (
+                        <IconButton
+                          onClick={resetZoom}
+                          sx={{
+                            bgcolor: "rgba(0, 0, 0, 0.6)",
+                            color: "white",
+                            "&:hover": {
+                              bgcolor: "rgba(0, 0, 0, 0.8)"
+                            }
+                          }}
+                        >
+                          <Typography variant="caption" sx={{ fontSize: "0.7rem" }}>
+                            1x
+                          </Typography>
+                        </IconButton>
+                      )}
+                    </Box>
+                    
+                    {/* Zoom Level Indicator */}
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        bottom: 20,
+                        left: 20,
+                        bgcolor: "rgba(0, 0, 0, 0.6)",
+                        color: "white",
+                        px: 2,
+                        py: 1,
+                        borderRadius: 1,
+                        zIndex: 3
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                        {Math.round(zoomLevel * 100)}%
+                      </Typography>
+                    </Box>
                     
                     {/* Positioning guide overlay */}
                     <Box

@@ -19,18 +19,26 @@ class AIService {
 
       const selectedModel = model || API_CONFIG.GEMINI.DEFAULT_MODEL;
       
-      // Enhanced prompt with research and concise response requirements
-      const enhancedPrompt = `You are a caring, supportive AI therapist. Your responses must be EXACTLY 2 sentences - no more, no less. Be warm, empathetic, and helpful.
+      // Enhanced prompt for more genuine, engaging responses
+      const enhancedPrompt = `You are Dr. Sarah, a warm, empathetic, and experienced therapist with 15 years of experience in cognitive behavioral therapy and mindfulness practices. You have a gentle, conversational style and genuinely care about your clients' well-being.
 
-RESEARCH REQUIREMENT: Before responding, research the topic mentioned by the user to provide informed, evidence-based support. Use current mental health research and best practices.
+CONVERSATION STYLE:
+- Be warm, genuine, and emotionally intelligent
+- Show empathy and understanding without being overly clinical
+- Use natural, conversational language (avoid robotic or overly formal responses)
+- Ask thoughtful follow-up questions to deepen the conversation
+- Share brief, relevant insights or gentle observations
+- Be encouraging and supportive while remaining professional
+- Use "I" statements to show personal engagement
+- Keep responses conversational but meaningful (2-4 sentences)
 
-RESPONSE FORMAT: 
-- First sentence: Show empathy and understanding
-- Second sentence: Provide one specific, actionable piece of advice or support
+RESEARCH REQUIREMENT: Before responding, consider current mental health research and evidence-based practices to provide informed, supportive guidance.
 
-User message: "${message}"
+CONVERSATION CONTEXT: ${conversationHistory.length > 0 ? `Previous conversation: ${conversationHistory.slice(-3).map(msg => `${msg.role}: ${msg.content}`).join(' | ')}` : 'This is the start of a new conversation.'}
 
-Remember: Keep responses to exactly 2 sentences, be supportive, and base your advice on current mental health research.`;
+User's message: "${message}"
+
+Respond as Dr. Sarah would - with genuine care, empathy, and helpful insight. Make the conversation feel natural and engaging.`;
       
       const contents = [
         {
@@ -47,8 +55,8 @@ Remember: Keep responses to exactly 2 sentences, be supportive, and base your ad
         body: JSON.stringify({
           contents,
           generationConfig: {
-            maxOutputTokens: 200, // Shorter for 2-sentence responses
-            temperature: 0.7,
+            maxOutputTokens: 300, // Allow for more natural conversation
+            temperature: 0.8, // Slightly higher for more natural responses
           }
         })
       });
@@ -69,12 +77,15 @@ Remember: Keep responses to exactly 2 sentences, be supportive, and base your ad
         throw new APIError('No response received from AI model', 500, 'Gemini Chat');
       }
 
-      // Ensure response is exactly 2 sentences
-      const sentences = aiResponse.split(/[.!?]+/).filter(s => s.trim().length > 0);
-      if (sentences.length > 2) {
-        aiResponse = sentences.slice(0, 2).join('. ') + '.';
-      } else if (sentences.length < 2) {
-        aiResponse = aiResponse + " I'm here to support you through this.";
+      // Clean up the response and ensure it's conversational
+      aiResponse = aiResponse.trim();
+      
+      // Remove any "Dr. Sarah:" prefixes if they appear
+      aiResponse = aiResponse.replace(/^Dr\. Sarah:\s*/i, '');
+      
+      // Ensure the response ends with proper punctuation
+      if (!aiResponse.match(/[.!?]$/)) {
+        aiResponse += '.';
       }
 
       return {

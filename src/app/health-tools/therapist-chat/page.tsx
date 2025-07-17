@@ -24,7 +24,14 @@ import {
   ListItemText,
   ListItemIcon,
   IconButton,
-  Avatar
+  Avatar,
+  Fade,
+  Slide,
+  Zoom,
+  Tooltip,
+  Badge,
+  Stack,
+  LinearProgress
 } from "@mui/material";
 import { 
   Psychology, 
@@ -47,9 +54,17 @@ import {
   Add,
   Chat,
   Mic,
-  GraphicEq
+  GraphicEq,
+  MoreVert,
+  AttachFile,
+  EmojiEmotions,
+  Lightbulb,
+  Favorite,
+  Share,
+  Archive,
+  Refresh
 } from "@mui/icons-material";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import aiService from "@/utils/aiService";
 import HealthDataService from "@/utils/healthDataService";
@@ -113,6 +128,29 @@ interface ChatSession {
 }
 
 export default function TherapistChatPage() {
+  // Add CSS animation for typing indicator
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes typing {
+        0%, 60%, 100% {
+          transform: translateY(0);
+          opacity: 0.4;
+        }
+        30% {
+          transform: translateY(-10px);
+          opacity: 1;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      if (document.head.contains(style)) {
+        document.head.removeChild(style);
+      }
+    };
+  }, []);
+
   const [currentChat, setCurrentChat] = useState<ChatSession | null>(null);
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [inputText, setInputText] = useState("");
@@ -861,21 +899,106 @@ export default function TherapistChatPage() {
               textAlign: "center",
               p: 4
             }}>
-              <Typography 
-                variant="h4" 
-                sx={{ 
-                  fontWeight: 600, 
-                  mb: 2, 
-                  color: "#333",
-                  fontSize: "32px"
-                }}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
               >
-                What are you working on?
-              </Typography>
+                <Avatar
+                  sx={{
+                    width: 80,
+                    height: 80,
+                    background: "linear-gradient(135deg, #10a37f, #7B61FF)",
+                    color: "white",
+                    fontSize: "32px",
+                    mb: 3,
+                    boxShadow: "0 8px 32px rgba(16, 163, 127, 0.3)"
+                  }}
+                >
+                  <Psychology />
+                </Avatar>
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    fontWeight: 700, 
+                    mb: 2, 
+                    color: "#333",
+                    fontSize: "32px"
+                  }}
+                >
+                  Welcome to Therapy Chat
+                </Typography>
+                <Typography 
+                  variant="body1" 
+                  sx={{ 
+                    color: "#666", 
+                    mb: 4, 
+                    maxWidth: "500px",
+                    lineHeight: 1.6
+                  }}
+                >
+                  I'm Dr. Sarah, your AI therapist. I'm here to listen, support, and help you work through whatever's on your mind. 
+                  Let's start a conversation about what you'd like to explore today.
+                </Typography>
+                <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", justifyContent: "center" }}>
+                  <Chip
+                    label="Feeling anxious?"
+                    onClick={() => setInputText("I've been feeling anxious lately...")}
+                    sx={{
+                      background: "rgba(123, 97, 255, 0.1)",
+                      color: "#7B61FF",
+                      border: "1px solid rgba(123, 97, 255, 0.3)",
+                      cursor: "pointer",
+                      "&:hover": {
+                        background: "rgba(123, 97, 255, 0.2)",
+                      }
+                    }}
+                  />
+                  <Chip
+                    label="Work stress?"
+                    onClick={() => setInputText("I'm dealing with a lot of stress at work...")}
+                    sx={{
+                      background: "rgba(123, 97, 255, 0.1)",
+                      color: "#7B61FF",
+                      border: "1px solid rgba(123, 97, 255, 0.3)",
+                      cursor: "pointer",
+                      "&:hover": {
+                        background: "rgba(123, 97, 255, 0.2)",
+                      }
+                    }}
+                  />
+                  <Chip
+                    label="Relationship issues?"
+                    onClick={() => setInputText("I'm having some relationship difficulties...")}
+                    sx={{
+                      background: "rgba(123, 97, 255, 0.1)",
+                      color: "#7B61FF",
+                      border: "1px solid rgba(123, 97, 255, 0.3)",
+                      cursor: "pointer",
+                      "&:hover": {
+                        background: "rgba(123, 97, 255, 0.2)",
+                      }
+                    }}
+                  />
+                  <Chip
+                    label="Just need to talk"
+                    onClick={() => setInputText("I just need someone to talk to...")}
+                    sx={{
+                      background: "rgba(123, 97, 255, 0.1)",
+                      color: "#7B61FF",
+                      border: "1px solid rgba(123, 97, 255, 0.3)",
+                      cursor: "pointer",
+                      "&:hover": {
+                        background: "rgba(123, 97, 255, 0.2)",
+                      }
+                    }}
+                  />
+                </Box>
+              </motion.div>
             </Box>
           ) : (
             <>
-              {/* AnimatePresence is removed as per new_code, but motion.div is kept */}
+              <AnimatePresence>
                 {currentChat.messages.map((message) => (
                   <motion.div
                     key={message.id}
@@ -889,34 +1012,92 @@ export default function TherapistChatPage() {
                         display: "flex",
                         gap: 3,
                         p: 4,
-                        background: message.sender === "user" ? "#f7f7f8" : "#ffffff",
-                        borderBottom: "1px solid #e5e5e5"
+                        background: message.sender === "user" ? "#f8f9ff" : "#ffffff",
+                        borderBottom: "1px solid #e5e5e5",
+                        position: "relative",
+                        "&:hover": {
+                          background: message.sender === "user" ? "#f0f2ff" : "#fafafa"
+                        }
                       }}
                     >
                       <Avatar
                         sx={{
-                          width: 30,
-                          height: 30,
+                          width: 40,
+                          height: 40,
                           background: message.sender === "user" ? "#7B61FF" : "#10a37f",
                           color: "white",
-                          fontSize: "14px",
-                          flexShrink: 0
+                          fontSize: "16px",
+                          flexShrink: 0,
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
                         }}
                       >
-                        {message.sender === "user" ? "U" : "T"}
+                        {message.sender === "user" ? <Person /> : <Psychology />}
                       </Avatar>
                       <Box sx={{ flex: 1, maxWidth: "800px", mx: "auto" }}>
-                        <Typography
-                          variant="body1"
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 600,
+                              color: message.sender === "user" ? "#7B61FF" : "#10a37f",
+                              fontSize: "14px"
+                            }}
+                          >
+                            {message.sender === "user" ? "You" : "Dr. Sarah"}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: "#666",
+                              fontSize: "12px"
+                            }}
+                          >
+                            {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </Typography>
+                        </Box>
+                        <Paper
+                          elevation={0}
                           sx={{
-                            lineHeight: 1.6,
-                            color: "#374151",
-                            whiteSpace: "pre-wrap",
-                            fontSize: "16px"
+                            p: 2,
+                            background: message.sender === "user" ? "#7B61FF" : "#f8f9fa",
+                            color: message.sender === "user" ? "white" : "#374151",
+                            borderRadius: 2,
+                            border: message.sender === "user" ? "none" : "1px solid #e5e5e5",
+                            maxWidth: "100%",
+                            wordWrap: "break-word"
                           }}
                         >
-                          {message.text}
-                        </Typography>
+                          <Typography
+                            variant="body1"
+                            sx={{
+                              lineHeight: 1.6,
+                              whiteSpace: "pre-wrap",
+                              fontSize: "15px",
+                              fontWeight: message.sender === "user" ? 500 : 400
+                            }}
+                          >
+                            {message.text}
+                          </Typography>
+                        </Paper>
+                        {message.sender === "ai" && (
+                          <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
+                            <Tooltip title="Helpful">
+                              <IconButton size="small" sx={{ color: "#666", p: 0.5 }}>
+                                <Lightbulb sx={{ fontSize: 14 }} />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Like">
+                              <IconButton size="small" sx={{ color: "#666", p: 0.5 }}>
+                                <Favorite sx={{ fontSize: 14 }} />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Share">
+                              <IconButton size="small" sx={{ color: "#666", p: 0.5 }}>
+                                <Share sx={{ fontSize: 14 }} />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        )}
                       </Box>
                     </Box>
                   </motion.div>
@@ -939,27 +1120,86 @@ export default function TherapistChatPage() {
                   >
                     <Avatar
                       sx={{
-                        width: 30,
-                        height: 30,
-                        background: "#7B61FF",
+                        width: 40,
+                        height: 40,
+                        background: "#10a37f",
                         color: "white",
-                        fontSize: "14px",
-                        flexShrink: 0
+                        fontSize: "16px",
+                        flexShrink: 0,
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
                       }}
                     >
-                      T
+                      <Psychology />
                     </Avatar>
                     <Box sx={{ flex: 1, maxWidth: "800px", mx: "auto" }}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        <CircularProgress size={16} sx={{ color: "#7B61FF" }} />
-                        <Typography variant="body2" sx={{ color: "#666" }}>
-                          Typing...
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            fontWeight: 600,
+                            color: "#10a37f",
+                            fontSize: "14px"
+                          }}
+                        >
+                          Dr. Sarah
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: "#666",
+                            fontSize: "12px"
+                          }}
+                        >
+                          is typing...
                         </Typography>
                       </Box>
+                      <Paper
+                        elevation={0}
+                        sx={{
+                          p: 2,
+                          background: "#f8f9fa",
+                          borderRadius: 2,
+                          border: "1px solid #e5e5e5",
+                          maxWidth: "100px"
+                        }}
+                      >
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                          <Box
+                            sx={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: "50%",
+                              background: "#10a37f",
+                              animation: "typing 1.4s infinite ease-in-out"
+                            }}
+                          />
+                          <Box
+                            sx={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: "50%",
+                              background: "#10a37f",
+                              animation: "typing 1.4s infinite ease-in-out",
+                              animationDelay: "0.2s"
+                            }}
+                          />
+                          <Box
+                            sx={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: "50%",
+                              background: "#10a37f",
+                              animation: "typing 1.4s infinite ease-in-out",
+                              animationDelay: "0.4s"
+                            }}
+                          />
+                        </Box>
+                      </Paper>
                     </Box>
                   </Box>
                 </motion.div>
               )}
+              </AnimatePresence>
               
               <div ref={messagesEndRef} />
             </>
@@ -1011,28 +1251,34 @@ export default function TherapistChatPage() {
                   value={isListening ? transcript : inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder={isListening ? "Listening..." : "Message Therapist Chat..."}
+                  placeholder={isListening ? "Listening..." : "Share what's on your mind with Dr. Sarah..."}
                   variant="outlined"
                   disabled={loading || isListening}
                   sx={{
                     "& .MuiOutlinedInput-root": {
-                      borderRadius: 2,
+                      borderRadius: 3,
                       background: isListening ? "#fff3e0" : "#ffffff",
-                      border: isListening ? "1px solid #ff9800" : "1px solid #e5e5e5",
+                      border: isListening ? "2px solid #ff9800" : "2px solid #e5e5e5",
+                      transition: "all 0.3s ease",
                       "&:hover": {
                         borderColor: "#7B61FF",
+                        boxShadow: "0 2px 8px rgba(123, 97, 255, 0.1)",
                       },
                       "&.Mui-focused": {
                         borderColor: "#7B61FF",
+                        boxShadow: "0 4px 12px rgba(123, 97, 255, 0.2)",
                         "& .MuiOutlinedInput-notchedOutline": {
                           borderColor: "#7B61FF",
                         },
                       },
                       "& .MuiInputBase-input": {
                         color: "#333",
+                        fontSize: "16px",
+                        padding: "16px",
                         "&::placeholder": {
                           color: isListening ? "#ff9800" : "#666",
-                          opacity: 1
+                          opacity: 1,
+                          fontSize: "16px"
                         }
                       }
                     },

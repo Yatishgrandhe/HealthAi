@@ -230,7 +230,7 @@ export default function FitnessPlannerPage() {
           // Insert rest day
           dailyPlansData.push({
             day,
-            meals: {
+        meals: {
               breakfast: "Rest day - light breakfast (e.g., fruit, yogurt)",
               lunch: "Rest day - light lunch (e.g., salad, soup)",
               dinner: "Rest day - light dinner (e.g., steamed veggies, rice)",
@@ -597,16 +597,16 @@ export default function FitnessPlannerPage() {
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <Box sx={{ display: "flex", alignItems: "center" }}>
               <img 
-                src="/health-ai-logo.png" 
-                alt="Health AI Logo" 
+              src="/health-ai-logo.png" 
+              alt="Health AI Logo" 
                 width={32} 
                 height={32} 
-                style={{
-                  borderRadius: '50%',
-                  background: 'transparent',
-                  display: 'block'
-                }}
-              />
+              style={{
+                borderRadius: '50%',
+                background: 'transparent',
+                display: 'block'
+              }}
+            />
               <Box sx={{ ml: 2 }}>
                 <Typography
                   variant="h6"
@@ -1022,21 +1022,21 @@ export default function FitnessPlannerPage() {
                         >
                           {showCalendar ? "Hide Calendar" : "Show Calendar"}
                         </Button>
-                        <Button
-                          variant="outlined"
-                          startIcon={<Save />}
+                      <Button
+                        variant="outlined"
+                        startIcon={<Save />}
                           onClick={() => setSaveDialogOpen(true)}
-                          sx={{
-                            borderColor: "#FFD166",
-                            color: "#FFD166",
-                            "&:hover": {
-                              borderColor: "#FFC107",
-                              background: "rgba(255, 209, 102, 0.05)",
-                            },
-                          }}
-                        >
-                          Save Plan
-                        </Button>
+                        sx={{
+                          borderColor: "#FFD166",
+                          color: "#FFD166",
+                          "&:hover": {
+                            borderColor: "#FFC107",
+                            background: "rgba(255, 209, 102, 0.05)",
+                          },
+                        }}
+                      >
+                        Save Plan
+                      </Button>
                       </Box>
                     </Box>
 

@@ -49,7 +49,8 @@ import {
   VideocamOff,
   ErrorOutline,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  History
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -775,16 +776,34 @@ export default function PostureCheckPage() {
               </Box>
             </Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <Chip
-              label={isCameraOn ? "Camera Active" : "Camera Off"}
-              size="small"
-              icon={isCameraOn ? <Videocam /> : <VideocamOff />}
-              sx={{
-                background: isCameraOn ? "rgba(76, 175, 80, 0.2)" : "rgba(255, 255, 255, 0.2)",
-                color: "white",
-                fontWeight: 500
-              }}
-            />
+              <Button
+                component={Link}
+                href="/health-tools/posture-history"
+                variant="outlined"
+                size="small"
+                startIcon={<History />}
+                sx={{
+                  borderColor: "rgba(255, 255, 255, 0.3)",
+                  color: "white",
+                  fontWeight: 500,
+                  '&:hover': {
+                    borderColor: "rgba(255, 255, 255, 0.5)",
+                    backgroundColor: "rgba(255, 255, 255, 0.1)"
+                  }
+                }}
+              >
+                View History
+              </Button>
+              <Chip
+                label={isCameraOn ? "Camera Active" : "Camera Off"}
+                size="small"
+                icon={isCameraOn ? <Videocam /> : <VideocamOff />}
+                sx={{
+                  background: isCameraOn ? "rgba(76, 175, 80, 0.2)" : "rgba(255, 255, 255, 0.2)",
+                  color: "white",
+                  fontWeight: 500
+                }}
+              />
               <Chip
                 label={
                   apiStatus === "ready" ? "AI Ready" :

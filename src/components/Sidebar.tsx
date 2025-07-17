@@ -21,7 +21,8 @@ import {
   Straighten as PostureIcon,
   Bookmark as SavedIcon,
   TrendingUp as AnalyticsIcon,
-  CalendarToday as CalendarIcon
+  CalendarToday as CalendarIcon,
+  History as HistoryIcon
 } from "@mui/icons-material";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -45,6 +46,7 @@ export const getMenuItems = (user: any): MenuItem[] => {
     { text: "Health Tools", icon: <HealthIcon />, path: "/health-tools?from=dashboard", category: "Health & Wellness" },
     { text: "Therapist Chat", icon: <TherapistIcon />, path: "/health-tools/therapist-chat?from=dashboard" },
     { text: "Posture Check", icon: <PostureIcon />, path: "/health-tools/posture-check?from=dashboard" },
+    { text: "Posture History", icon: <HistoryIcon />, path: "/health-tools/posture-history?from=dashboard" },
     { text: "Fitness Planner", icon: <FitnessIcon />, path: "/health-tools/fitness-planner?from=dashboard" },
     { text: "Saved Routines", icon: <SavedIcon />, path: "/health-tools/saved-routines?from=dashboard" },
     // Analytics & Progress

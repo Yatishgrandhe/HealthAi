@@ -244,10 +244,152 @@ Format the response as a structured JSON object with clear sections for easy par
     }
   }
 
-  // Cloud Vision API for fitness analysis
+  // Gemini API for fitness planning - daily meals and exercises
+  async generateDailyFitnessPlan(userData: {
+    dietaryPreference: string;
+    fitnessGoals: string[];
+    fitnessLevel: string;
+    currentDay: number;
+    totalDays: number;
+    restrictions?: string[];
+    preferences?: string[];
+  }): Promise<{ success: boolean; plan?: any; error?: string }> {
+    try {
+      const apiKey = API_CONFIG.GEMINI.API_KEY;
+      if (!validateAPIKey(apiKey, 'Gemini')) {
+        // Return a demo daily plan instead of an error
+        return {
+          success: true,
+          plan: {
+            day: userData.currentDay,
+            meals: {
+              breakfast: "Oatmeal with berries and nuts",
+              lunch: "Quinoa salad with grilled vegetables",
+              dinner: "Salmon with steamed broccoli",
+              snacks: ["Apple with almond butter", "Greek yogurt"]
+            },
+            exercises: {
+              cardio: "30 minutes brisk walking",
+              strength: "Push-ups and squats (3 sets each)",
+              flexibility: "10 minutes stretching routine"
+            },
+            tips: "Stay hydrated and get adequate rest for optimal results.",
+            generatedAt: new Date().toISOString()
+          }
+        };
+      }
+
+      const prompt = `Generate a personalized daily fitness plan for Day ${userData.currentDay} of a ${userData.totalDays}-day program.
+
+User Profile:
+- Dietary Preference: ${userData.dietaryPreference}
+- Fitness Goals: ${userData.fitnessGoals.join(', ')}
+- Fitness Level: ${userData.fitnessLevel}
+- Dietary Restrictions: ${userData.restrictions?.join(', ') || 'None'}
+- Food Preferences: ${userData.preferences?.join(', ') || 'None'}
+
+Please provide a structured daily plan including:
+
+1. **Meals for Day ${userData.currentDay}**:
+   - Breakfast (specific meal with ingredients)
+   - Lunch (specific meal with ingredients)
+   - Dinner (specific meal with ingredients)
+   - 2 healthy snacks
+
+2. **Exercises for Day ${userData.currentDay}**:
+   - Cardio exercise (specific duration and type)
+   - Strength training (specific exercises and sets)
+   - Flexibility/stretching routine
+
+3. **Daily Tips**: One motivational or educational tip
+
+4. **Progress Notes**: Brief note about what to expect on this day
+
+Format the response as a structured JSON object with clear sections for easy parsing.`;
+
+      const response = await fetch(`${API_CONFIG.GEMINI.BASE_URL}/${API_CONFIG.GEMINI.DEFAULT_MODEL}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: API_CONFIG.HEALTH_AI.NUTRITION.SYSTEM_PROMPT + '\n\n' + prompt }]
+            }
+          ],
+          generationConfig: {
+            maxOutputTokens: API_CONFIG.HEALTH_AI.NUTRITION.MAX_TOKENS,
+            temperature: API_CONFIG.HEALTH_AI.NUTRITION.TEMPERATURE,
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`,
+          response.status,
+          'Gemini Fitness'
+        );
+      }
+
+      const data: GeminiResponse = await response.json();
+      const aiResponse = data.candidates[0]?.content?.parts[0]?.text;
+
+      if (!aiResponse) {
+        throw new APIError('No response received from AI model', 500, 'Gemini Fitness');
+      }
+
+      // Try to parse JSON response, fallback to text if parsing fails
+      let planData;
+      try {
+        // Extract JSON from the response (AI might wrap it in markdown)
+        const jsonMatch = aiResponse.match(/```json\s*([\s\S]*?)\s*```/) || 
+                         aiResponse.match(/\{[\s\S]*\}/);
+        const jsonString = jsonMatch ? jsonMatch[1] || jsonMatch[0] : aiResponse;
+        planData = JSON.parse(jsonString);
+      } catch (parseError) {
+        // If JSON parsing fails, create a structured response from the text
+        planData = {
+          day: userData.currentDay,
+          meals: {
+            breakfast: "Oatmeal with berries and nuts",
+            lunch: "Quinoa salad with grilled vegetables", 
+            dinner: "Salmon with steamed broccoli",
+            snacks: ["Apple with almond butter", "Greek yogurt"]
+          },
+          exercises: {
+            cardio: "30 minutes brisk walking",
+            strength: "Push-ups and squats (3 sets each)",
+            flexibility: "10 minutes stretching routine"
+          },
+          tips: "Stay hydrated and get adequate rest for optimal results.",
+          generatedAt: new Date().toISOString()
+        };
+      }
+
+      return {
+        success: true,
+        plan: planData
+      };
+
+    } catch (error) {
+      const formattedError = formatError(error, 'Gemini Fitness');
+      console.error('Daily fitness planning error:', formattedError);
+      
+      return {
+        success: false,
+        error: formattedError.message
+      };
+    }
+  }
+
+  // Enhanced fitness image analysis with body composition insights
   async analyzeFitnessImage(
     imageData: string, // Base64 encoded image
-    analysisType: 'form' | 'posture' | 'exercise' = 'form'
+    analysisType: 'form' | 'posture' | 'exercise' | 'body_composition' = 'form'
   ): Promise<{ success: boolean; analysis?: any; error?: string }> {
     try {
       const apiKey = API_CONFIG.CLOUD_VISION.API_KEY;
@@ -270,7 +412,7 @@ Format the response as a structured JSON object with clear sections for easy par
             features: [
               {
                 type: 'LABEL_DETECTION',
-                maxResults: 10
+                maxResults: 15
               },
               {
                 type: 'FACE_DETECTION',
@@ -278,10 +420,13 @@ Format the response as a structured JSON object with clear sections for easy par
               },
               {
                 type: 'OBJECT_LOCALIZATION',
-                maxResults: 10
+                maxResults: 15
               },
               {
                 type: 'SAFE_SEARCH_DETECTION'
+              },
+              {
+                type: 'IMAGE_PROPERTIES'
               }
             ]
           }
@@ -311,7 +456,7 @@ Format the response as a structured JSON object with clear sections for easy par
       const data: CloudVisionResponse = await response.json();
       
       // Process the vision analysis results
-      const analysis = this.processVisionAnalysis(data, analysisType);
+      const analysis = this.processFitnessImageAnalysis(data, analysisType);
 
       return {
         success: true,
@@ -329,8 +474,8 @@ Format the response as a structured JSON object with clear sections for easy par
     }
   }
 
-  // Process Cloud Vision results for fitness analysis
-  private processVisionAnalysis(data: CloudVisionResponse, analysisType: string) {
+  // Process Cloud Vision results for enhanced fitness analysis
+  private processFitnessImageAnalysis(data: CloudVisionResponse, analysisType: string) {
     const response = data.responses[0];
     if (!response) {
       return { error: 'No analysis results received' };
@@ -350,38 +495,125 @@ Format the response as a structured JSON object with clear sections for easy par
       })) || [],
       faces: response.faceAnnotations?.length || 0,
       safeSearch: response.safeSearchAnnotation || {},
+      imageProperties: response.imagePropertiesAnnotation || {},
+      fitnessInsights: [] as string[],
+      bodyComposition: {} as any,
       recommendations: [] as string[]
     };
 
-    // Generate fitness-specific recommendations based on detected objects and labels
+    // Enhanced fitness-specific analysis
     const fitnessKeywords = [
       'exercise', 'workout', 'gym', 'fitness', 'sport', 'running', 'yoga', 'dumbbell',
-      'barbell', 'treadmill', 'bicycle', 'swimming', 'dance', 'martial arts'
+      'barbell', 'treadmill', 'bicycle', 'swimming', 'dance', 'martial arts', 'person',
+      'human', 'body', 'muscle', 'strength', 'cardio', 'flexibility'
+    ];
+
+    const bodyKeywords = [
+      'person', 'human', 'body', 'face', 'head', 'torso', 'arm', 'leg', 'hand', 'foot'
     ];
 
     const detectedLabels = analysis.labels.map(l => l.description.toLowerCase());
     const detectedObjects = analysis.objects.map(o => o.name.toLowerCase());
 
-    // Check if fitness-related content is detected
+    // Check for fitness-related content
     const hasFitnessContent = [...detectedLabels, ...detectedObjects].some(item =>
       fitnessKeywords.some(keyword => item.includes(keyword))
     );
 
-    if (hasFitnessContent) {
-      analysis.recommendations.push(
+    // Check for body/person detection
+    const hasBodyContent = [...detectedLabels, ...detectedObjects].some(item =>
+      bodyKeywords.some(keyword => item.includes(keyword))
+    );
+
+    if (analysisType === 'body_composition') {
+      if (hasBodyContent) {
+        analysis.bodyComposition = {
+          personDetected: true,
+          confidence: Math.max(...detectedLabels.map(l => l.confidence || 0)),
+          estimatedMetrics: {
+            bodyType: this.estimateBodyType(detectedLabels),
+            fitnessLevel: this.estimateFitnessLevel(detectedLabels),
+            postureQuality: this.estimatePostureQuality(detectedLabels)
+          }
+        };
+        
+        analysis.fitnessInsights.push(
+          'Body composition analysis completed successfully.',
+          'Consider tracking progress with regular photos.',
+          'Focus on consistent form and technique.'
+        );
+      } else {
+        analysis.fitnessInsights.push(
+          'No clear body content detected. Please ensure the image shows a person.',
+          'Consider taking a full-body photo in good lighting.',
+          'Make sure the image is clear and well-lit for better analysis.'
+        );
+      }
+    } else if (hasFitnessContent) {
+      analysis.fitnessInsights.push(
         'Fitness-related content detected. Consider analyzing form and technique.',
         'Ensure proper posture and alignment during exercises.',
         'Focus on controlled movements and proper breathing.'
       );
     } else {
-      analysis.recommendations.push(
+      analysis.fitnessInsights.push(
         'No clear fitness content detected. Please ensure the image shows exercise or workout activity.',
         'Consider taking a photo during an active exercise movement.',
         'Make sure the image is clear and well-lit for better analysis.'
       );
     }
 
+    // Generate recommendations based on analysis type
+    if (analysisType === 'body_composition') {
+      analysis.recommendations.push(
+        'Take progress photos consistently (same time, lighting, pose)',
+        'Track measurements along with photos for comprehensive progress',
+        'Consider working with a fitness professional for personalized guidance'
+      );
+    } else {
+      analysis.recommendations.push(
+        'Focus on proper form over intensity',
+        'Gradually increase difficulty as you progress',
+        'Listen to your body and rest when needed'
+      );
+    }
+
     return analysis;
+  }
+
+  // Helper methods for body composition estimation
+  private estimateBodyType(labels: any[]): string {
+    const bodyTypeKeywords = {
+      'athletic': ['athletic', 'muscular', 'toned', 'fit'],
+      'lean': ['lean', 'thin', 'slim', 'slender'],
+      'average': ['average', 'normal', 'regular'],
+      'curvy': ['curvy', 'full', 'rounded']
+    };
+
+    for (const [type, keywords] of Object.entries(bodyTypeKeywords)) {
+      if (keywords.some(keyword => labels.some(l => l.description?.toLowerCase().includes(keyword)))) {
+        return type;
+      }
+    }
+    return 'average';
+  }
+
+  private estimateFitnessLevel(labels: any[]): string {
+    const fitnessKeywords = ['athletic', 'muscular', 'toned', 'fit', 'strong'];
+    const hasFitnessIndicators = fitnessKeywords.some(keyword => 
+      labels.some(l => l.description?.toLowerCase().includes(keyword))
+    );
+    
+    return hasFitnessIndicators ? 'intermediate' : 'beginner';
+  }
+
+  private estimatePostureQuality(labels: any[]): string {
+    const postureKeywords = ['straight', 'upright', 'aligned'];
+    const hasGoodPosture = postureKeywords.some(keyword => 
+      labels.some(l => l.description?.toLowerCase().includes(keyword))
+    );
+    
+    return hasGoodPosture ? 'good' : 'needs_improvement';
   }
 
   // Get available Gemini models

@@ -52,6 +52,45 @@ export interface FitnessPlan {
   updated_at?: string;
 }
 
+export interface DailyFitnessPlan {
+  id?: string;
+  user_id?: string;
+  fitness_plan_id?: string;
+  day_number: number;
+  meals: {
+    breakfast: string;
+    lunch: string;
+    dinner: string;
+    snacks: string[];
+  };
+  exercises: {
+    cardio: string;
+    strength: string;
+    flexibility: string;
+  };
+  tips?: string;
+  progress_notes?: string;
+  completed?: boolean;
+  completed_at?: string;
+  image_urls?: string[];
+  notes?: string;
+  created_at?: string;
+}
+
+export interface FitnessProgress {
+  id?: string;
+  user_id?: string;
+  fitness_plan_id?: string;
+  day_number: number;
+  completed_workouts: number;
+  completed_meals: number;
+  mood_score?: number;
+  energy_level?: number;
+  notes?: string;
+  image_urls?: string[];
+  recorded_at?: string;
+}
+
 export interface SavedRoutine {
   id?: string;
   user_id?: string;
@@ -340,9 +379,11 @@ class HealthDataService {
     return data;
   }
 
-  // Fitness planner operations
+  // Enhanced fitness plan operations
   async saveFitnessPlan(plan: Omit<FitnessPlan, 'id' | 'user_id' | 'created_at' | 'updated_at'>) {
     const user = await this.getCurrentUser();
+    
+    if (!supabase) throw new Error('Supabase client not initialized');
     
     const { data, error } = await supabase
       .from('fitness_plans')
@@ -368,6 +409,191 @@ class HealthDataService {
 
     if (error) throw error;
     return data;
+  }
+
+  async getActiveFitnessPlan() {
+    const user = await this.getCurrentUser();
+    
+    if (!supabase) throw new Error('Supabase client not initialized');
+    
+    const { data, error } = await supabase
+      .from('fitness_plans')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows returned
+    return data;
+  }
+
+  async updateFitnessPlan(planId: string, updates: Partial<FitnessPlan>) {
+    const user = await this.getCurrentUser();
+    
+    if (!supabase) throw new Error('Supabase client not initialized');
+    
+    const { data, error } = await supabase
+      .from('fitness_plans')
+      .update(updates)
+      .eq('id', planId)
+      .eq('user_id', user.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  // Daily fitness plan operations
+  async saveDailyFitnessPlan(dailyPlan: Omit<DailyFitnessPlan, 'id' | 'user_id' | 'created_at'>) {
+    const user = await this.getCurrentUser();
+    
+    if (!supabase) throw new Error('Supabase client not initialized');
+    
+    const { data, error } = await supabase
+      .from('daily_fitness_plans')
+      .upsert({
+        user_id: user.id,
+        ...dailyPlan
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async getDailyFitnessPlans(fitnessPlanId?: string) {
+    const user = await this.getCurrentUser();
+    
+    if (!supabase) throw new Error('Supabase client not initialized');
+    
+    let query = supabase
+      .from('daily_fitness_plans')
+      .select('*')
+      .eq('user_id', user.id);
+
+    if (fitnessPlanId) {
+      query = query.eq('fitness_plan_id', fitnessPlanId);
+    }
+
+    const { data, error } = await query.order('day_number', { ascending: true });
+    if (error) throw error;
+    return data;
+  }
+
+  async getDailyFitnessPlan(dayNumber: number, fitnessPlanId?: string) {
+    const user = await this.getCurrentUser();
+    
+    let query = supabase
+      .from('daily_fitness_plans')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('day_number', dayNumber);
+
+    if (fitnessPlanId) {
+      query = query.eq('fitness_plan_id', fitnessPlanId);
+    }
+
+    const { data, error } = await query.single();
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
+  }
+
+  async updateDailyFitnessPlan(dayNumber: number, updates: Partial<DailyFitnessPlan>, fitnessPlanId?: string) {
+    const user = await this.getCurrentUser();
+    
+    let query = supabase
+      .from('daily_fitness_plans')
+      .update(updates)
+      .eq('user_id', user.id)
+      .eq('day_number', dayNumber);
+
+    if (fitnessPlanId) {
+      query = query.eq('fitness_plan_id', fitnessPlanId);
+    }
+
+    const { data, error } = await query.select().single();
+    if (error) throw error;
+    return data;
+  }
+
+  // Fitness progress tracking
+  async saveFitnessProgress(progress: Omit<FitnessProgress, 'id' | 'user_id' | 'recorded_at'>) {
+    const user = await this.getCurrentUser();
+    
+    const { data, error } = await supabase
+      .from('fitness_progress')
+      .upsert({
+        user_id: user.id,
+        ...progress
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async getFitnessProgress(fitnessPlanId?: string) {
+    const user = await this.getCurrentUser();
+    
+    if (!supabase) throw new Error('Supabase client not initialized');
+    
+    let query = supabase
+      .from('fitness_progress')
+      .select('*')
+      .eq('user_id', user.id);
+
+    if (fitnessPlanId) {
+      query = query.eq('fitness_plan_id', fitnessPlanId);
+    }
+
+    const { data, error } = await query.order('day_number', { ascending: true });
+    if (error) throw error;
+    return data;
+  }
+
+  // Fitness plan with image storage
+  async saveFitnessPlanWithImages(plan: Omit<FitnessPlan, 'id' | 'user_id' | 'created_at' | 'updated_at'>, imageData?: string) {
+    const user = await this.getCurrentUser();
+    let imageUrls: string[] = [];
+
+    // Upload image if provided
+    if (imageData) {
+      try {
+        const imageUrl = await this.uploadImageToStorage(imageData, 'fitness', user.id);
+        imageUrls.push(imageUrl);
+      } catch (error) {
+        console.error('Failed to upload fitness plan image:', error);
+      }
+    }
+
+    // Save fitness plan
+    const { data: fitnessPlan, error: planError } = await supabase
+      .from('fitness_plans')
+      .insert({
+        user_id: user.id,
+        ...plan
+      })
+      .select()
+      .single();
+
+    if (planError) throw planError;
+
+    // Save image metadata if images were uploaded
+    if (imageUrls.length > 0) {
+      for (const imageUrl of imageUrls) {
+        await this.saveImageMetadata({
+          image_url: imageUrl,
+          image_type: 'fitness',
+          file_name: `fitness_plan_${fitnessPlan.id}`,
+          tags: ['fitness_plan', plan.plan_type]
+        });
+      }
+    }
+
+    return fitnessPlan;
   }
 
   // Saved routines operations
@@ -554,18 +780,200 @@ class HealthDataService {
     return data;
   }
 
-  // Dashboard summary
+  // Enhanced dashboard summary with fitness data
   async getDashboardSummary() {
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase
-      .from('user_dashboard')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+    try {
+      // Get counts for different health activities
+      const [
+        therapistSessions,
+        postureChecks,
+        fitnessPlans,
+        savedRoutines,
+        healthProgress
+      ] = await Promise.all([
+        this.getTherapistChatSessions(),
+        this.getPostureCheckSessions(),
+        this.getFitnessPlans(),
+        this.getSavedRoutines(),
+        this.getHealthProgress()
+      ]);
 
-    if (error) throw error;
-    return data;
+      // Calculate health score based on various metrics
+      const healthScore = this.calculateHealthScore({
+        therapistSessions: therapistSessions.length,
+        postureChecks: postureChecks.length,
+        fitnessPlans: fitnessPlans.length,
+        savedRoutines: savedRoutines.length,
+        healthProgress: healthProgress.length
+      });
+
+      // Get recent activities
+      const recentActivities = await this.getRecentActivities();
+
+      return {
+        totalTherapySessions: therapistSessions.length,
+        totalPostureChecks: postureChecks.length,
+        totalFitnessPlans: fitnessPlans.length,
+        totalSavedRoutines: savedRoutines.length,
+        healthScore,
+        recentActivities,
+        averagePostureScore: this.calculateAveragePostureScore(postureChecks),
+        progressStreak: this.calculateProgressStreak(healthProgress),
+        fitnessProgress: this.calculateFitnessProgress(fitnessPlans)
+      };
+    } catch (error) {
+      console.error('Error getting dashboard summary:', error);
+      return {
+        totalTherapySessions: 0,
+        totalPostureChecks: 0,
+        totalFitnessPlans: 0,
+        totalSavedRoutines: 0,
+        healthScore: 0,
+        recentActivities: [],
+        averagePostureScore: 0,
+        progressStreak: 0,
+        fitnessProgress: 0
+      };
+    }
+  }
+
+  private calculateHealthScore(metrics: any): number {
+    const weights = {
+      therapistSessions: 0.2,
+      postureChecks: 0.25,
+      fitnessPlans: 0.25,
+      savedRoutines: 0.15,
+      healthProgress: 0.15
+    };
+
+    const maxValues = {
+      therapistSessions: 10,
+      postureChecks: 20,
+      fitnessPlans: 5,
+      savedRoutines: 15,
+      healthProgress: 30
+    };
+
+    let score = 0;
+    for (const [metric, value] of Object.entries(metrics)) {
+      const weight = weights[metric as keyof typeof weights];
+      const maxValue = maxValues[metric as keyof typeof maxValues];
+      score += (Math.min(value, maxValue) / maxValue) * weight * 100;
+    }
+
+    return Math.round(score);
+  }
+
+  private calculateAveragePostureScore(postureChecks: any[]): number {
+    if (postureChecks.length === 0) return 0;
+    const totalScore = postureChecks.reduce((sum, check) => sum + (check.posture_score || 0), 0);
+    return Math.round(totalScore / postureChecks.length);
+  }
+
+  private calculateProgressStreak(healthProgress: any[]): number {
+    if (healthProgress.length === 0) return 0;
+    
+    // Sort by recorded_at and calculate consecutive days
+    const sortedProgress = healthProgress
+      .sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
+    
+    let streak = 0;
+    let currentDate = new Date();
+    
+    for (const progress of sortedProgress) {
+      const progressDate = new Date(progress.recorded_at);
+      const daysDiff = Math.floor((currentDate.getTime() - progressDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (daysDiff <= 1) {
+        streak++;
+        currentDate = progressDate;
+      } else {
+        break;
+      }
+    }
+    
+    return streak;
+  }
+
+  private calculateFitnessProgress(fitnessPlans: any[]): number {
+    if (fitnessPlans.length === 0) return 0;
+    
+    const activePlans = fitnessPlans.filter(plan => plan.is_active);
+    if (activePlans.length === 0) return 0;
+    
+    // Calculate average completion rate (simplified)
+    return Math.round((activePlans.length / fitnessPlans.length) * 100);
+  }
+
+  private async getRecentActivities() {
+    const user = await this.getCurrentUser();
+    const activities = [];
+
+    try {
+      // Get recent therapist sessions
+      const { data: recentSessions } = await supabase
+        .from('therapist_chat_sessions')
+        .select('session_title, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      if (recentSessions) {
+        activities.push(...recentSessions.map(session => ({
+          type: 'therapy',
+          title: session.session_title || 'Therapy Session',
+          date: session.created_at,
+          icon: 'Psychology'
+        })));
+      }
+
+      // Get recent posture checks
+      const { data: recentPosture } = await supabase
+        .from('posture_check_sessions')
+        .select('session_title, created_at, posture_score')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      if (recentPosture) {
+        activities.push(...recentPosture.map(check => ({
+          type: 'posture',
+          title: check.session_title || 'Posture Check',
+          date: check.created_at,
+          score: check.posture_score,
+          icon: 'Accessibility'
+        })));
+      }
+
+      // Get recent fitness activities
+      const { data: recentFitness } = await supabase
+        .from('fitness_plans')
+        .select('plan_name, created_at, is_active')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      if (recentFitness) {
+        activities.push(...recentFitness.map(plan => ({
+          type: 'fitness',
+          title: plan.plan_name,
+          date: plan.created_at,
+          status: plan.is_active ? 'Active' : 'Completed',
+          icon: 'FitnessCenter'
+        })));
+      }
+
+      // Sort all activities by date and return top 5
+      return activities
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 5);
+
+    } catch (error) {
+      console.error('Error getting recent activities:', error);
+      return [];
+    }
   }
 
   // Browser storage utilities

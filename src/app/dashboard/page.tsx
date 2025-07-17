@@ -32,9 +32,13 @@ import {
   Person as PersonIcon,
   CalendarToday as CalendarIcon,
   Flag as FlagIcon,
+  Bookmark as BookmarkIcon,
+  Straighten as PostureIcon,
+  TrendingUp as StreakIcon,
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import DataMigrationModal from "@/components/DataMigrationModal";
+import HealthDataService from "@/utils/healthDataService";
 
 interface HealthStats {
   totalSessions: number;
@@ -42,6 +46,9 @@ interface HealthStats {
   postureChecks: number;
   healthScore: number;
   recentActivities: HealthActivity[];
+  savedRoutinesCount?: number;
+  averagePostureScore?: number;
+  progressStreak?: number;
 }
 
 interface HealthActivity {
@@ -65,6 +72,7 @@ export default function DashboardPage() {
     recentActivities: [],
   });
   const router = useRouter();
+  const healthDataService = new HealthDataService();
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -103,62 +111,127 @@ export default function DashboardPage() {
     }
     
     try {
-      // Fetch health sessions
-      const { data: sessions } = await supabase
-        .from('health_sessions')
-        .select('*')
-        .eq('user_id', userId);
-
-      // Fetch fitness workouts
-      const { data: workouts } = await supabase
-        .from('fitness_workouts')
-        .select('*')
-        .eq('user_id', userId);
-
-      // Fetch posture checks
-      const { data: postureData } = await supabase
-        .from('posture_checks')
-        .select('*')
-        .eq('user_id', userId);
+      // Fetch all health data using HealthDataService
+      const [
+        therapistSessions,
+        postureSessions,
+        fitnessPlans,
+        savedRoutines,
+        healthProgress
+      ] = await Promise.all([
+        healthDataService.getTherapistChatSessions(),
+        healthDataService.getPostureCheckSessions(),
+        healthDataService.getFitnessPlans(),
+        healthDataService.getSavedRoutines(),
+        healthDataService.getHealthProgress()
+      ]);
 
       // Calculate stats
-      const totalSessions = sessions?.length || 0;
-      const fitnessWorkouts = workouts?.length || 0;
-      const postureChecks = postureData?.length || 0;
+      const totalSessions = therapistSessions?.length || 0;
+      const fitnessWorkouts = fitnessPlans?.length || 0;
+      const postureChecks = postureSessions?.length || 0;
+      const savedRoutinesCount = savedRoutines?.length || 0;
 
-      // Create recent activities
-      const recentActivities: HealthActivity[] = [
-        {
-          id: '1',
+      // Calculate health score based on actual data
+      const baseScore = 50;
+      const sessionScore = totalSessions * 3;
+      const workoutScore = fitnessWorkouts * 4;
+      const postureScore = postureSessions?.reduce((acc, session) => acc + (session.posture_score || 0), 0) / Math.max(postureSessions?.length || 1, 1);
+      const routineScore = savedRoutinesCount * 2;
+      
+      const healthScore = Math.min(100, Math.max(0, baseScore + sessionScore + workoutScore + (postureScore * 0.1) + routineScore));
+
+      // Create recent activities from actual data
+      const recentActivities: HealthActivity[] = [];
+
+      // Add therapist sessions
+      therapistSessions?.slice(0, 3).forEach(session => {
+        recentActivities.push({
+          id: session.id || 'unknown',
           type: 'therapy',
-          title: 'AI Therapy Session',
-          date: new Date().toISOString(),
+          title: session.session_title || 'AI Therapy Session',
+          date: session.created_at || new Date().toISOString(),
           status: 'completed',
-          duration: '30 min'
-        },
-        {
-          id: '2',
-          type: 'fitness',
-          title: 'Morning Workout',
-          date: new Date(Date.now() - 86400000).toISOString(),
-          status: 'completed',
-          duration: '45 min'
-        },
-        {
-          id: '3',
+          duration: session.session_duration ? `${session.session_duration} min` : '30 min'
+        });
+      });
+
+      // Add posture checks
+      postureSessions?.slice(0, 2).forEach(session => {
+        recentActivities.push({
+          id: session.id || 'unknown',
           type: 'posture',
-          title: 'Posture Check',
-          date: new Date(Date.now() - 172800000).toISOString(),
-          status: 'completed'
-        }
-      ];
+          title: session.session_title || 'Posture Check',
+          date: session.created_at || new Date().toISOString(),
+          status: 'completed',
+          duration: session.duration_seconds ? `${Math.round(session.duration_seconds / 60)} min` : undefined
+        });
+      });
+
+      // Add fitness plans
+      fitnessPlans?.slice(0, 2).forEach(plan => {
+        recentActivities.push({
+          id: plan.id || 'unknown',
+          type: 'fitness',
+          title: plan.plan_name || 'Fitness Plan',
+          date: plan.created_at || new Date().toISOString(),
+          status: plan.is_active ? 'active' : 'completed',
+          duration: plan.duration_days ? `${plan.duration_days} days` : undefined
+        });
+      });
+
+      // Add saved routines
+      savedRoutines?.slice(0, 1).forEach(routine => {
+        recentActivities.push({
+          id: routine.id || 'unknown',
+          type: 'routine',
+          title: routine.routine_name || 'Saved Routine',
+          date: routine.created_at || new Date().toISOString(),
+          status: routine.is_favorite ? 'favorite' : 'completed'
+        });
+      });
+
+      // Sort by date and take the most recent 5
+      const sortedActivities = recentActivities
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 5);
+
+      // If no real activities, add some encouraging placeholder activities
+      if (sortedActivities.length === 0) {
+        sortedActivities.push(
+          {
+            id: 'welcome',
+            type: 'welcome',
+            title: 'Welcome to Health AI!',
+            date: new Date().toISOString(),
+            status: 'completed'
+          },
+          {
+            id: 'get-started',
+            type: 'suggestion',
+            title: 'Try your first posture check',
+            date: new Date(Date.now() - 86400000).toISOString(),
+            status: 'pending'
+          },
+          {
+            id: 'therapy-suggestion',
+            type: 'suggestion',
+            title: 'Start a therapy session',
+            date: new Date(Date.now() - 172800000).toISOString(),
+            status: 'pending'
+          }
+        );
+      }
 
       setStats({
         totalSessions,
         fitnessWorkouts,
         postureChecks,
-        healthScore: Math.min(100, 85 + (totalSessions * 2) + (fitnessWorkouts * 3) + (postureChecks * 1)),
-        recentActivities,
+        healthScore: Math.round(healthScore),
+        recentActivities: sortedActivities,
+        savedRoutinesCount,
+        averagePostureScore: postureSessions?.reduce((acc, session) => acc + (session.posture_score || 0), 0) / Math.max(postureSessions?.length || 1, 1),
+        progressStreak: 0, // Default value for now
       });
     } catch (error) {
       console.error('Error fetching health data:', error);
@@ -181,13 +254,14 @@ export default function DashboardPage() {
     );
   }
 
-  const StatCard = ({ title, value, icon, color, subtitle, progress }: { 
+  const StatCard = ({ title, value, icon, color, subtitle, progress, valueSuffix }: { 
     title: string; 
     value: string | number; 
     icon: React.ReactNode; 
     color: string; 
     subtitle?: string;
     progress?: number;
+    valueSuffix?: string;
   }) => (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -240,7 +314,7 @@ export default function DashboardPage() {
             )}
           </Box>
           <Typography variant="h4" sx={{ fontWeight: 700, mb: 1, color: '#000000' }}>
-            {value}
+            {value}{valueSuffix || ''}
           </Typography>
           <Typography variant="body2" sx={{ color: '#666666', mb: 1 }}>
             {title}
@@ -298,12 +372,12 @@ export default function DashboardPage() {
             />
 
             <StatCard
-              title="Workouts"
+              title="Fitness Plans"
               value={stats.fitnessWorkouts}
               icon={<DumbbellIcon />}
               color="#3399FF"
-              subtitle="Completed"
-              progress={Math.min(100, (stats.fitnessWorkouts / 20) * 100)}
+              subtitle="Active plans"
+              progress={Math.min(100, (stats.fitnessWorkouts / 5) * 100)}
             />
 
             <StatCard
@@ -322,6 +396,37 @@ export default function DashboardPage() {
               color="#000000"
               subtitle="Overall wellness"
               progress={stats.healthScore}
+            />
+          </Box>
+
+          {/* Additional Stats Row */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 3, mb: 6 }}>
+            <StatCard
+              title="Saved Routines"
+              value={stats.savedRoutinesCount || 0}
+              icon={<BookmarkIcon />}
+              color="#4CAF50"
+              subtitle="Personal routines"
+              progress={Math.min(100, ((stats.savedRoutinesCount || 0) / 10) * 100)}
+            />
+
+            <StatCard
+              title="Avg Posture Score"
+              value={stats.averagePostureScore || 0}
+              icon={<PostureIcon />}
+              color="#FF9800"
+              subtitle="Last 7 days"
+              progress={stats.averagePostureScore || 0}
+            />
+
+            <StatCard
+              title="Progress Streak"
+              value={stats.progressStreak || 0}
+              valueSuffix=" days"
+              icon={<StreakIcon />}
+              color="#E91E63"
+              subtitle="Current streak"
+              progress={Math.min(100, ((stats.progressStreak || 0) / 30) * 100)}
             />
           </Box>
 
@@ -376,9 +481,19 @@ export default function DashboardPage() {
                                   height: 40,
                                   background: activity.status === "completed"
                                     ? "linear-gradient(45deg, #4CAF50, #66BB6A)"
+                                    : activity.status === "active"
+                                    ? "linear-gradient(45deg, #0066CC, #3399FF)"
                                     : "linear-gradient(45deg, #FF9800, #FFB74D)",
                                 }}>
-                                  {activity.status === "completed" ? <CheckCircleIcon /> : <WarningIcon />}
+                                  {activity.type === 'therapy' && <BrainIcon />}
+                                  {activity.type === 'posture' && <RulerIcon />}
+                                  {activity.type === 'fitness' && <DumbbellIcon />}
+                                  {activity.type === 'routine' && <BookmarkIcon />}
+                                  {activity.type === 'suggestion' && <WarningIcon />}
+                                  {activity.type === 'welcome' && <PersonIcon />}
+                                  {!['therapy', 'posture', 'fitness', 'routine', 'suggestion', 'welcome'].includes(activity.type) && 
+                                    (activity.status === "completed" ? <CheckCircleIcon /> : <WarningIcon />)
+                                  }
                                 </Avatar>
                               </ListItemIcon>
                               <ListItemText

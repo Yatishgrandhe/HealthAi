@@ -34,7 +34,14 @@ import {
   FormLabel,
   RadioGroup,
   FormControlLabel,
-  Radio
+  Radio,
+  Switch,
+  FormControlLabel as MuiFormControlLabel,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Badge,
+  Tooltip
 } from "@mui/material";
 import { 
   FitnessCenter, 
@@ -55,13 +62,21 @@ import {
   ArrowBack,
   CloudUpload,
   Restaurant,
-  DirectionsRun
+  DirectionsRun,
+  CalendarToday,
+  ExpandMore,
+  Check,
+  Close,
+  CloudDone,
+  PhotoCamera,
+  Visibility,
+  VisibilityOff
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import aiService from "@/utils/aiService";
 import { useUser } from "@/utils/supabaseClient";
-
+import HealthDataService from "@/utils/healthDataService";
 
 interface FitnessPlan {
   id: string;
@@ -86,6 +101,24 @@ interface FitnessPlan {
   };
 }
 
+interface DailyPlan {
+  day: number;
+  meals: {
+    breakfast: string;
+    lunch: string;
+    dinner: string;
+    snacks: string[];
+  };
+  exercises: {
+    cardio: string;
+    strength: string;
+    flexibility: string;
+  };
+  tips: string;
+  progress_notes?: string;
+  completed?: boolean;
+}
+
 type DietaryPreference = "vegetarian" | "non-vegetarian" | "vegan";
 
 const steps = [
@@ -99,14 +132,22 @@ export default function FitnessPlannerPage() {
   const [activeStep, setActiveStep] = useState(0);
   const [dietaryPreference, setDietaryPreference] = useState<DietaryPreference>("vegetarian");
   const [fitnessGoals, setFitnessGoals] = useState<string[]>([]);
+  const [saveToDatabase, setSaveToDatabase] = useState(false);
+  const [saveImage, setSaveImage] = useState(false);
 
   const [plan, setPlan] = useState<FitnessPlan | null>(null);
+  const [dailyPlans, setDailyPlans] = useState<DailyPlan[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [imageAnalysis, setImageAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
 
   const { user, loading: userLoading } = useUser();
+  const healthDataService = new HealthDataService();
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -118,8 +159,8 @@ export default function FitnessPlannerPage() {
         setIsAnalyzing(true);
         
         try {
-          // Analyze the uploaded image using Cloud Vision API
-          const analysisResult = await aiService.analyzeFitnessImage(imageData, 'form');
+          // Analyze the uploaded image using Cloud Vision API for body composition
+          const analysisResult = await aiService.analyzeFitnessImage(imageData, 'body_composition');
           
           if (analysisResult.success) {
             setImageAnalysis(analysisResult.analysis);
@@ -153,81 +194,8 @@ export default function FitnessPlannerPage() {
     setIsGenerating(true);
     
     try {
-      // Generate nutrition plan using AI service
-      const nutritionResult = await aiService.generateNutritionPlan({
-        dietaryPreference: dietaryPreference,
-        fitnessGoals: fitnessGoals.length > 0 ? fitnessGoals : ["Weight Loss", "Muscle Tone", "Overall Fitness"],
-        fitnessLevel: "Intermediate",
-        restrictions: [],
-        preferences: []
-      });
-
-      if (!nutritionResult.success) {
-        throw new Error(nutritionResult.error || 'Failed to generate nutrition plan');
-      }
-
-      // Create comprehensive fitness plan
+      // Generate comprehensive fitness plan
       const newPlan: FitnessPlan = {
-        id: Date.now().toString(),
-        name: "90-Day Wellness Journey",
-        duration: 90,
-        difficulty: "Intermediate",
-        goals: fitnessGoals.length > 0 ? fitnessGoals : ["Weight Loss", "Muscle Tone", "Overall Fitness"],
-        meals: {
-          breakfast: nutritionResult.plan?.meals?.breakfast || [
-            "Oatmeal with berries and nuts",
-            "Greek yogurt with honey",
-            "Whole grain toast with avocado",
-            "Smoothie bowl with protein"
-          ],
-          lunch: nutritionResult.plan?.meals?.lunch || [
-            "Quinoa salad with vegetables",
-            "Grilled chicken with brown rice",
-            "Lentil soup with whole grain bread",
-            "Tofu stir-fry with vegetables"
-          ],
-          dinner: nutritionResult.plan?.meals?.dinner || [
-            "Salmon with steamed vegetables",
-            "Vegetarian pasta with tomato sauce",
-            "Chickpea curry with rice",
-            "Grilled vegetables with quinoa"
-          ]
-        },
-        workouts: {
-          cardio: [
-            "30 minutes brisk walking",
-            "20 minutes HIIT training",
-            "45 minutes cycling",
-            "15 minutes jump rope"
-          ],
-          strength: [
-            "Push-ups and squats (3 sets each)",
-            "Dumbbell exercises for arms",
-            "Core strengthening exercises",
-            "Bodyweight circuit training"
-          ],
-          flexibility: [
-            "10 minutes stretching routine",
-            "Yoga flow sequence",
-            "Pilates exercises",
-            "Mobility drills"
-          ]
-        },
-        progress: {
-          currentDay: 1,
-          completedWorkouts: 0,
-          completedMeals: 0
-        }
-      };
-      
-      setPlan(newPlan);
-      setIsGenerating(false);
-      setActiveStep(3);
-    } catch (error) {
-      console.error('Error generating plan:', error);
-      
-      // Fallback plan if AI fails
-      const fallbackPlan: FitnessPlan = {
         id: Date.now().toString(),
         name: "90-Day Wellness Journey",
         duration: 90,
@@ -280,15 +248,129 @@ export default function FitnessPlannerPage() {
         }
       };
       
-      setPlan(fallbackPlan);
+      setPlan(newPlan);
+
+      // Generate daily plans using Gemini API
+      const dailyPlansData: DailyPlan[] = [];
+      for (let day = 1; day <= 7; day++) { // Generate first week as example
+        try {
+          const dailyResult = await aiService.generateDailyFitnessPlan({
+            dietaryPreference: dietaryPreference,
+            fitnessGoals: fitnessGoals.length > 0 ? fitnessGoals : ["Weight Loss", "Muscle Tone", "Overall Fitness"],
+            fitnessLevel: "Intermediate",
+            currentDay: day,
+            totalDays: 90,
+            restrictions: [],
+            preferences: []
+          });
+
+          if (dailyResult.success && dailyResult.plan) {
+            dailyPlansData.push(dailyResult.plan);
+          } else {
+            // Fallback daily plan
+            dailyPlansData.push({
+              day: day,
+              meals: {
+                breakfast: "Oatmeal with berries and nuts",
+                lunch: "Quinoa salad with grilled vegetables",
+                dinner: "Salmon with steamed broccoli",
+                snacks: ["Apple with almond butter", "Greek yogurt"]
+              },
+              exercises: {
+                cardio: "30 minutes brisk walking",
+                strength: "Push-ups and squats (3 sets each)",
+                flexibility: "10 minutes stretching routine"
+              },
+              tips: "Stay hydrated and get adequate rest for optimal results."
+            });
+          }
+        } catch (error) {
+          console.error(`Error generating daily plan for day ${day}:`, error);
+          // Fallback daily plan
+          dailyPlansData.push({
+            day: day,
+            meals: {
+              breakfast: "Oatmeal with berries and nuts",
+              lunch: "Quinoa salad with grilled vegetables",
+              dinner: "Salmon with steamed broccoli",
+              snacks: ["Apple with almond butter", "Greek yogurt"]
+            },
+            exercises: {
+              cardio: "30 minutes brisk walking",
+              strength: "Push-ups and squats (3 sets each)",
+              flexibility: "10 minutes stretching routine"
+            },
+            tips: "Stay hydrated and get adequate rest for optimal results."
+          });
+        }
+      }
+      
+      setDailyPlans(dailyPlansData);
       setIsGenerating(false);
       setActiveStep(3);
+    } catch (error) {
+      console.error('Error generating plan:', error);
+      setIsGenerating(false);
     }
   };
 
-  const savePlan = () => {
-    // Save plan to user's saved routines (implement with backend)
-    alert("Plan saved to your routines!");
+  const handleSavePlan = async () => {
+    if (!user) {
+      alert("Please log in to save your plan!");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      if (saveToDatabase) {
+        // Save to database
+        const fitnessPlanData = {
+          plan_name: plan?.name || "90-Day Wellness Journey",
+          plan_type: "general" as const,
+          duration_days: plan?.duration || 90,
+          difficulty_level: "intermediate" as const,
+          exercises: plan?.workouts || {},
+          nutrition_plan: plan?.meals || {},
+          goals: plan?.goals || [],
+          is_active: true
+        };
+
+                 const savedPlan = await healthDataService.saveFitnessPlanWithImages(
+           fitnessPlanData,
+           saveImage && uploadedImage ? uploadedImage : undefined
+         );
+
+        // Save daily plans
+        for (const dailyPlan of dailyPlans) {
+          await healthDataService.saveDailyFitnessPlan({
+            fitness_plan_id: savedPlan.id,
+            day_number: dailyPlan.day,
+            meals: dailyPlan.meals,
+            exercises: dailyPlan.exercises,
+            tips: dailyPlan.tips,
+            progress_notes: dailyPlan.progress_notes
+          });
+        }
+
+        alert("Plan saved to your account successfully!");
+      } else {
+        // Save to localStorage
+        const planData = {
+          plan,
+          dailyPlans,
+          image: saveImage ? uploadedImage : null,
+          savedAt: new Date().toISOString()
+        };
+        localStorage.setItem('fitnessPlan', JSON.stringify(planData));
+        alert("Plan saved locally!");
+      }
+    } catch (error) {
+      console.error('Error saving plan:', error);
+      alert("Failed to save plan. Please try again.");
+    } finally {
+      setIsSaving(false);
+      setSaveDialogOpen(false);
+    }
   };
 
   const availableGoals = [
@@ -301,6 +383,209 @@ export default function FitnessPlannerPage() {
     "Stress Relief",
     "Overall Fitness"
   ];
+
+  const renderCalendar = () => {
+    const days = Array.from({ length: 90 }, (_, i) => i + 1);
+    const weeks = [];
+    for (let i = 0; i < days.length; i += 7) {
+      weeks.push(days.slice(i, i + 7));
+    }
+
+    return (
+      <Box sx={{ mt: 3 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+          90-Day Progress Calendar
+        </Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {weeks.map((week, weekIndex) => (
+            <Box key={weekIndex} sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+              {week.map((day) => {
+                const dailyPlan = dailyPlans.find(p => p.day === day);
+                const isCompleted = dailyPlan?.completed;
+                const isToday = day === 1; // For demo, day 1 is "today"
+                
+                return (
+                  <Tooltip 
+                    key={day} 
+                    title={dailyPlan ? `Day ${day}: ${dailyPlan.tips}` : `Day ${day}`}
+                    placement="top"
+                  >
+                    <Card
+                      sx={{
+                        width: 60,
+                        height: 60,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        background: isCompleted 
+                          ? 'linear-gradient(135deg, #4CAF50, #45a049)'
+                          : isToday
+                          ? 'linear-gradient(135deg, #FFD166, #06D6A0)'
+                          : 'rgba(255, 255, 255, 0.8)',
+                        color: isCompleted || isToday ? 'white' : 'text.primary',
+                        border: isToday ? '2px solid #FFD166' : '1px solid rgba(0,0,0,0.1)',
+                        '&:hover': {
+                          transform: 'scale(1.05)',
+                          boxShadow: 2
+                        },
+                        transition: 'all 0.3s ease'
+                      }}
+                      onClick={() => setSelectedDay(day)}
+                    >
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
+                          {day}
+                        </Typography>
+                        {isCompleted && (
+                          <Check sx={{ fontSize: 16, display: 'block', mx: 'auto', mt: 0.5 }} />
+                        )}
+                      </Box>
+                    </Card>
+                  </Tooltip>
+                );
+              })}
+            </Box>
+          ))}
+        </Box>
+      </Box>
+    );
+  };
+
+  const renderDailyPlan = (day: number) => {
+    const dailyPlan = dailyPlans.find(p => p.day === day);
+    if (!dailyPlan) return null;
+
+    return (
+      <Dialog 
+        open={selectedDay !== null} 
+        onClose={() => setSelectedDay(null)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <CalendarToday sx={{ color: '#FFD166' }} />
+            Day {day} - Your Daily Plan
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3 }}>
+            <Box sx={{ width: { xs: '100%', md: '50%' } }}>
+              <Card sx={{ mb: 2 }}>
+                <CardContent>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Restaurant sx={{ color: '#FFD166' }} />
+                    Today's Meals
+                  </Typography>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#FFD166' }}>
+                      Breakfast
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {dailyPlan.meals.breakfast}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#06D6A0' }}>
+                      Lunch
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {dailyPlan.meals.lunch}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#7B61FF' }}>
+                      Dinner
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {dailyPlan.meals.dinner}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#FF6B6B' }}>
+                      Snacks
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {dailyPlan.meals.snacks.join(', ')}
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Box>
+            <Box sx={{ width: { xs: '100%', md: '50%' } }}>
+              <Card sx={{ mb: 2 }}>
+                <CardContent>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <DirectionsRun sx={{ color: '#06D6A0' }} />
+                    Today's Workout
+                  </Typography>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#FFD166' }}>
+                      Cardio
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {dailyPlan.exercises.cardio}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#06D6A0' }}>
+                      Strength
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {dailyPlan.exercises.strength}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#7B61FF' }}>
+                      Flexibility
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {dailyPlan.exercises.flexibility}
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Box>
+          </Box>
+          <Box sx={{ mt: 3 }}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Info sx={{ color: '#7B61FF' }} />
+                  Daily Tip
+                </Typography>
+                <Typography variant="body1" color="text.secondary">
+                  {dailyPlan.tips}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSelectedDay(null)}>Close</Button>
+          <Button 
+            variant="contained"
+            onClick={() => {
+              // Mark day as completed
+              setDailyPlans(prev => prev.map(p => 
+                p.day === day ? { ...p, completed: true } : p
+              ));
+              setSelectedDay(null);
+            }}
+            sx={{
+              background: "linear-gradient(135deg, #FFD166, #06D6A0)",
+              "&:hover": {
+                background: "linear-gradient(135deg, #FFC107, #00C853)",
+              }
+            }}
+          >
+            Mark Complete
+          </Button>
+        </DialogActions>
+      </Dialog>
+    );
+  };
 
   return (
     <Box sx={{ minHeight: "100vh", background: "#f8f9ff" }}>
@@ -335,16 +620,16 @@ export default function FitnessPlannerPage() {
                 </Link>
               )}
               <img 
-              src="/health-ai-logo.png" 
-              alt="Health AI Logo" 
-              width={40} 
-              height={40} 
-              style={{
-                borderRadius: '50%',
-                background: 'transparent',
-                display: 'block'
-              }}
-            />
+                src="/health-ai-logo.png" 
+                alt="Health AI Logo" 
+                width={40} 
+                height={40} 
+                style={{
+                  borderRadius: '50%',
+                  background: 'transparent',
+                  display: 'block'
+                }}
+              />
               <Box sx={{ ml: 2 }}>
                 <Typography
                   variant="h6"
@@ -366,7 +651,7 @@ export default function FitnessPlannerPage() {
                     fontSize: "0.8rem"
                   }}
                 >
-                  Personalized workout and nutrition plans
+                  AI-Powered personalized workout and nutrition plans
                 </Typography>
               </Box>
             </Box>
@@ -500,6 +785,13 @@ export default function FitnessPlannerPage() {
                         onChange={handleImageUpload}
                       />
                     </Button>
+                    
+                    {isAnalyzing && (
+                      <Box sx={{ mt: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                        <CircularProgress size={20} />
+                        <Typography variant="body2">Analyzing image with AI...</Typography>
+                      </Box>
+                    )}
                     
                     <Alert severity="info" sx={{ mt: 3, borderRadius: 2 }}>
                       <Typography variant="body2">
@@ -737,22 +1029,41 @@ export default function FitnessPlannerPage() {
                       <Typography variant="h5" sx={{ fontWeight: 600 }}>
                         Your 90-Day Plan
                       </Typography>
-                      <Button
-                        variant="outlined"
-                        startIcon={<Save />}
-                        onClick={savePlan}
-                        sx={{
-                          borderColor: "#FFD166",
-                          color: "#FFD166",
-                          "&:hover": {
-                            borderColor: "#FFC107",
-                            background: "rgba(255, 209, 102, 0.05)",
-                          },
-                        }}
-                      >
-                        Save Plan
-                      </Button>
+                      <Box sx={{ display: "flex", gap: 2 }}>
+                        <Button
+                          variant="outlined"
+                          startIcon={<CalendarToday />}
+                          onClick={() => setShowCalendar(!showCalendar)}
+                          sx={{
+                            borderColor: "#06D6A0",
+                            color: "#06D6A0",
+                            "&:hover": {
+                              borderColor: "#00C853",
+                              background: "rgba(6, 214, 160, 0.05)",
+                            },
+                          }}
+                        >
+                          {showCalendar ? "Hide Calendar" : "Show Calendar"}
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          startIcon={<Save />}
+                          onClick={() => setSaveDialogOpen(true)}
+                          sx={{
+                            borderColor: "#FFD166",
+                            color: "#FFD166",
+                            "&:hover": {
+                              borderColor: "#FFC107",
+                              background: "rgba(255, 209, 102, 0.05)",
+                            },
+                          }}
+                        >
+                          Save Plan
+                        </Button>
+                      </Box>
                     </Box>
+
+                    {showCalendar && renderCalendar()}
 
                     <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 3 }}>
                       <Box sx={{ width: { xs: "100%", md: "50%" } }}>
@@ -853,6 +1164,74 @@ export default function FitnessPlannerPage() {
           </Box>
         </Box>
       </Container>
+
+      {/* Save Dialog */}
+      <Dialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Save Your Fitness Plan</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mb: 3 }}>
+            <MuiFormControlLabel
+              control={
+                <Switch
+                  checked={saveToDatabase}
+                  onChange={(e) => setSaveToDatabase(e.target.checked)}
+                />
+              }
+              label="Save to my account (requires login)"
+            />
+            <Typography variant="body2" color="text.secondary" sx={{ ml: 4 }}>
+              {user ? "Your plan will be saved to your account and accessible across devices." : "Please log in to save to your account."}
+            </Typography>
+          </Box>
+          
+          <Box sx={{ mb: 3 }}>
+            <MuiFormControlLabel
+              control={
+                <Switch
+                  checked={saveImage}
+                  onChange={(e) => setSaveImage(e.target.checked)}
+                />
+              }
+              label="Save body image for progress tracking"
+            />
+            <Typography variant="body2" color="text.secondary" sx={{ ml: 4 }}>
+              Store your body image to track progress over time.
+            </Typography>
+          </Box>
+
+          {!user && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              You need to log in to save to your account. Otherwise, the plan will be saved locally.
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSaveDialogOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleSavePlan}
+            disabled={isSaving}
+            sx={{
+              background: "linear-gradient(135deg, #FFD166, #06D6A0)",
+              "&:hover": {
+                background: "linear-gradient(135deg, #FFC107, #00C853)",
+              }
+            }}
+          >
+            {isSaving ? (
+              <>
+                <CircularProgress size={20} sx={{ color: "white", mr: 1 }} />
+                Saving...
+              </>
+            ) : (
+              "Save Plan"
+            )}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Daily Plan Dialog */}
+      {selectedDay && renderDailyPlan(selectedDay)}
     </Box>
   );
 } 

@@ -62,13 +62,6 @@ const getMenuItems = (user: any): MenuItem[] => {
     // Main Dashboard
     { text: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
     
-    // Health & Wellness
-    { text: "Health Tools", icon: <HealthIcon />, path: "/health-tools?from=dashboard", category: "Health & Wellness" },
-    { text: "Therapist Chat", icon: <TherapistIcon />, path: "/health-tools/therapist-chat?from=dashboard" },
-    { text: "Posture Check", icon: <PostureIcon />, path: "/health-tools/posture-check?from=dashboard" },
-    { text: "Fitness Planner", icon: <FitnessIcon />, path: "/health-tools/fitness-planner?from=dashboard" },
-    { text: "Saved Routines", icon: <SavedIcon />, path: "/health-tools/saved-routines?from=dashboard" },
-    
     // Analytics & Progress
     { text: "Health Analytics", icon: <AnalyticsIcon />, path: "/dashboard/analytics", category: "Analytics" },
     { text: "Progress Calendar", icon: <CalendarIcon />, path: "/dashboard/calendar" },

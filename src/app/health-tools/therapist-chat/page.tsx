@@ -294,14 +294,7 @@ export default function TherapistChatPage() {
     }
   }
 
-  useEffect(() => {
-    if (!currentChat) return;
-
-    const userMessage = inputText.trim();
-    if (userMessage) {
-      handleSendMessage();
-    }
-  }, [inputText, currentChat]);
+  // Removed problematic useEffect that was causing auto-sending messages
 
   function handleVoiceMessage(message: string) {
     if (!currentChat) return;
@@ -364,6 +357,18 @@ export default function TherapistChatPage() {
         }))
       }));
       setChatSessions(parsedChats);
+      
+      // Clean up empty chats after loading
+      setTimeout(() => {
+                const emptyChats = parsedChats.filter((chat: ChatSession) =>
+          chat.messages.length === 0 || 
+          (chat.messages.length === 1 && chat.messages[0].sender === 'ai')
+        );
+        
+        emptyChats.forEach((chat: ChatSession) => {
+          deleteChat(chat.id);
+        });
+      }, 1000);
     }
     
     // Always create a new chat when entering the page
@@ -463,12 +468,38 @@ export default function TherapistChatPage() {
   };
 
   const deleteChat = (chatId: string) => {
+    // Remove from state
     setChatSessions(prev => prev.filter(chat => chat.id !== chatId));
     if (currentChat?.id === chatId) {
       setCurrentChat(chatSessions.find(chat => chat.id !== chatId) || null);
     }
+    
+    // Remove from localStorage
+    try {
+      const savedChats = localStorage.getItem('therapist-chats');
+      if (savedChats) {
+        const parsedChats = JSON.parse(savedChats);
+        const filteredChats = parsedChats.filter((chat: ChatSession) => chat.id !== chatId);
+        localStorage.setItem('therapist-chats', JSON.stringify(filteredChats));
+      }
+    } catch (error) {
+      console.error('Failed to delete chat from localStorage:', error);
+    }
+    
     setDeleteDialogOpen(false);
     setChatToDelete(null);
+  };
+
+  // Function to automatically delete empty chats
+  const cleanupEmptyChats = () => {
+    const emptyChats = chatSessions.filter(chat => 
+      chat.messages.length === 0 || 
+      (chat.messages.length === 1 && chat.messages[0].sender === 'ai')
+    );
+    
+    emptyChats.forEach(chat => {
+      deleteChat(chat.id);
+    });
   };
 
   const handleSendMessage = async () => {
@@ -510,7 +541,7 @@ export default function TherapistChatPage() {
           messages: updatedChat.messages,
           ai_model_used: 'openrouter', // or your model name
           session_duration: 0, // Add real duration if available
-          mood_score: null, // Add mood score if available
+          mood_score: undefined, // Add mood score if available
           tags: []
         });
       } else {

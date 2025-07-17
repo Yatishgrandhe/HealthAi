@@ -208,62 +208,108 @@ function performAdvancedPostureAnalysis(visionData: any): PostureAnalysis {
 }
 
 function detectPersonStrict(labels: any, objects: any[]): boolean {
-  // More reliable person detection criteria
-  const personLabels = [
-    'person', 'human', 'people', 'man', 'woman', 'boy', 'girl', 'child',
-    'adult', 'human body', 'portrait', 'face', 'head', 'torso', 'body',
-    'selfie', 'portrait', 'figure', 'individual', 'full body', 'standing',
-    'upper body', 'lower body', 'hip', 'hips', 'pelvis', 'legs', 'thighs'
-  ];
-  
-  const hasPersonLabel = labels.some((label: any) => 
-    personLabels.some(personLabel => 
+  console.log('Starting enhanced person detection...');
+  console.log('Labels:', labels.map((l: any) => ({ description: l.description, score: l.score })));
+  console.log('Objects:', objects.map((o: any) => ({ name: o.name, score: o.score })));
+
+  // Primary person detection - high confidence
+  const primaryPersonLabels = ['person', 'human', 'people', 'man', 'woman', 'boy', 'girl', 'child', 'adult', 'human body', 'full body', 'standing person', 'portrait', 'selfie'];
+
+  const hasPrimaryPerson = labels.some((label: any) => 
+    primaryPersonLabels.some(personLabel => 
       label.description?.toLowerCase().includes(personLabel)
-    ) && label.score > 0.7 // Lower threshold for better detection
+    ) && label.score > 0.75
   );
 
   const hasPersonObject = objects.some((obj: any) => 
-    obj.name?.toLowerCase() === 'person' && obj.score > 0.7
+    obj.name?.toLowerCase() === 'person' && obj.score > 0.75
   );
 
-  const clothingLabels = [
-    'clothing', 'shirt', 't-shirt', 'dress', 'pants', 'jeans', 'jacket',
-    'coat', 'sweater', 'hoodie', 'sweatshirt', 'tank top', 'bra', 'underwear',
-    'socks', 'shoes', 'footwear', 'boots', 'sneakers', 'sandals', 'heels', 'hats'
-  ];
-  
-  const hasClothing = labels.some((label: any) => 
-    clothingLabels.some(clothingLabel => 
-      label.description?.toLowerCase().includes(clothingLabel)
-    ) && label.score > 0.6
-  );
+  // Secondary detection - body parts and anatomy
+  const bodyPartLabels = ['head', 'face', 'neck', 'shoulder', 'shoulders', 'arm', 'arms', 'hand', 'hands', 'finger', 'fingers', 'chest', 'torso', 'stomach', 'abdomen', 'waist', 'hip', 'hips', 'pelvis', 'thigh', 'thighs', 'leg', 'legs', 'knee', 'knees', 'ankle', 'ankles', 'foot', 'feet', 'toe', 'toes', 'buttock', 'buttocks', 'glute', 'glutes', 'back', 'spine', 'lumbar', 'cervical', 'thoracic', 'forehead', 'eye', 'eyes', 'nose', 'mouth', 'ear', 'ears', 'hair', 'beard', 'mustache'];
 
-  // Enhanced body part detection
-  const bodyPartLabels = [
-    'head', 'face', 'neck', 'shoulder', 'shoulders', 'arm', 'arms',
-    'hand', 'hands', 'finger', 'fingers', 'chest', 'torso', 'stomach',
-    'abdomen', 'waist', 'hip', 'hips', 'pelvis', 'thigh', 'thighs',
-    'leg', 'legs', 'knee', 'knees', 'ankle', 'ankles', 'foot', 'feet',
-    'toe', 'toes', 'buttock', 'buttocks', 'glute', 'glutes', 'back', 
-    'spine', 'lumbar', 'cervical', 'thoracic'
-  ];
-
-  const hasBodyParts = labels.some((label: any) => 
+  const bodyPartsDetected = labels.filter((label: any) => 
     bodyPartLabels.some(bodyPart => 
       label.description?.toLowerCase().includes(bodyPart)
+    ) && label.score >0.6
+  );
+
+  const hasMultipleBodyParts = bodyPartsDetected.length >=4;
+  // Clothing detection - strong indicator of person
+  const clothingLabels = ['clothing', 'shirt', 't-shirt', 'dress', 'pants', 'jeans', 'jacket', 'coat', 'sweater', 'hoodie', 'sweatshirt', 'tank top', 'bra', 'underwear', 'socks', 'shoes', 'footwear', 'boots', 'sneakers', 'sandals', 'heels', 'hats', 'cap', 'blouse', 'skirt', 'shorts', 'top', 'uniform', 'suit', 'tie', 'arf'];
+
+  const clothingDetected = labels.filter((label: any) => 
+    clothingLabels.some(clothingLabel => 
+      label.description?.toLowerCase().includes(clothingLabel)
+    ) && label.score >0.6
+  );
+
+  const hasClothing = clothingDetected.length >=2;
+  // Activity and pose detection
+  const activityLabels = ['standing', 'sitting', 'walking', 'running', 'posing', 'smiling', 'looking', 'facing', 'front', 'side', 'profile', 'full length', 'close up', 'portrait'];
+
+  const hasActivity = labels.some((label: any) => 
+    activityLabels.some(activityLabel => 
+      label.description?.toLowerCase().includes(activityLabel)
     ) && label.score > 0.6
   );
 
-  // Multiple detection methods for better accuracy
-  const detectionMethods = [
-    hasPersonLabel,
-    hasPersonObject,
-    hasClothing && hasBodyParts, // Clothing + body parts is a strong indicator
-    hasBodyParts && labels.length > 3 // Multiple body parts detected
-  ];
+  // Enhanced detection scoring system
+  let detectionScore = 0;
+  const detectionDetails = [];
 
-  // Return true if at least 2 detection methods succeed
-  return detectionMethods.filter(Boolean).length >= 2;
+  if (hasPrimaryPerson) {
+    detectionScore +=40  detectionDetails.push('Primary person label detected);
+  }
+
+  if (hasPersonObject) {
+    detectionScore +=35  detectionDetails.push('Person object detected');
+  }
+  
+  if (hasMultipleBodyParts) {
+    detectionScore +=25  detectionDetails.push(`Multiple body parts detected: ${bodyPartsDetected.length}`);
+  }
+
+  if (hasClothing) {
+    detectionScore +=20  detectionDetails.push(`Clothing detected: ${clothingDetected.length} items`);
+  }
+
+  if (hasActivity) {
+    detectionScore +=15  detectionDetails.push('Activity/pose detected');
+  }
+
+  // Additional confidence boosters
+  if (bodyPartsDetected.length >= 6    detectionScore +=10  detectionDetails.push('High body part count');
+  }
+
+  if (clothingDetected.length >= 3    detectionScore +=10  detectionDetails.push(Multiple clothing items');
+  }
+
+  // Check for face detection specifically
+  const hasFace = labels.some((label: any) => 
+    label.description?.toLowerCase().includes('face') && label.score > 00.7 );
+
+  if (hasFace) {
+    detectionScore +=15  detectionDetails.push('Face clearly detected');
+  }
+
+  // Final detection logic with detailed logging
+  const isPersonDetected = detectionScore >= 60;
+  
+  console.log('Person detection results:', {    detectionScore,
+    isPersonDetected,
+    detectionDetails,
+    bodyPartsCount: bodyPartsDetected.length,
+    clothingCount: clothingDetected.length,
+    hasFace,
+    hasPrimaryPerson,
+    hasPersonObject,
+    hasMultipleBodyParts,
+    hasClothing,
+    hasActivity
+  });
+
+  return isPersonDetected;
 }
 
 function performDetailedPostureAnalysis(faces: any[], labels: any[], objects: any[], imageProperties: any) {

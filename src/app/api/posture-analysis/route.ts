@@ -207,12 +207,13 @@ function performAdvancedPostureAnalysis(visionData: any): PostureAnalysis {
   }
 }
 
-function detectPersonStrict(labels: any[], objects: any[]): boolean {
+function detectPersonStrict(labels: any, objects: any[]): boolean {
   // More reliable person detection criteria
   const personLabels = [
     'person', 'human', 'people', 'man', 'woman', 'boy', 'girl', 'child',
     'adult', 'human body', 'portrait', 'face', 'head', 'torso', 'body',
-    'selfie', 'portrait', 'figure', 'individual'
+    'selfie', 'portrait', 'figure', 'individual', 'full body', 'standing',
+    'upper body', 'lower body', 'hip', 'hips', 'pelvis', 'legs', 'thighs'
   ];
   
   const hasPersonLabel = labels.some((label: any) => 
@@ -227,8 +228,8 @@ function detectPersonStrict(labels: any[], objects: any[]): boolean {
 
   const clothingLabels = [
     'clothing', 'shirt', 't-shirt', 'dress', 'pants', 'jeans', 'jacket',
-    'sweater', 'blouse', 'skirt', 'suit', 'uniform', 'top', 'bottom',
-    'apparel', 'garment', 'outfit', 'attire'
+    'coat', 'sweater', 'hoodie', 'sweatshirt', 'tank top', 'bra', 'underwear',
+    'socks', 'shoes', 'footwear', 'boots', 'sneakers', 'sandals', 'heels', 'hats'
   ];
   
   const hasClothing = labels.some((label: any) => 
@@ -237,34 +238,32 @@ function detectPersonStrict(labels: any[], objects: any[]): boolean {
     ) && label.score > 0.6
   );
 
-  // Body part indicators
+  // Enhanced body part detection
   const bodyPartLabels = [
-    'face', 'head', 'hair', 'eye', 'nose', 'mouth', 'ear', 'neck',
-    'shoulder', 'arm', 'hand', 'finger', 'chest', 'torso', 'waist',
-    'leg', 'foot', 'shoe'
+    'head', 'face', 'neck', 'shoulder', 'shoulders', 'arm', 'arms',
+    'hand', 'hands', 'finger', 'fingers', 'chest', 'torso', 'stomach',
+    'abdomen', 'waist', 'hip', 'hips', 'pelvis', 'thigh', 'thighs',
+    'leg', 'legs', 'knee', 'knees', 'ankle', 'ankles', 'foot', 'feet',
+    'toe', 'toes', 'buttock', 'buttocks', 'glute', 'glutes', 'back', 
+    'spine', 'lumbar', 'cervical', 'thoracic'
   ];
-  
+
   const hasBodyParts = labels.some((label: any) => 
     bodyPartLabels.some(bodyPart => 
       label.description?.toLowerCase().includes(bodyPart)
     ) && label.score > 0.6
   );
 
-  // More flexible detection - need at least 2 out of 4 indicators
-  const indicators = [hasPersonLabel, hasPersonObject, hasClothing, hasBodyParts];
-  const detectedCount = indicators.filter(Boolean).length;
-  
-  console.log('Person detection indicators:', {
+  // Multiple detection methods for better accuracy
+  const detectionMethods = [
     hasPersonLabel,
     hasPersonObject,
-    hasClothing,
-    hasBodyParts,
-    detectedCount,
-    labels: labels.map((l: any) => ({ description: l.description, score: l.score })),
-    objects: objects.map((o: any) => ({ name: o.name, score: o.score }))
-  });
-  
-  return detectedCount >= 2;
+    hasClothing && hasBodyParts, // Clothing + body parts is a strong indicator
+    hasBodyParts && labels.length > 3 // Multiple body parts detected
+  ];
+
+  // Return true if at least 2 detection methods succeed
+  return detectionMethods.filter(Boolean).length >= 2;
 }
 
 function performDetailedPostureAnalysis(faces: any[], labels: any[], objects: any[], imageProperties: any) {
@@ -430,20 +429,110 @@ function analyzeHipPosition(bodyParts: string[]): { score: number; issues: strin
   let score = 100;
   const issues: string[] = [];
 
-  // Hip analysis
-  if (bodyParts.some(part => part.includes('hip') || part.includes('pelvis'))) {
-    if (bodyParts.some(part => part.includes('tilted') || part.includes('rotated'))) {
-      score -= 35;
-      issues.push("🔄 Hip misalignment detected - This affects your entire posture");
+  // Enhanced hip analysis with comprehensive detection
+  const hipKeywords = [
+    'hip', 'hips', 'pelvis', 'pelvic', 'aist', 'lower back', 'lumbar',
+    'buttock', 'buttocks', 'glute', 'glutes', 'thigh', 'thighs', 'leg',
+    'legs', 'knee', 'knees', 'ankle', 'ankles', 'foot', 'feet'
+  ];
+
+  const hasHipDetection = bodyParts.some(part => 
+    hipKeywords.some(keyword => part.includes(keyword))
+  );
+
+  if (hasHipDetection) {
+    // CRITICAL: Detect hip tilt and rotation
+    if (bodyParts.some(part => 
+      part.includes('tilted') || 
+      part.includes('rotated') || 
+      part.includes('twisted') ||
+      part.includes('asymmetric') ||
+      part.includes('uneven')
+    )) {
+      score -= 45;
+      issues.push("🔄 HIP MISALIGNMENT DETECTED - This affects your entire posture chain");
+      issues.push("⚖️ Uneven hip position creates muscle imbalances and back pain");
     }
 
-    if (bodyParts.some(part => part.includes('shifted') || part.includes('offset'))) {
-      score -= 30;
-      issues.push("📐 Hip shift detected - This creates muscle imbalance");
+    // Detect hip shift and offset
+    if (bodyParts.some(part => 
+      part.includes('shifted') || 
+      part.includes('offset') || 
+      part.includes('displaced') ||
+      part.includes('misaligned')
+    )) {
+      score -= 40;
+      issues.push("📐 HIP SHIFT DETECTED - This creates serious muscle imbalances");
+      issues.push("💀 Can lead to chronic back pain and joint issues");
     }
+
+    // Detect anterior/posterior pelvic tilt
+    if (bodyParts.some(part => 
+      part.includes('anterior') || 
+      part.includes('posterior') || 
+      part.includes('forward') ||
+      part.includes('backward') ||
+      part.includes('tilted forward') ||
+      part.includes('tilted backward')
+    )) {
+      score -= 50;
+      issues.push("🦴 PELVIC TILT DETECTED - This is a major posture problem");
+      issues.push("⚠️ Affects your entire spine alignment and core stability");
+    }
+
+    // Detect hip instability
+    if (bodyParts.some(part => 
+      part.includes('unstable') || 
+      part.includes('wobbly') || 
+      part.includes('weak') ||
+      part.includes('collapsed')
+    )) {
+      score -= 35;
+      issues.push("💪 HIP INSTABILITY DETECTED - Your core needs strengthening");
+      issues.push("🏋️ Focus on hip and core stabilization exercises");
+    }
+
+    // Detect leg length discrepancy indicators
+    if (bodyParts.some(part => 
+      part.includes('uneven') || 
+      part.includes('different') || 
+      part.includes('asymmetric') ||
+      part.includes('one side')
+    )) {
+      score -= 30;
+      issues.push("📏 LEG LENGTH DISCREPANCY INDICATED - This affects hip alignment");
+      issues.push("🔍 Consider professional assessment for proper diagnosis");
+    }
+
+    // Detect poor hip mobility
+    if (bodyParts.some(part => 
+      part.includes('stiff') || 
+      part.includes('rigid') || 
+      part.includes('tight') ||
+      part.includes('restricted')
+    )) {
+      score -= 25;
+      issues.push("🔒 POOR HIP MOBILITY DETECTED - This limits your movement");
+      issues.push("🧘 Practice hip opening and mobility exercises daily");
+    }
+
   } else {
-    score -= 20;
-    issues.push("❓ Hip position unclear - Ensure hips are visible");
+    score -= 35; // Increased penalty for no hip detection
+    issues.push("❓ HIP POSITION UNCLEAR - Ensure hips and lower body are clearly visible");
+    issues.push("📱 Position camera to capture your full body from waist down");
+    issues.push("💡 Better lighting on lower body will improve hip detection");
+  }
+
+  // Additional checks for overall lower body alignment
+  if (bodyParts.some(part => 
+    part.includes('knee') || part.includes('ankle') || part.includes('foot') )) {
+    if (bodyParts.some(part => 
+      part.includes('bent') || part.includes('flexed') || part.includes('collapsed')
+    )) {
+      score -= 30;
+      issues.push("🦵 KNEE/ANKLE ISSUES DETECTED - This affects hip alignment");
+      issues.push("🏃 Proper lower body alignment is crucial for good posture");
+    }
   }
 
   return { score: Math.max(0, score), issues };
@@ -515,8 +604,8 @@ function calculateOverallScore(detailedAnalysis: any): number {
     detailedAnalysis.overall.score
   ];
   
-  // Weighted average with spine being most important
-  const weights = [0.2, 0.25, 0.3, 0.15, 0.1];
+  // Weighted average with spine and hips being most important
+  const weights = [0.15, 0.2, 0.3, 0.15, 0.2]; // Increased hip weight from 0.155
   const weightedSum = scores.reduce((sum, score, index) => sum + score * weights[index], 0);
   
   return Math.round(weightedSum);

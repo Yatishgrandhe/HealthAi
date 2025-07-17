@@ -674,31 +674,43 @@ export default function TherapistChatPage() {
 
   return (
     <Box sx={{ 
-      height: "100vh", 
+      height: "calc(100vh - 120px)", 
       display: "flex", 
       background: "#f7f7f8",
-      position: "relative"
+      position: "relative",
+      mt: 2
     }}>
-      {/* Status Bar */}
-      <Box sx={{
-        background: "linear-gradient(135deg, #E573B7, #7B61FF)",
-        py: 2,
-        mb: 3,
-        borderRadius: 2
-      }}>
-        <Container maxWidth="xl">
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-              <Psychology sx={{ fontSize: 20, color: "white" }} />
-              <Typography variant="h6" sx={{ color: "white", fontWeight: 600 }}>
+      {/* Sidebar - Chat History */}
+      <Box
+        sx={{
+          width: "280px",
+          background: "rgba(255, 255, 255, 0.95)",
+          backdropFilter: "blur(20px)",
+          borderRight: "1px solid rgba(123, 97, 255, 0.2)",
+          display: "flex",
+          flexDirection: "column",
+          borderRadius: "12px 0 0 12px",
+          overflow: "hidden"
+        }}
+      >
+        {/* Header */}
+        <Box sx={{ 
+          p: 2, 
+          background: "linear-gradient(135deg, #E573B7, #7B61FF)",
+          color: "white"
+        }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Psychology sx={{ fontSize: 20 }} />
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
                 Therapist Chat
               </Typography>
             </Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            {process.env.NODE_ENV === 'development' && (
               <Button
                 variant="outlined"
-                startIcon={<Add />}
-                onClick={createNewChat}
+                size="small"
+                onClick={debugSavedMessages}
                 sx={{
                   borderColor: "rgba(255, 255, 255, 0.3)",
                   color: "white",
@@ -707,64 +719,25 @@ export default function TherapistChatPage() {
                     background: "rgba(255, 255, 255, 0.1)",
                   },
                   textTransform: "none",
-                  fontWeight: 500
+                  fontWeight: 500,
+                  fontSize: "12px"
                 }}
               >
-                New Chat
+                Debug
               </Button>
-              {process.env.NODE_ENV === 'development' && (
-                <Button
-                  variant="outlined"
-                  onClick={debugSavedMessages}
-                  sx={{
-                    borderColor: "rgba(255, 255, 255, 0.3)",
-                    color: "white",
-                    "&:hover": {
-                      borderColor: "white",
-                      background: "rgba(255, 255, 255, 0.1)",
-                    },
-                    textTransform: "none",
-                    fontWeight: 500,
-                    fontSize: "12px"
-                  }}
-                >
-                  Debug
-                </Button>
-              )}
-            </Box>
+            )}
           </Box>
-        </Container>
-      </Box>
-
-      {/* Sidebar - Always visible like ChatGPT */}
-      <Box
-        sx={{
-          position: "fixed",
-          left: { xs: 0, md: "280px" },
-          top: { xs: "64px", md: "64px" },
-          height: { xs: "calc(100vh - 64px)", md: "calc(100vh - 64px)" },
-          width: "260px",
-          background: "rgba(255, 255, 255, 0.95)",
-          backdropFilter: "blur(20px)",
-          borderRight: "1px solid rgba(255, 255, 255, 0.2)",
-          display: "flex",
-          flexDirection: "column",
-          zIndex: 1000
-        }}
-      >
-        {/* New Chat Button */}
-        <Box sx={{ p: 2 }}>
           <Button
             fullWidth
             variant="outlined"
             startIcon={<Add />}
             onClick={createNewChat}
             sx={{
-              borderColor: "rgba(123, 97, 255, 0.3)",
-              color: "#7B61FF",
+              borderColor: "rgba(255, 255, 255, 0.3)",
+              color: "white",
               "&:hover": {
-                borderColor: "#7B61FF",
-                background: "rgba(123, 97, 255, 0.1)",
+                borderColor: "white",
+                background: "rgba(255, 255, 255, 0.1)",
               },
               py: 1.5,
               borderRadius: 1,
@@ -777,7 +750,7 @@ export default function TherapistChatPage() {
           </Button>
         </Box>
         
-        <Divider sx={{ borderColor: "rgba(123, 97, 255, 0.2)", mx: 2 }} />
+        <Divider sx={{ borderColor: "rgba(123, 97, 255, 0.2)" }} />
         
         {/* Chat History */}
         <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
@@ -794,61 +767,59 @@ export default function TherapistChatPage() {
             CHATS
           </Typography>
           {chatSessions.map((chat) => (
-                          <Box
-                key={chat.id}
-                onClick={() => selectChat(chat)}
+            <Box
+              key={chat.id}
+              onClick={() => selectChat(chat)}
+              sx={{
+                p: 1.5,
+                borderRadius: 1,
+                mb: 1,
+                cursor: "pointer",
+                background: currentChat?.id === chat.id ? "rgba(123, 97, 255, 0.1)" : "transparent",
+                "&:hover": {
+                  background: "rgba(123, 97, 255, 0.1)",
+                },
+                display: "flex",
+                alignItems: "center",
+                gap: 1
+              }}
+            >
+              <Chat sx={{ fontSize: 16, color: "#7B61FF" }} />
+              <Typography
+                variant="body2"
                 sx={{
-                  p: 1.5,
-                  borderRadius: 1,
-                  mb: 1,
-                  cursor: "pointer",
-                  background: currentChat?.id === chat.id ? "rgba(123, 97, 255, 0.1)" : "transparent",
-                  "&:hover": {
-                    background: "rgba(123, 97, 255, 0.1)",
-                  },
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1
+                  color: "#333",
+                  fontWeight: currentChat?.id === chat.id ? 600 : 400,
+                  flex: 1,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  fontSize: "14px"
                 }}
               >
-                <Chat sx={{ fontSize: 16, color: "#7B61FF" }} />
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: "#333",
-                    fontWeight: currentChat?.id === chat.id ? 600 : 400,
-                    flex: 1,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    fontSize: "14px"
-                  }}
-                >
-                  {chat.title}
-                </Typography>
-                <IconButton
-                  size="small"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setChatToDelete(chat.id);
-                    setDeleteDialogOpen(true);
-                  }}
-                  sx={{
-                    color: "transparent",
-                    p: 0.5,
-                    "&:hover": {
-                      color: "#f44336",
-                      background: "rgba(244, 67, 54, 0.1)",
-                    },
-                  }}
-                >
-                  <Delete sx={{ fontSize: 14 }} />
-                </IconButton>
-              </Box>
+                {chat.title}
+              </Typography>
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setChatToDelete(chat.id);
+                  setDeleteDialogOpen(true);
+                }}
+                sx={{
+                  color: "transparent",
+                  p: 0.5,
+                  "&:hover": {
+                    color: "#f44336",
+                    background: "rgba(244, 67, 54, 0.1)",
+                  },
+                }}
+              >
+                <Delete sx={{ fontSize: 14 }} />
+              </IconButton>
+            </Box>
           ))}
         </Box>
-
-
       </Box>
 
       {/* Main Chat Area */}
@@ -856,14 +827,13 @@ export default function TherapistChatPage() {
         flex: 1, 
         display: "flex", 
         flexDirection: "column",
-        ml: { xs: "260px", md: "540px" },
-        mt: { xs: "64px", md: "64px" }
+        background: "#ffffff",
+        borderRadius: "0 12px 12px 0"
       }}>
         {/* Messages Area */}
         <Box sx={{ 
           flex: 1, 
           overflow: "auto", 
-          background: "#ffffff",
           display: "flex",
           flexDirection: "column"
         }}>

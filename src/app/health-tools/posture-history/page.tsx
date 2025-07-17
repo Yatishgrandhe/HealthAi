@@ -40,11 +40,13 @@ import { supabase, useUser } from '@/utils/supabaseClient';
 interface PostureSession {
   id: string;
   user_id: string;
-  image_url: string;
-  score: number;
-  analysis: string;
+  session_title?: string;
+  posture_score: number;
+  analysis_data: any;
+  image_urls?: string[];
+  recommendations?: any;
+  duration_seconds?: number;
   created_at: string;
-  updated_at: string;
 }
 
 const PostureHistory = () => {
@@ -70,7 +72,7 @@ const PostureHistory = () => {
       setError(null);
 
       const { data, error } = await supabase
-        .from('posture_sessions')
+        .from('posture_check_sessions')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
@@ -214,13 +216,13 @@ const PostureHistory = () => {
               </Box>
               <Box textAlign="center" color="white">
                 <Typography variant="h4" fontWeight="bold">
-                  {Math.round(sessions.reduce((acc, session) => acc + session.score, 0) / sessions.length)}
+                  {Math.round(sessions.reduce((acc, session) => acc + session.posture_score, 0) / sessions.length)}
                 </Typography>
                 <Typography variant="body2">Average Score</Typography>
               </Box>
               <Box textAlign="center" color="white">
                 <Typography variant="h4" fontWeight="bold">
-                  {Math.max(...sessions.map(s => s.score))}
+                  {Math.max(...sessions.map(s => s.posture_score))}
                 </Typography>
                 <Typography variant="body2">Best Score</Typography>
               </Box>
@@ -295,7 +297,7 @@ const PostureHistory = () => {
                   onClick={() => handleViewImage(session)}
                 >
                   <img
-                    src={session.image_url}
+                    src={session.image_urls?.[0] || ''}
                     alt="Posture check"
                     style={{
                       width: '100%',
@@ -319,9 +321,9 @@ const PostureHistory = () => {
                     }}
                   >
                     <Chip
-                      label={`${session.score}/100`}
+                      label={`${session.posture_score}/100`}
                       size="small"
-                      color={getScoreColor(session.score) as any}
+                      color={getScoreColor(session.posture_score) as any}
                       sx={{ color: 'white', fontWeight: 'bold' }}
                     />
                   </Box>
@@ -346,17 +348,17 @@ const PostureHistory = () => {
                 <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                   <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
                     <Typography variant="h6" fontWeight="bold">
-                      {getScoreLabel(session.score)}
+                      {getScoreLabel(session.posture_score)}
                     </Typography>
                     <Box display="flex" alignItems="center" gap={0.5}>
-                      {getTrendIcon(session.score, sessions[index + 1]?.score)}
+                      {getTrendIcon(session.posture_score, sessions[index + 1]?.posture_score)}
                     </Box>
                   </Box>
 
                   <Box display="flex" alignItems="center" gap={1} mb={1}>
                     <ScoreIcon fontSize="small" color="primary" />
                     <Typography variant="body2" color="text.secondary">
-                      Score: {session.score}/100
+                      Score: {session.posture_score}/100
                     </Typography>
                   </Box>
 
@@ -388,7 +390,7 @@ const PostureHistory = () => {
                       flexGrow: 1
                     }}
                   >
-                    {session.analysis}
+                    {typeof session.analysis_data === 'string' ? session.analysis_data : 'Analysis available'}
                   </Typography>
 
                   <Box mt={2}>
@@ -432,7 +434,7 @@ const PostureHistory = () => {
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 3 }}>
                 <Box>
                   <img
-                    src={selectedSession.image_url}
+                    src={selectedSession.image_urls?.[0] || ''}
                     alt="Posture check"
                     style={{
                       width: '100%',
@@ -451,7 +453,7 @@ const PostureHistory = () => {
                       <Box display="flex" alignItems="center" gap={1} mb={1}>
                         <ScoreIcon color="primary" />
                         <Typography variant="body1">
-                          <strong>Score:</strong> {selectedSession.score}/100
+                          <strong>Score:</strong> {selectedSession.posture_score}/100
                         </Typography>
                       </Box>
                       <Box display="flex" alignItems="center" gap={1} mb={1}>
@@ -473,18 +475,18 @@ const PostureHistory = () => {
                         Analysis
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {selectedSession.analysis}
+                        {typeof selectedSession.analysis_data === 'string' ? selectedSession.analysis_data : 'Analysis available'}
                       </Typography>
                     </Paper>
 
                     <Box display="flex" gap={1}>
                       <Chip
-                        label={getScoreLabel(selectedSession.score)}
-                        color={getScoreColor(selectedSession.score) as any}
+                        label={getScoreLabel(selectedSession.posture_score)}
+                        color={getScoreColor(selectedSession.posture_score) as any}
                         size="medium"
                       />
                       <Chip
-                        label={`${selectedSession.score}/100`}
+                        label={`${selectedSession.posture_score}/100`}
                         variant="outlined"
                         size="medium"
                       />

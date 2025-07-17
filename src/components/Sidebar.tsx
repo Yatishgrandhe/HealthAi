@@ -37,7 +37,7 @@ interface MenuItem {
   category?: string;
 }
 
-const getMenuItems = (user: any): MenuItem[] => {
+export const getMenuItems = (user: any): MenuItem[] => {
   const baseItems: MenuItem[] = [
     // Main Dashboard
     { text: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },

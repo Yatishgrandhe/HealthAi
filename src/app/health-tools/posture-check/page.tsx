@@ -1648,9 +1648,9 @@ export default function PostureCheckPage() {
                       <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
                         Detailed Body Analysis
                       </Typography>
-                      <Grid container spacing={2}>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                         {Object.entries(analysis.detailedAnalysis).map(([part, data]: [string, any]) => (
-                          <Grid item xs={12} sm={6} key={part}>
+                          <Box key={part}>
                             <Card 
                               sx={{ 
                                 p: 2, 
@@ -1699,9 +1699,9 @@ export default function PostureCheckPage() {
                                 </Typography>
                               )}
                             </Card>
-                          </Grid>
+                          </Box>
                         ))}
-                      </Grid>
+                      </Box>
                     </Box>
                   )}
 

@@ -253,6 +253,7 @@ Format the response as a structured JSON object with clear sections for easy par
     totalDays: number;
     restrictions?: string[];
     preferences?: string[];
+    previousMeals?: { breakfast: string[]; lunch: string[]; dinner: string[] };
   }): Promise<{ success: boolean; plan?: any; error?: string }> {
     try {
       const apiKey = API_CONFIG.GEMINI.API_KEY;
@@ -279,6 +280,10 @@ Format the response as a structured JSON object with clear sections for easy par
         };
       }
 
+      const previousBreakfasts = userData.previousMeals?.breakfast?.join('; ') || 'None';
+      const previousLunches = userData.previousMeals?.lunch?.join('; ') || 'None';
+      const previousDinners = userData.previousMeals?.dinner?.join('; ') || 'None';
+
       const prompt = `Generate a personalized daily fitness plan for Day ${userData.currentDay} of a ${userData.totalDays}-day program.
 
 User Profile:
@@ -287,6 +292,13 @@ User Profile:
 - Fitness Level: ${userData.fitnessLevel}
 - Dietary Restrictions: ${userData.restrictions?.join(', ') || 'None'}
 - Food Preferences: ${userData.preferences?.join(', ') || 'None'}
+
+IMPORTANT:
+- Research using Google and provide unique, evidence-based meals and exercises for this day.
+- Do NOT repeat any meals from previous days. Here are previous breakfasts: ${previousBreakfasts}. Previous lunches: ${previousLunches}. Previous dinners: ${previousDinners}.
+- If you must repeat, explain why (e.g., seasonal, nutritional, or cultural reason).
+- Cite rationale for meal and exercise choices if possible.
+- Meals and exercises should be based on the latest health and nutrition research.
 
 Please provide a structured daily plan including:
 

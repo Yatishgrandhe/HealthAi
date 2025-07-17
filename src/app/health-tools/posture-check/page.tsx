@@ -602,17 +602,35 @@ export default function PostureCheckPage() {
         const res = await fetch(capturedImage);
         const blob = await res.blob();
         const file = new File([blob], `posture_${Date.now()}.jpg`, { type: blob.type });
+        
         // Upload to Supabase Storage and get public URL
         const uploadResult = await imageUploadService.uploadImageToStorage(file, 'posture', 'Posture Check Image');
-        // Save to Supabase
-        await healthDataService.savePostureCheckSession({
-          session_title: analysis.status + ' Posture Check',
+        
+        // Save to Supabase with proper error handling
+        const sessionData = {
+          session_title: `${analysis.status.charAt(0).toUpperCase() + analysis.status.slice(1)} Posture Check`,
           posture_score: analysis.score,
           analysis_data: analysis,
           image_urls: [uploadResult.url],
-          recommendations: analysis.recommendations,
-          duration_seconds: 0 // Add real duration if available
-        });
+          recommendations: analysis.recommendations || [],
+          duration_seconds: Math.floor((Date.now() - (analysis.timestamp ? new Date(analysis.timestamp).getTime() : Date.now())) / 1000)
+        };
+        
+        await healthDataService.savePostureCheckSession(sessionData);
+        
+        // Reload progress reports from database
+        const sessions = await healthDataService.getPostureCheckSessions();
+        setProgressReports(sessions.map(session => ({
+          id: session.id || '',
+          timestamp: session.created_at || new Date().toISOString(),
+          score: session.posture_score || 0,
+          status: session.session_title?.includes('Good') ? 'good' : 
+                  session.session_title?.includes('Fair') ? 'fair' : 
+                  session.session_title?.includes('Poor') ? 'poor' : 
+                  session.session_title?.includes('Excellent') ? 'excellent' : 'fair',
+          imageUrl: session.image_urls?.[0] || '',
+          analysis: session.analysis_data || {}
+        })));
       } else {
         // Save to localStorage for guests
         const imageUrl = `data:image/jpeg;base64,${capturedImage.split(',')[1]}`;
@@ -635,7 +653,7 @@ export default function PostureCheckPage() {
       setSnackbarOpen(true);
     } catch (error) {
       console.error('Error saving progress report:', error);
-      setSnackbarMessage("Failed to save progress report");
+      setSnackbarMessage("Failed to save progress report: " + (error instanceof Error ? error.message : 'Unknown error'));
       setSnackbarOpen(true);
     }
   };
@@ -647,11 +665,28 @@ export default function PostureCheckPage() {
     setSnackbarOpen(true);
   };
 
-  const loadProgressReports = () => {
+  const loadProgressReports = async () => {
     try {
-      const savedReports = localStorage.getItem('postureProgressReports');
-      if (savedReports) {
-        setProgressReports(JSON.parse(savedReports));
+      if (user) {
+        // Load from database for logged-in users
+        const sessions = await healthDataService.getPostureCheckSessions();
+        setProgressReports(sessions.map(session => ({
+          id: session.id || '',
+          timestamp: session.created_at || new Date().toISOString(),
+          score: session.posture_score || 0,
+          status: session.session_title?.includes('Good') ? 'good' : 
+                  session.session_title?.includes('Fair') ? 'fair' : 
+                  session.session_title?.includes('Poor') ? 'poor' : 
+                  session.session_title?.includes('Excellent') ? 'excellent' : 'fair',
+          imageUrl: session.image_urls?.[0] || '',
+          analysis: session.analysis_data || {}
+        })));
+      } else {
+        // Load from localStorage for guests
+        const savedReports = localStorage.getItem('postureProgressReports');
+        if (savedReports) {
+          setProgressReports(JSON.parse(savedReports));
+        }
       }
     } catch (error) {
       console.error('Error loading progress reports:', error);
@@ -692,41 +727,22 @@ export default function PostureCheckPage() {
         "100%": { opacity: 1 }
       }
     }}>
-      {/* Header */}
+      {/* Status Bar */}
       <Box
         sx={{
           background: "linear-gradient(135deg, #7B61FF, #4CAF50)",
-          py: 3,
-          position: "sticky",
-          top: 0,
-          zIndex: 1000
+          py: 2,
+          mb: 3
         }}
       >
         <Container maxWidth="xl">
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <Box sx={{ display: "flex", alignItems: "center" }}>
-              {!userLoading && !user && (
-                <Link href="/health-tools" passHref>
-                  <IconButton
-                    sx={{
-                      color: "white",
-                      mr: 2,
-                      "&:hover": {
-                        background: "rgba(255, 255, 255, 0.1)",
-                        transform: "translateX(-2px)",
-                      },
-                      transition: "all 0.3s ease"
-                    }}
-                  >
-                    <ArrowBack />
-                  </IconButton>
-                </Link>
-              )}
               <img 
                 src="/health-ai-logo.png" 
                 alt="Health AI Logo" 
-                width={40} 
-                height={40} 
+                width={32} 
+                height={32} 
                 style={{
                   borderRadius: '50%',
                   background: 'transparent',
@@ -744,14 +760,14 @@ export default function PostureCheckPage() {
                     gap: 1
                   }}
                 >
-                  <CameraAlt sx={{ fontSize: 24 }} />
+                  <CameraAlt sx={{ fontSize: 20 }} />
                   Posture Check
                 </Typography>
                 <Typography
                   variant="body2"
                   sx={{
                     color: "rgba(255, 255, 255, 0.8)",
-                    fontSize: "0.8rem"
+                    fontSize: "0.75rem"
                   }}
                 >
                   AI-powered posture analysis

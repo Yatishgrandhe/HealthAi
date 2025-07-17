@@ -192,7 +192,6 @@ export default function FitnessPlannerPage() {
 
   const generatePlan = async () => {
     setIsGenerating(true);
-    
     try {
       // Generate comprehensive fitness plan
       const newPlan: FitnessPlan = {
@@ -202,44 +201,14 @@ export default function FitnessPlannerPage() {
         difficulty: "Intermediate",
         goals: fitnessGoals.length > 0 ? fitnessGoals : ["Weight Loss", "Muscle Tone", "Overall Fitness"],
         meals: {
-          breakfast: [
-            "Oatmeal with berries and nuts",
-            "Greek yogurt with honey",
-            "Whole grain toast with avocado",
-            "Smoothie bowl with protein"
-          ],
-          lunch: [
-            "Quinoa salad with vegetables",
-            "Grilled chicken with brown rice",
-            "Lentil soup with whole grain bread",
-            "Tofu stir-fry with vegetables"
-          ],
-          dinner: [
-            "Salmon with steamed vegetables",
-            "Vegetarian pasta with tomato sauce",
-            "Chickpea curry with rice",
-            "Grilled vegetables with quinoa"
-          ]
+          breakfast: [],
+          lunch: [],
+          dinner: []
         },
         workouts: {
-          cardio: [
-            "30 minutes brisk walking",
-            "20 minutes HIIT training",
-            "45 minutes cycling",
-            "15 minutes jump rope"
-          ],
-          strength: [
-            "Push-ups and squats (3 sets each)",
-            "Dumbbell exercises for arms",
-            "Core strengthening exercises",
-            "Bodyweight circuit training"
-          ],
-          flexibility: [
-            "10 minutes stretching routine",
-            "Yoga flow sequence",
-            "Pilates exercises",
-            "Mobility drills"
-          ]
+          cardio: [],
+          strength: [],
+          flexibility: []
         },
         progress: {
           currentDay: 1,
@@ -247,12 +216,36 @@ export default function FitnessPlannerPage() {
           completedMeals: 0
         }
       };
-      
       setPlan(newPlan);
 
       // Generate daily plans using Gemini API
       const dailyPlansData: DailyPlan[] = [];
-      for (let day = 1; day <= 7; day++) { // Generate first week as example
+      const previousMeals: { breakfast: string[]; lunch: string[]; dinner: string[] } = {
+        breakfast: [],
+        lunch: [],
+        dinner: []
+      };
+      for (let day = 1; day <= 90; day++) {
+        if (day % 7 === 0) {
+          // Insert rest day
+          dailyPlansData.push({
+            day,
+            meals: {
+              breakfast: "Rest day - light breakfast (e.g., fruit, yogurt)",
+              lunch: "Rest day - light lunch (e.g., salad, soup)",
+              dinner: "Rest day - light dinner (e.g., steamed veggies, rice)",
+              snacks: ["Herbal tea", "Fruit"]
+            },
+            exercises: {
+              cardio: "Rest day - no cardio",
+              strength: "Rest day - no strength training",
+              flexibility: "Gentle stretching or yoga (optional)"
+            },
+            tips: "Today is a rest day! Focus on recovery, hydration, and gentle movement if desired.",
+            progress_notes: "Rest and recharge."
+          });
+          continue;
+        }
         try {
           const dailyResult = await aiService.generateDailyFitnessPlan({
             dietaryPreference: dietaryPreference,
@@ -261,19 +254,23 @@ export default function FitnessPlannerPage() {
             currentDay: day,
             totalDays: 90,
             restrictions: [],
-            preferences: []
+            preferences: [],
+            previousMeals // Pass previous meals for uniqueness
           });
-
           if (dailyResult.success && dailyResult.plan) {
+            // Track unique meals
+            previousMeals.breakfast.push(dailyResult.plan.meals.breakfast);
+            previousMeals.lunch.push(dailyResult.plan.meals.lunch);
+            previousMeals.dinner.push(dailyResult.plan.meals.dinner);
             dailyPlansData.push(dailyResult.plan);
           } else {
             // Fallback daily plan
             dailyPlansData.push({
               day: day,
               meals: {
-                breakfast: "Oatmeal with berries and nuts",
-                lunch: "Quinoa salad with grilled vegetables",
-                dinner: "Salmon with steamed broccoli",
+                breakfast: `Unique breakfast for day ${day}`,
+                lunch: `Unique lunch for day ${day}`,
+                dinner: `Unique dinner for day ${day}`,
                 snacks: ["Apple with almond butter", "Greek yogurt"]
               },
               exercises: {
@@ -290,9 +287,9 @@ export default function FitnessPlannerPage() {
           dailyPlansData.push({
             day: day,
             meals: {
-              breakfast: "Oatmeal with berries and nuts",
-              lunch: "Quinoa salad with grilled vegetables",
-              dinner: "Salmon with steamed broccoli",
+              breakfast: `Unique breakfast for day ${day}`,
+              lunch: `Unique lunch for day ${day}`,
+              dinner: `Unique dinner for day ${day}`,
               snacks: ["Apple with almond butter", "Greek yogurt"]
             },
             exercises: {
@@ -304,7 +301,6 @@ export default function FitnessPlannerPage() {
           });
         }
       }
-      
       setDailyPlans(dailyPlansData);
       setIsGenerating(false);
       setActiveStep(3);
@@ -589,41 +585,22 @@ export default function FitnessPlannerPage() {
 
   return (
     <Box sx={{ minHeight: "100vh", background: "#f8f9ff" }}>
-      {/* Header */}
+      {/* Status Bar */}
       <Box
         sx={{
           background: "linear-gradient(135deg, #FFD166, #06D6A0)",
-          py: 3,
-          position: "sticky",
-          top: 0,
-          zIndex: 1000
+          py: 2,
+          mb: 3
         }}
       >
         <Container maxWidth="lg">
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <Box sx={{ display: "flex", alignItems: "center" }}>
-              {!userLoading && !user && (
-                <Link href="/health-tools" passHref>
-                  <IconButton
-                    sx={{
-                      color: "white",
-                      mr: 2,
-                      "&:hover": {
-                        background: "rgba(255, 255, 255, 0.1)",
-                        transform: "translateX(-2px)",
-                      },
-                      transition: "all 0.3s ease"
-                    }}
-                  >
-                    <ArrowBack />
-                  </IconButton>
-                </Link>
-              )}
               <img 
                 src="/health-ai-logo.png" 
                 alt="Health AI Logo" 
-                width={40} 
-                height={40} 
+                width={32} 
+                height={32} 
                 style={{
                   borderRadius: '50%',
                   background: 'transparent',
@@ -641,14 +618,14 @@ export default function FitnessPlannerPage() {
                     gap: 1
                   }}
                 >
-                  <FitnessCenter sx={{ fontSize: 24 }} />
+                  <FitnessCenter sx={{ fontSize: 20 }} />
                   90-Day Fitness Planner
                 </Typography>
                 <Typography
                   variant="body2"
                   sx={{
                     color: "rgba(255, 255, 255, 0.8)",
-                    fontSize: "0.8rem"
+                    fontSize: "0.75rem"
                   }}
                 >
                   AI-Powered personalized workout and nutrition plans

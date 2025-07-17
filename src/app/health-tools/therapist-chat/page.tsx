@@ -641,88 +641,70 @@ export default function TherapistChatPage() {
       background: "#f7f7f8",
       position: "relative"
     }}>
-      {/* Top Bar */}
+      {/* Status Bar */}
       <Box sx={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        height: "48px",
         background: "linear-gradient(135deg, #E573B7, #7B61FF)",
-        borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        px: 3,
-        zIndex: 1100
+        py: 2,
+        mb: 3,
+        borderRadius: 2
       }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <Psychology sx={{ fontSize: 20, color: "white" }} />
-          <Typography variant="h6" sx={{ color: "white", fontWeight: 600 }}>
-            Therapist Chat
-          </Typography>
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          {!userLoading && !user && (
-            <Link href="/health-tools" passHref>
-              <IconButton
+        <Container maxWidth="xl">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <Psychology sx={{ fontSize: 20, color: "white" }} />
+              <Typography variant="h6" sx={{ color: "white", fontWeight: 600 }}>
+                Therapist Chat
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <Button
+                variant="outlined"
+                startIcon={<Add />}
+                onClick={createNewChat}
                 sx={{
+                  borderColor: "rgba(255, 255, 255, 0.3)",
                   color: "white",
                   "&:hover": {
+                    borderColor: "white",
                     background: "rgba(255, 255, 255, 0.1)",
                   },
+                  textTransform: "none",
+                  fontWeight: 500
                 }}
               >
-                <ArrowBack />
-              </IconButton>
-            </Link>
-          )}
-          <Button
-            variant="outlined"
-            startIcon={<Add />}
-            onClick={createNewChat}
-            sx={{
-              borderColor: "rgba(255, 255, 255, 0.3)",
-              color: "white",
-              "&:hover": {
-                borderColor: "white",
-                background: "rgba(255, 255, 255, 0.1)",
-              },
-              textTransform: "none",
-              fontWeight: 500
-            }}
-          >
-            New Chat
-          </Button>
-          {process.env.NODE_ENV === 'development' && (
-            <Button
-              variant="outlined"
-              onClick={debugSavedMessages}
-              sx={{
-                borderColor: "rgba(255, 255, 255, 0.3)",
-                color: "white",
-                "&:hover": {
-                  borderColor: "white",
-                  background: "rgba(255, 255, 255, 0.1)",
-                },
-                textTransform: "none",
-                fontWeight: 500,
-                fontSize: "12px"
-              }}
-            >
-              Debug
-            </Button>
-          )}
-        </Box>
+                New Chat
+              </Button>
+              {process.env.NODE_ENV === 'development' && (
+                <Button
+                  variant="outlined"
+                  onClick={debugSavedMessages}
+                  sx={{
+                    borderColor: "rgba(255, 255, 255, 0.3)",
+                    color: "white",
+                    "&:hover": {
+                      borderColor: "white",
+                      background: "rgba(255, 255, 255, 0.1)",
+                    },
+                    textTransform: "none",
+                    fontWeight: 500,
+                    fontSize: "12px"
+                  }}
+                >
+                  Debug
+                </Button>
+              )}
+            </Box>
+          </Box>
+        </Container>
       </Box>
 
       {/* Sidebar - Always visible like ChatGPT */}
       <Box
         sx={{
           position: "fixed",
-          left: 0,
-          top: "48px",
-          height: "calc(100vh - 48px)",
+          left: { xs: 0, md: "280px" },
+          top: { xs: "64px", md: "64px" },
+          height: { xs: "calc(100vh - 64px)", md: "calc(100vh - 64px)" },
           width: "260px",
           background: "rgba(255, 255, 255, 0.95)",
           backdropFilter: "blur(20px)",
@@ -836,8 +818,8 @@ export default function TherapistChatPage() {
         flex: 1, 
         display: "flex", 
         flexDirection: "column",
-        ml: "260px",
-        mt: "48px"
+        ml: { xs: "260px", md: "540px" },
+        mt: { xs: "64px", md: "64px" }
       }}>
         {/* Messages Area */}
         <Box sx={{ 

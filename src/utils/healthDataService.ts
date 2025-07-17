@@ -130,9 +130,17 @@ export interface ImageMetadata {
 }
 
 class HealthDataService {
+  // Check if supabase is available
+  private checkSupabase() {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized');
+    }
+  }
+
   // Get current user
   private async getCurrentUser() {
-    const { data: { user }, error } = await supabase.auth.getUser();
+    this.checkSupabase();
+    const { data: { user }, error } = await supabase!.auth.getUser();
     if (error || !user) {
       throw new Error('User not authenticated');
     }
@@ -141,9 +149,10 @@ class HealthDataService {
 
   // Create or update user profile
   async createUserProfile(profileData: Partial<{ email: string; full_name: string; phone_number: string; date_of_birth: string; emergency_contact: string; account_type: string }>) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('user_profiles')
       .upsert({
         id: user.id,
@@ -159,9 +168,10 @@ class HealthDataService {
 
   // Generic health data operations
   async saveHealthData(data: HealthData) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data: savedData, error } = await supabase
+    const { data: savedData, error } = await supabase!
       .from('user_health_data')
       .upsert({
         user_id: user.id,
@@ -175,9 +185,10 @@ class HealthDataService {
   }
 
   async getHealthData(dataType: string, dataKey?: string) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    let query = supabase
+    let query = supabase!
       .from('user_health_data')
       .select('*')
       .eq('user_id', user.id)
@@ -624,6 +635,34 @@ class HealthDataService {
 
     if (error) throw error;
     return data;
+  }
+
+  async updateSavedRoutine(routineId: string, updates: Partial<SavedRoutine>) {
+    const user = await this.getCurrentUser();
+    
+    const { data, error } = await supabase
+      .from('saved_routines')
+      .update(updates)
+      .eq('id', routineId)
+      .eq('user_id', user.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async deleteSavedRoutine(routineId: string) {
+    const user = await this.getCurrentUser();
+    
+    const { error } = await supabase
+      .from('saved_routines')
+      .delete()
+      .eq('id', routineId)
+      .eq('user_id', user.id);
+
+    if (error) throw error;
+    return { success: true };
   }
 
   // Health progress operations

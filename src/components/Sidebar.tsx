@@ -79,7 +79,22 @@ export default function Sidebar({ user, pathname }: { user: any, pathname: strin
   };
 
   return (
-    <Box sx={{ width: drawerWidth, height: '100vh', display: 'flex', flexDirection: 'column', background: '#101828', color: 'white', borderRight: '1px solid #e0e0e0' }}>
+    <Box sx={{ 
+      width: { xs: '100%', md: drawerWidth }, 
+      height: '100vh', 
+      display: 'flex', 
+      flexDirection: 'column', 
+      background: '#101828', 
+      color: 'white', 
+      borderRight: '1px solid #e0e0e0',
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      zIndex: 1200,
+      overflow: 'hidden',
+      transform: { xs: 'translateX(-100%)', md: 'translateX(0)' },
+      transition: 'transform 0.3s ease-in-out'
+    }}>
       {/* Logo and Header */}
       <Box sx={{
         p: 3,

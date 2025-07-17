@@ -22,9 +22,19 @@ export default function HealthToolsLayout({
   const menuItems = getMenuItems(user || {});
 
   const handleSignOut = async () => {
-    const { supabase } = await import("@/utils/supabaseClient");
-    await supabase.auth.signOut();
-    router.push('/login');
+    try {
+      const { supabase } = await import("@/utils/supabaseClient");
+      if (supabase) {
+        await supabase.auth.signOut();
+        router.push('/login');
+      } else {
+        console.error('Supabase client not initialized');
+        router.push('/login');
+      }
+    } catch (error) {
+      console.error('Error signing out:', error);
+      router.push('/login');
+    }
   };
 
   const handleNavigate = (path: string) => {
@@ -32,7 +42,13 @@ export default function HealthToolsLayout({
   };
 
   return (
-    <Box sx={{ minHeight: "100vh", background: "#f8f9ff", display: 'flex', flexDirection: 'row' }}>
+    <Box sx={{ 
+      minHeight: "100vh", 
+      background: "#f8f9ff", 
+      display: 'flex', 
+      flexDirection: 'row',
+      position: 'relative'
+    }}>
       {/* Sidebar and TopBar for logged-in users */}
       {!loading && user && (
         <>
@@ -48,7 +64,16 @@ export default function HealthToolsLayout({
         </>
       )}
       {/* Main content */}
-      <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Box sx={{ 
+        flex: 1, 
+        minWidth: 0,
+        marginTop: { xs: '64px', md: '64px' }, // Account for TopBar height
+        marginLeft: { xs: 0, md: '280px' }, // Account for Sidebar width on desktop
+        padding: { xs: 2, md: 3 },
+        boxSizing: 'border-box',
+        width: { xs: '100%', md: 'calc(100% - 280px)' },
+        minHeight: { xs: 'calc(100vh - 64px)', md: 'calc(100vh - 64px)' }
+      }}>
         <Suspense fallback={<div />}>
           {children}
         </Suspense>

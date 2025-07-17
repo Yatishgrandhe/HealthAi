@@ -55,7 +55,8 @@ export default function TopBar({
         background: 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(20px)',
         borderBottom: '1px solid rgba(0, 0, 0, 0.1)',
-        boxShadow: '0 2px 20px rgba(0, 0, 0, 0.1)'
+        boxShadow: '0 2px 20px rgba(0, 0, 0, 0.1)',
+        zIndex: 1300
       }}
     >
       <Toolbar>

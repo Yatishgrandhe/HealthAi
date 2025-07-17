@@ -1,9 +1,12 @@
 "use client";
 
 import { Box } from "@mui/material";
-import { Suspense } from "react";
-import UserInfoCard from "@/components/profile/UserInfoCard";
+import { Suspense, useState } from "react";
+import Sidebar from "@/components/Sidebar";
+import TopBar from "@/components/TopBar";
 import { useUser } from "@/utils/supabaseClient";
+import { usePathname, useRouter } from "next/navigation";
+import { getMenuItems } from "@/components/Sidebar";
 
 export default function HealthToolsLayout({
   children,
@@ -11,14 +14,38 @@ export default function HealthToolsLayout({
   children: React.ReactNode;
 }) {
   const { user, loading } = useUser();
+  const pathname = usePathname();
+  const router = useRouter();
+  const [notifications] = useState(2); // Mock notifications
+
+  // For menu highlighting
+  const menuItems = getMenuItems(user || {});
+
+  const handleSignOut = async () => {
+    const { supabase } = await import("@/utils/supabaseClient");
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
+
+  const handleNavigate = (path: string) => {
+    router.push(path);
+  };
 
   return (
     <Box sx={{ minHeight: "100vh", background: "#f8f9ff", display: 'flex', flexDirection: 'row' }}>
-      {/* Sidebar for logged-in users */}
+      {/* Sidebar and TopBar for logged-in users */}
       {!loading && user && (
-        <Box sx={{ width: 280, p: 2, borderRight: '1px solid #e0e0e0', background: '#fff', minHeight: '100vh' }}>
-          <UserInfoCard email={user.email || ''} />
-        </Box>
+        <>
+          <TopBar
+            user={user}
+            notifications={notifications}
+            menuItems={menuItems}
+            onSignOut={handleSignOut}
+            onNavigate={handleNavigate}
+            pathname={pathname}
+          />
+          <Sidebar user={user} pathname={pathname} />
+        </>
       )}
       {/* Main content */}
       <Box sx={{ flex: 1, minWidth: 0 }}>

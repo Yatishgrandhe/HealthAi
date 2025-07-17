@@ -124,6 +124,7 @@ export default function TherapistChatPage() {
   const [isVoiceChat, setIsVoiceChat] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [lastSavedMessage, setLastSavedMessage] = useState<string>("");
+  const [hasInitialized, setHasInitialized] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -345,6 +346,8 @@ export default function TherapistChatPage() {
 
   // Load chats from localStorage on component mount and create new chat
   useEffect(() => {
+    if (hasInitialized) return; // Prevent multiple initializations
+    
     const savedChats = localStorage.getItem('therapist-chats');
     if (savedChats) {
       const parsedChats = JSON.parse(savedChats).map((chat: ChatSession) => ({
@@ -360,7 +363,7 @@ export default function TherapistChatPage() {
       
       // Clean up empty chats after loading
       setTimeout(() => {
-                const emptyChats = parsedChats.filter((chat: ChatSession) =>
+        const emptyChats = parsedChats.filter((chat: ChatSession) =>
           chat.messages.length === 0 || 
           (chat.messages.length === 1 && chat.messages[0].sender === 'ai')
         );
@@ -371,23 +374,39 @@ export default function TherapistChatPage() {
       }, 1000);
     }
     
-    // Always create a new chat when entering the page
-    const newChat: ChatSession = {
-      id: Date.now().toString(),
-      title: "New Chat",
-      messages: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
+    // Only create a new chat if there are no existing chats
+    if (!savedChats || JSON.parse(savedChats).length === 0) {
+      const newChat: ChatSession = {
+        id: Date.now().toString(),
+        title: "New Chat",
+        messages: [],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      setChatSessions(prev => [newChat, ...prev]);
+      setCurrentChat(newChat);
+    } else {
+      // Set the first existing chat as current
+      const parsedChats = JSON.parse(savedChats).map((chat: ChatSession) => ({
+        ...chat,
+        createdAt: new Date(chat.createdAt),
+        updatedAt: new Date(chat.updatedAt),
+        messages: chat.messages.map((msg: Message) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        }))
+      }));
+      setCurrentChat(parsedChats[0]);
+    }
     
-    setChatSessions(prev => [newChat, ...prev]);
-    setCurrentChat(newChat);
+    setHasInitialized(true);
     
-    // Focus on input after creating new chat
+    // Focus on input after initialization
     setTimeout(() => {
       inputRef.current?.focus();
     }, 100);
-  }, []);
+  }, [hasInitialized]);
 
   // Save chats to localStorage whenever they change - with error handling
   useEffect(() => {

@@ -51,8 +51,13 @@ export async function POST(request: NextRequest) {
           success: false, 
           errorType: 'IMAGE_QUALITY',
           errorCode: 'MISSING_IMAGE',
-          message: 'No image provided',
-          suggestions: ['Please provide a valid base64 encoded image'],
+          message: 'No image provided for analysis',
+          suggestions: [
+            '📸 Please provide a valid base64 encoded image',
+            '📱 Ensure the image is properly captured and uploaded',
+            '🔄 Try taking a new photo and uploading again',
+            '💡 Check that the image file is not corrupted'
+          ],
           retryable: false
         } as PostureAnalysisError,
         { status: 400 }
@@ -66,8 +71,13 @@ export async function POST(request: NextRequest) {
           success: false,
           errorType: 'API_ERROR',
           errorCode: 'MISSING_API_KEY',
-          message: 'Cloud Vision API key not configured',
-          suggestions: ['Please configure the Cloud Vision API key'],
+          message: 'Cloud Vision API key not configured - Service temporarily unavailable',
+          suggestions: [
+            '🔧 This is a server configuration issue',
+            '⏰ Please try again later when the service is restored',
+            '📞 Contact support if the issue persists',
+            '🔄 The service will be available once configured'
+          ],
           retryable: false
         } as PostureAnalysisError,
         { status: 500 }
@@ -121,13 +131,48 @@ export async function POST(request: NextRequest) {
     if (!visionResponse.ok) {
       const errorText = await visionResponse.text();
       console.error('Vision API error:', visionResponse.status, errorText);
+      
+      let errorType: 'API_ERROR' | 'IMAGE_QUALITY' | 'RATE_LIMIT' = 'API_ERROR';
+      let message = `External service error: ${visionResponse.status}`;
+      let suggestions = ['Please try again later', 'Check your internet connection'];
+      
+      // Enhanced error categorization
+      if (visionResponse.status === 400) {
+        errorType = 'IMAGE_QUALITY';
+        message = 'Image format or quality issue detected';
+        suggestions = [
+          '📸 Ensure the image is in a supported format (JPEG, PNG)',
+          '💡 Improve image quality with better lighting',
+          '📏 Make sure the image is not too small or blurry',
+          '🔄 Try uploading a different image'
+        ];
+      } else if (visionResponse.status === 429) {
+        errorType = 'RATE_LIMIT';
+        message = 'Service temporarily overloaded - too many requests';
+        suggestions = [
+          '⏰ Please wait a few minutes and try again',
+          '🔄 The service will be available shortly',
+          '📊 We are experiencing high demand',
+          '💡 Try again in 5-10 minutes'
+        ];
+      } else if (visionResponse.status >= 500) {
+        errorType = 'API_ERROR';
+        message = 'External service temporarily unavailable';
+        suggestions = [
+          '🔧 This is a temporary service issue',
+          '⏰ Please try again in a few minutes',
+          '📞 Contact support if the issue persists',
+          '🔄 The service will be restored shortly'
+        ];
+      }
+      
       return NextResponse.json(
         { 
           success: false,
-          errorType: 'API_ERROR',
+          errorType,
           errorCode: `VISION_API_${visionResponse.status}`,
-          message: `Vision API error: ${visionResponse.status}`,
-          suggestions: ['Please try again later', 'Check your internet connection'],
+          message,
+          suggestions,
           retryable: true
         } as PostureAnalysisError,
         { status: 500 }
@@ -149,17 +194,51 @@ export async function POST(request: NextRequest) {
     console.error('Posture analysis error:', error);
     const processingTime = Date.now() - startTime;
     
+    let errorType: 'PROCESSING_ERROR' | 'IMAGE_QUALITY' | 'API_ERROR' = 'PROCESSING_ERROR';
+    let message = 'Failed to analyze posture due to processing error';
+    let suggestions = [
+      'Please try again with a different image',
+      'Ensure good lighting and clear visibility',
+      'Make sure you are fully visible in the frame'
+    ];
+    
+    // Enhanced error categorization for processing errors
+    if (error.message?.includes('image') || error.message?.includes('format')) {
+      errorType = 'IMAGE_QUALITY';
+      message = 'Image processing failed - quality or format issue';
+      suggestions = [
+        '📸 Ensure the image is clear and well-lit',
+        '💡 Try taking a new photo with better lighting',
+        '📏 Make sure you are fully visible in the frame',
+        '🔄 Upload a different image for analysis'
+      ];
+    } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+      errorType = 'API_ERROR';
+      message = 'Network error during analysis';
+      suggestions = [
+        '🌐 Check your internet connection',
+        '🔄 Try again in a few moments',
+        '📱 Ensure you have a stable connection',
+        '⏰ The service may be temporarily unavailable'
+      ];
+    } else {
+      errorType = 'PROCESSING_ERROR';
+      message = 'Analysis processing failed - please try again';
+      suggestions = [
+        '🔄 Try uploading a different image',
+        '💡 Ensure good lighting and clear visibility',
+        '📸 Make sure you are fully visible in the frame',
+        '⏰ Wait a moment and try again'
+      ];
+    }
+    
     return NextResponse.json(
       { 
-        success: false,
-        errorType: 'PROCESSING_ERROR',
+        success: false, 
+        errorType,
         errorCode: 'ANALYSIS_FAILED',
-        message: error.message || 'Failed to analyze posture',
-        suggestions: [
-          'Please try again with a different image',
-          'Ensure good lighting and clear visibility',
-          'Make sure you are fully visible in the frame'
-        ],
+        message,
+        suggestions,
         retryable: true
       } as PostureAnalysisError,
       { status: 500 }
@@ -240,11 +319,11 @@ function performEnhancedPostureAnalysis(visionData: any, startTime: number): Pos
       ...recommendations.longTerm,
       ...recommendations.lifestyle
     ];
-
+    
     return {
-      score: scoreCalculation.finalScore,
+      score: Math.round(scoreCalculation.finalScore),
       status,
-      confidence: scoreCalculation.confidence,
+      confidence: Math.round(scoreCalculation.confidence * 100),
       personDetected: true,
       faceDetected: faces.length > 0,
       detectionMethods: personDetectionResult.detectionMethods,
@@ -316,8 +395,8 @@ function detectPersonMultiLayered(labels: any[], objects: any[], faces: any[]): 
   const detected = totalWeight > 0.3 && totalConfidence > 0.5;
   const bodyPartsFound = extractBodyPartsFromLabels(labels);
   const clothingFound = extractClothingFromLabels(labels);
-
-  return {
+    
+    return {
     detected,
     confidence: totalWeight > 0 ? totalConfidence / totalWeight : 0,
     detectionMethods,
@@ -569,82 +648,138 @@ function analyzeHeadNeckPosition(faces: any[], bodyPartMap: BodyPartMap, spatial
   const issues: PostureIssue[] = [];
   let score = 85; // Base score for good posture
 
-  // Face angle analysis
+  // Enhanced face angle analysis with advanced measurements
   if (faces.length > 0) {
     const face = faces[0];
     const rollAngle = Math.abs(face.rollAngle || 0);
     const panAngle = Math.abs(face.panAngle || 0);
     const tiltAngle = Math.abs(face.tiltAngle || 0);
+    const detectionConfidence = face.detectionConfidence || 0.8;
 
-    // Forward head posture detection
-    if (panAngle > 15) {
+    // Advanced forward head posture detection with face-to-body positioning
+    if (panAngle > 12) {
+      const severity = panAngle > 20 ? 'critical' : panAngle > 15 ? 'major' : 'moderate';
+      const penalty = panAngle > 20 ? 35 : panAngle > 15 ? 25 : 15;
+      
       issues.push({
         type: 'Forward Head Posture',
-        severity: 'major',
-        description: 'Head is positioned forward relative to the body',
-        impact: 'Can cause neck strain, headaches, and shoulder tension',
+        severity,
+        description: `Head is positioned ${panAngle.toFixed(1)}° forward relative to the body (${panAngle > 20 ? 'severe' : panAngle > 15 ? 'moderate' : 'mild'} forward head posture)`,
+        impact: 'Can cause neck strain, headaches, shoulder tension, and cervical spine compression',
         recommendations: [
-          'Practice chin tucks to strengthen neck muscles',
-          'Adjust computer monitor to eye level',
-          'Take regular breaks to stretch neck muscles'
+          'Practice chin tucks to strengthen deep neck flexors',
+          'Adjust computer monitor to eye level (top of screen at eyebrow level)',
+          'Take regular breaks every 30 minutes to stretch neck muscles',
+          'Strengthen upper back muscles to support head weight',
+          'Consider ergonomic chair with proper headrest support'
         ]
       });
-      score -= 25;
+      score -= penalty;
     }
 
-    // Head tilt detection
-    if (rollAngle > 10) {
+    // Enhanced head tilt detection with cervical alignment assessment
+    if (rollAngle > 8) {
+      const severity = rollAngle > 15 ? 'major' : 'moderate';
+      const penalty = rollAngle > 15 ? 20 : 15;
+      
       issues.push({
-        type: 'Head Tilt',
-        severity: 'moderate',
-        description: 'Head is tilted to one side',
-        impact: 'Can cause muscle imbalance and neck strain',
+        type: 'Head Tilt / Cervical Lateral Flexion',
+        severity,
+        description: `Head is tilted ${rollAngle.toFixed(1)}° to one side, indicating cervical lateral flexion`,
+        impact: 'Can cause muscle imbalance, neck strain, and potential cervical spine issues',
         recommendations: [
-          'Practice neck stretches to improve flexibility',
-          'Check for muscle tightness on one side',
-          'Consider ergonomic adjustments'
+          'Practice lateral neck stretches to improve flexibility',
+          'Check for muscle tightness on the elevated side',
+          'Consider ergonomic adjustments to reduce asymmetric loading',
+          'Strengthen weak neck muscles on the opposite side',
+          'Consult with a physical therapist for personalized exercises'
         ]
       });
-      score -= 15;
+      score -= penalty;
     }
 
-    // Excessive tilt detection
-    if (tiltAngle > 20) {
+    // Enhanced excessive tilt detection with breathing impact assessment
+    if (tiltAngle > 15) {
+      const severity = tiltAngle > 25 ? 'critical' : tiltAngle > 20 ? 'major' : 'moderate';
+      const penalty = tiltAngle > 25 ? 30 : tiltAngle > 20 ? 20 : 15;
+      
       issues.push({
-        type: 'Excessive Head Tilt',
-        severity: 'moderate',
-        description: 'Head is tilted too far forward or backward',
-        impact: 'Can strain neck muscles and affect breathing',
+        type: 'Excessive Head Tilt / Cervical Flexion-Extension',
+        severity,
+        description: `Head is tilted ${tiltAngle.toFixed(1)}° forward/backward, affecting cervical spine alignment`,
+        impact: 'Can strain neck muscles, affect breathing, and cause cervical spine compression',
         recommendations: [
-          'Practice neutral head position exercises',
-          'Strengthen neck and upper back muscles',
-          'Improve overall posture awareness'
+          'Practice neutral head position exercises (ear over shoulder)',
+          'Strengthen neck and upper back muscles for better support',
+          'Improve overall posture awareness throughout the day',
+          'Consider cervical traction exercises under professional guidance',
+          'Address underlying causes like poor ergonomics or muscle weakness'
         ]
       });
-      score -= 20;
+      score -= penalty;
+    }
+
+    // Cervical alignment assessment based on face position
+    if (detectionConfidence > 0.7) {
+      const totalDeviation = rollAngle + panAngle + tiltAngle;
+      if (totalDeviation > 30) {
+        issues.push({
+          type: 'Poor Cervical Alignment',
+          severity: 'major',
+          description: 'Multiple cervical alignment issues detected, indicating poor neck posture',
+          impact: 'Significant risk for neck pain, headaches, and cervical spine problems',
+          recommendations: [
+            'Comprehensive neck posture correction program needed',
+            'Consult with a physical therapist for personalized treatment',
+            'Address all contributing factors (ergonomics, muscle strength, flexibility)',
+            'Consider posture-correcting exercises and stretches',
+            'Monitor progress with regular posture assessments'
+          ]
+        });
+        score -= 25;
+      }
     }
   }
 
-  // Neck strain indicators
+  // Enhanced neck strain indicators with body part correlation
   if (bodyPartMap.neck.length === 0 && bodyPartMap.head.length > 0) {
     issues.push({
-      type: 'Potential Neck Strain',
+      type: 'Potential Neck Strain / Poor Neck Visibility',
       severity: 'minor',
-      description: 'Neck area may be under strain',
-      impact: 'Can lead to discomfort and reduced mobility',
+      description: 'Neck area may be under strain or not clearly visible for analysis',
+      impact: 'Can lead to discomfort, reduced mobility, and undetected posture issues',
       recommendations: [
-        'Practice gentle neck stretches',
-        'Improve ergonomic setup',
-        'Take regular movement breaks'
+        'Practice gentle neck stretches and mobility exercises',
+        'Improve ergonomic setup to reduce neck strain',
+        'Take regular movement breaks every 30 minutes',
+        'Ensure proper lighting for better neck visibility in photos',
+        'Consider professional assessment for persistent neck issues'
       ]
     });
     score -= 10;
   }
 
+  // Additional neck strain indicators based on body part analysis
+  if (bodyPartMap.shoulders.length > 0 && bodyPartMap.head.length > 0) {
+    issues.push({
+      type: 'Head-Neck-Shoulder Relationship',
+      severity: 'minor',
+      description: 'Analyzing relationship between head, neck, and shoulder positioning',
+      impact: 'Poor alignment can cause muscle tension and postural strain',
+      recommendations: [
+        'Practice exercises that improve head-neck-shoulder alignment',
+        'Strengthen supporting muscles for better posture',
+        'Improve awareness of head position relative to shoulders',
+        'Consider ergonomic adjustments for daily activities'
+      ]
+    });
+    score -= 5;
+  }
+
   const riskLevel = score >= 80 ? 'low' : score >= 60 ? 'moderate' : score >= 40 ? 'high' : 'critical';
 
   return {
-    score: Math.max(0, score),
+    score: Math.round(Math.max(0, score)),
     issues,
     riskLevel,
     recommendations: issues.flatMap(issue => issue.recommendations)
@@ -714,7 +849,7 @@ function analyzeShoulderPosition(bodyPartMap: BodyPartMap, spatialAnalysis: Spat
   const riskLevel = score >= 80 ? 'low' : score >= 60 ? 'moderate' : score >= 40 ? 'high' : 'critical';
 
   return {
-    score: Math.max(0, score),
+    score: Math.round(Math.max(0, score)),
     issues,
     riskLevel,
     recommendations: issues.flatMap(issue => issue.recommendations)
@@ -725,58 +860,163 @@ function analyzeSpineAlignment(bodyPartMap: BodyPartMap, spatialAnalysis: Spatia
   const issues: PostureIssue[] = [];
   let score = 85;
 
-  // Spinal curvature analysis
+  // Enhanced spinal curvature analysis for detecting excessive kyphosis/lordosis
   if (bodyPartMap.spine.length > 0) {
-    issues.push({
-      type: 'Spinal Alignment',
-      severity: 'moderate',
-      description: 'Spine may need better alignment',
-      impact: 'Affects overall posture and can cause back pain',
-      recommendations: [
-        'Practice core strengthening exercises',
-        'Improve posture awareness',
-        'Consider ergonomic adjustments'
-      ]
-    });
-    score -= 20;
+    const spineKeywords = bodyPartMap.spine.map(label => label.toLowerCase());
+    const hasCurvedSpine = spineKeywords.some(keyword => 
+      keyword.includes('curved') || keyword.includes('bent') || keyword.includes('rounded')
+    );
+    const hasStraightSpine = spineKeywords.some(keyword => 
+      keyword.includes('straight') || keyword.includes('upright') || keyword.includes('aligned')
+    );
+
+    if (hasCurvedSpine && !hasStraightSpine) {
+      issues.push({
+        type: 'Excessive Spinal Curvature',
+        severity: 'major',
+        description: 'Spine shows excessive curvature (kyphosis/lordosis)',
+        impact: 'Can cause back pain, breathing difficulties, and postural instability',
+        recommendations: [
+          'Practice thoracic extension exercises to reduce kyphosis',
+          'Strengthen core muscles to support proper spinal alignment',
+          'Improve posture awareness throughout daily activities',
+          'Consider physical therapy for personalized treatment plan',
+          'Address underlying causes like muscle weakness or poor ergonomics'
+        ]
+      });
+      score -= 30;
+    } else if (!hasStraightSpine) {
+      issues.push({
+        type: 'Spinal Alignment Assessment',
+        severity: 'moderate',
+        description: 'Spine alignment needs improvement for optimal posture',
+        impact: 'Affects overall posture and can contribute to back pain',
+        recommendations: [
+          'Practice core strengthening exercises for better spinal support',
+          'Improve posture awareness during daily activities',
+          'Consider ergonomic adjustments for work and home',
+          'Strengthen back muscles to support proper alignment',
+          'Practice spinal mobility exercises'
+        ]
+      });
+      score -= 20;
+    }
   }
 
-  // Forward flexion detection
+  // Critical forward flexion detection for dangerous bending positions
   if (bodyPartMap.torso.length > 0 && bodyPartMap.head.length > 0) {
-    issues.push({
-      type: 'Forward Flexion',
-      severity: 'major',
-      description: 'Upper body may be leaning forward',
-      impact: 'Can cause significant back strain and pain',
-      recommendations: [
-        'Practice standing tall exercises',
-        'Strengthen core and back muscles',
-        'Improve overall posture habits'
-      ]
-    });
-    score -= 30;
+    const torsoKeywords = bodyPartMap.torso.map(label => label.toLowerCase());
+    const hasForwardLean = torsoKeywords.some(keyword => 
+      keyword.includes('forward') || keyword.includes('leaning') || keyword.includes('bent')
+    );
+    const hasUprightTorso = torsoKeywords.some(keyword => 
+      keyword.includes('upright') || keyword.includes('straight') || keyword.includes('vertical')
+    );
+
+    if (hasForwardLean && !hasUprightTorso) {
+      issues.push({
+        type: 'Critical Forward Flexion',
+        severity: 'critical',
+        description: 'Upper body is significantly leaning forward, indicating dangerous bending position',
+        impact: 'High risk for back injury, muscle strain, and spinal compression',
+        recommendations: [
+          'IMMEDIATE: Stop current activity and return to neutral position',
+          'Practice standing tall exercises to improve posture',
+          'Strengthen core and back muscles for better support',
+          'Improve overall posture habits and awareness',
+          'Consider professional assessment for persistent forward lean',
+          'Address ergonomic factors contributing to poor posture'
+        ]
+      });
+      score -= 45;
+    } else if (hasForwardLean) {
+      issues.push({
+        type: 'Moderate Forward Flexion',
+        severity: 'major',
+        description: 'Upper body is leaning forward, affecting spinal alignment',
+        impact: 'Can cause significant back strain and pain over time',
+        recommendations: [
+          'Practice standing tall exercises to improve posture',
+          'Strengthen core and back muscles for better support',
+          'Improve overall posture habits and awareness',
+          'Consider ergonomic adjustments for daily activities',
+          'Practice exercises that promote upright posture'
+        ]
+      });
+      score -= 30;
+    }
   }
 
-  // Lateral deviation analysis
+  // Enhanced lateral deviation analysis for scoliosis indicators
   if (bodyPartMap.shoulders.length > 0 && bodyPartMap.hips.length > 0) {
-    issues.push({
-      type: 'Lateral Deviation',
-      severity: 'moderate',
-      description: 'Body may be leaning to one side',
-      impact: 'Can cause muscle imbalance and back pain',
-      recommendations: [
-        'Practice balance exercises',
-        'Strengthen weak side muscles',
-        'Improve overall symmetry'
-      ]
-    });
-    score -= 25;
+    const shoulderKeywords = bodyPartMap.shoulders.map(label => label.toLowerCase());
+    const hipKeywords = bodyPartMap.hips.map(label => label.toLowerCase());
+    
+    const hasAsymmetricShoulders = shoulderKeywords.some(keyword => 
+      keyword.includes('left') || keyword.includes('right') || keyword.includes('uneven')
+    );
+    const hasAsymmetricHips = hipKeywords.some(keyword => 
+      keyword.includes('left') || keyword.includes('right') || keyword.includes('uneven')
+    );
+
+    if (hasAsymmetricShoulders && hasAsymmetricHips) {
+      issues.push({
+        type: 'Lateral Deviation / Potential Scoliosis',
+        severity: 'major',
+        description: 'Body shows lateral deviation with asymmetric shoulders and hips',
+        impact: 'May indicate scoliosis or muscle imbalance, can cause back pain and postural issues',
+        recommendations: [
+          'Consult with a healthcare professional for scoliosis assessment',
+          'Practice balance exercises to improve symmetry',
+          'Strengthen weak side muscles to address imbalance',
+          'Improve overall posture symmetry and alignment',
+          'Consider physical therapy for personalized treatment',
+          'Monitor for progression of lateral deviation'
+        ]
+      });
+      score -= 35;
+    } else if (hasAsymmetricShoulders || hasAsymmetricHips) {
+      issues.push({
+        type: 'Lateral Deviation',
+        severity: 'moderate',
+        description: 'Body is leaning to one side, indicating postural imbalance',
+        impact: 'Can cause muscle imbalance, back pain, and walking difficulties',
+        recommendations: [
+          'Practice balance exercises to improve symmetry',
+          'Strengthen weak side muscles to address imbalance',
+          'Improve overall posture symmetry and alignment',
+          'Consider ergonomic adjustments to reduce asymmetric loading',
+          'Practice exercises that promote balanced posture'
+        ]
+      });
+      score -= 25;
+    }
+  }
+
+  // Postural stability assessment based on overall spine positioning
+  if (bodyPartMap.spine.length > 0 && bodyPartMap.torso.length > 0) {
+    const totalSpineParts = bodyPartMap.spine.length + bodyPartMap.torso.length;
+    if (totalSpineParts < 3) {
+      issues.push({
+        type: 'Limited Spine Visibility',
+        severity: 'minor',
+        description: 'Limited spine visibility may affect analysis accuracy',
+        impact: 'Analysis may be incomplete or less accurate',
+        recommendations: [
+          'Ensure spine area is clearly visible in photos',
+          'Improve lighting conditions for better visibility',
+          'Position camera to capture full spine alignment',
+          'Consider multiple angles for comprehensive assessment'
+        ]
+      });
+      score -= 10;
+    }
   }
 
   const riskLevel = score >= 80 ? 'low' : score >= 60 ? 'moderate' : score >= 40 ? 'high' : 'critical';
 
   return {
-    score: Math.max(0, score),
+    score: Math.round(Math.max(0, score)),
     issues,
     riskLevel,
     recommendations: issues.flatMap(issue => issue.recommendations)
@@ -787,58 +1027,180 @@ function analyzeHipPosition(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAn
   const issues: PostureIssue[] = [];
   let score = 85;
 
-  // Pelvic tilt detection
+  // Enhanced pelvic tilt detection for anterior/posterior tilt analysis
   if (bodyPartMap.hips.length > 0) {
-    issues.push({
-      type: 'Pelvic Tilt',
-      severity: 'moderate',
-      description: 'Pelvis may be tilted anteriorly or posteriorly',
-      impact: 'Affects lower back alignment and can cause pain',
-      recommendations: [
-        'Practice pelvic tilts exercise',
-        'Strengthen core muscles',
-        'Improve hip flexibility'
-      ]
-    });
-    score -= 20;
+    const hipKeywords = bodyPartMap.hips.map(label => label.toLowerCase());
+    const hasAnteriorTilt = hipKeywords.some(keyword => 
+      keyword.includes('forward') || keyword.includes('tilted') || keyword.includes('rotated')
+    );
+    const hasPosteriorTilt = hipKeywords.some(keyword => 
+      keyword.includes('backward') || keyword.includes('tilted') || keyword.includes('rotated')
+    );
+    const hasNeutralPelvis = hipKeywords.some(keyword => 
+      keyword.includes('neutral') || keyword.includes('level') || keyword.includes('aligned')
+    );
+
+    if (hasAnteriorTilt && !hasNeutralPelvis) {
+      issues.push({
+        type: 'Anterior Pelvic Tilt',
+        severity: 'major',
+        description: 'Pelvis is tilted forward, causing increased lumbar lordosis',
+        impact: 'Can cause lower back pain, hip flexor tightness, and postural imbalance',
+        recommendations: [
+          'Practice posterior pelvic tilts to correct anterior tilt',
+          'Stretch tight hip flexors and strengthen weak glutes',
+          'Strengthen core muscles, especially lower abdominals',
+          'Improve posture awareness during standing and sitting',
+          'Consider physical therapy for personalized treatment plan',
+          'Address underlying causes like muscle imbalance or poor posture habits'
+        ]
+      });
+      score -= 30;
+    } else if (hasPosteriorTilt && !hasNeutralPelvis) {
+      issues.push({
+        type: 'Posterior Pelvic Tilt',
+        severity: 'major',
+        description: 'Pelvis is tilted backward, causing decreased lumbar lordosis',
+        impact: 'Can cause lower back pain, glute weakness, and postural issues',
+        recommendations: [
+          'Practice anterior pelvic tilts to correct posterior tilt',
+          'Strengthen weak hip flexors and glute muscles',
+          'Improve core strength and stability',
+          'Practice proper sitting and standing posture',
+          'Consider exercises that promote neutral pelvic alignment',
+          'Address ergonomic factors contributing to poor posture'
+        ]
+      });
+      score -= 30;
+    } else if (!hasNeutralPelvis) {
+      issues.push({
+        type: 'Pelvic Tilt Assessment',
+        severity: 'moderate',
+        description: 'Pelvis may be tilted anteriorly or posteriorly, affecting alignment',
+        impact: 'Affects lower back alignment and can contribute to pain and postural issues',
+        recommendations: [
+          'Practice pelvic tilts exercise to find neutral position',
+          'Strengthen core muscles for better pelvic stability',
+          'Improve hip flexibility and mobility',
+          'Practice proper posture awareness',
+          'Consider professional assessment for persistent pelvic tilt'
+        ]
+      });
+      score -= 20;
+    }
   }
 
-  // Hip level assessment
+  // Enhanced hip level assessment for detecting uneven positioning
   if (bodyPartMap.legs.length > 0) {
-    issues.push({
-      type: 'Hip Level',
-      severity: 'minor',
-      description: 'Hips may not be level',
-      impact: 'Can cause muscle imbalance and walking issues',
-      recommendations: [
-        'Practice hip alignment exercises',
-        'Strengthen weak hip muscles',
-        'Improve overall balance'
-      ]
-    });
-    score -= 15;
+    const legKeywords = bodyPartMap.legs.map(label => label.toLowerCase());
+    const hasUnevenLegs = legKeywords.some(keyword => 
+      keyword.includes('left') || keyword.includes('right') || keyword.includes('uneven')
+    );
+    const hasLevelLegs = legKeywords.some(keyword => 
+      keyword.includes('level') || keyword.includes('even') || keyword.includes('balanced')
+    );
+
+    if (hasUnevenLegs && !hasLevelLegs) {
+      issues.push({
+        type: 'Uneven Hip Level',
+        severity: 'moderate',
+        description: 'Hips are not level, indicating postural imbalance',
+        impact: 'Can cause muscle imbalance, walking difficulties, and back pain',
+        recommendations: [
+          'Practice hip alignment exercises to improve symmetry',
+          'Strengthen weak hip muscles on the lower side',
+          'Improve overall balance and postural awareness',
+          'Consider ergonomic adjustments to reduce asymmetric loading',
+          'Practice exercises that promote balanced hip positioning',
+          'Monitor for progression of hip level issues'
+        ]
+      });
+      score -= 25;
+    } else if (!hasLevelLegs) {
+      issues.push({
+        type: 'Hip Level Assessment',
+        severity: 'minor',
+        description: 'Hip level needs assessment for optimal alignment',
+        impact: 'Can contribute to muscle imbalance and walking issues',
+        recommendations: [
+          'Practice hip alignment exercises for better symmetry',
+          'Strengthen weak hip muscles to improve balance',
+          'Improve overall balance and postural awareness',
+          'Consider professional assessment for persistent hip level issues'
+        ]
+      });
+      score -= 15;
+    }
   }
 
-  // Lower back alignment
+  // Enhanced lower back alignment analysis relative to pelvis
   if (bodyPartMap.spine.length > 0 && bodyPartMap.hips.length > 0) {
-    issues.push({
-      type: 'Lower Back Alignment',
-      severity: 'moderate',
-      description: 'Lower back may need better alignment with pelvis',
-      impact: 'Affects overall posture and can cause back pain',
-      recommendations: [
-        'Practice core strengthening',
-        'Improve posture awareness',
-        'Consider ergonomic adjustments'
-      ]
-    });
-    score -= 25;
+    const spineKeywords = bodyPartMap.spine.map(label => label.toLowerCase());
+    const hasLumbarIssues = spineKeywords.some(keyword => 
+      keyword.includes('lumbar') || keyword.includes('lower') || keyword.includes('curved')
+    );
+    const hasAlignedSpine = spineKeywords.some(keyword => 
+      keyword.includes('aligned') || keyword.includes('straight') || keyword.includes('neutral')
+    );
+
+    if (hasLumbarIssues && !hasAlignedSpine) {
+      issues.push({
+        type: 'Lower Back Alignment Issues',
+        severity: 'major',
+        description: 'Lower back (lumbar spine) needs better alignment with pelvis',
+        impact: 'Affects overall posture and can cause significant back pain and instability',
+        recommendations: [
+          'Practice core strengthening exercises for better lumbar support',
+          'Improve posture awareness during daily activities',
+          'Consider ergonomic adjustments for work and home environments',
+          'Strengthen back muscles to support proper alignment',
+          'Practice exercises that promote neutral spine position',
+          'Consider professional assessment for persistent alignment issues'
+        ]
+      });
+      score -= 30;
+    } else if (!hasAlignedSpine) {
+      issues.push({
+        type: 'Lower Back Alignment Assessment',
+        severity: 'moderate',
+        description: 'Lower back alignment needs improvement for optimal posture',
+        impact: 'Affects overall posture and can contribute to back pain',
+        recommendations: [
+          'Practice core strengthening for better spinal support',
+          'Improve posture awareness during daily activities',
+          'Consider ergonomic adjustments for work and home',
+          'Strengthen back muscles to support proper alignment',
+          'Practice spinal mobility and stability exercises'
+        ]
+      });
+      score -= 25;
+    }
+  }
+
+  // Core stability indicators based on hip positioning
+  if (bodyPartMap.hips.length > 0 && bodyPartMap.torso.length > 0) {
+    const totalHipParts = bodyPartMap.hips.length + bodyPartMap.torso.length;
+    if (totalHipParts < 3) {
+      issues.push({
+        type: 'Limited Hip Visibility',
+        severity: 'minor',
+        description: 'Limited hip area visibility may affect analysis accuracy',
+        impact: 'Analysis may be incomplete or less accurate',
+        recommendations: [
+          'Ensure hip area is clearly visible in photos',
+          'Improve lighting conditions for better visibility',
+          'Position camera to capture full hip alignment',
+          'Consider multiple angles for comprehensive assessment'
+        ]
+      });
+      score -= 10;
+    }
   }
 
   const riskLevel = score >= 80 ? 'low' : score >= 60 ? 'moderate' : score >= 40 ? 'high' : 'critical';
 
   return {
-    score: Math.max(0, score),
+    score: Math.round(Math.max(0, score)),
     issues,
     riskLevel,
     recommendations: issues.flatMap(issue => issue.recommendations)
@@ -880,7 +1242,7 @@ function analyzeOverallPosture(bodyPartMap: BodyPartMap, faces: any[], imageProp
         'Improve overall body awareness'
       ]
     });
-    score -= 15;
+      score -= 15;
   }
 
   // Risk factor analysis
@@ -896,7 +1258,7 @@ function analyzeOverallPosture(bodyPartMap: BodyPartMap, faces: any[], imageProp
   const riskLevel = score >= 80 ? 'low' : score >= 60 ? 'moderate' : score >= 40 ? 'high' : 'critical';
 
   return {
-    score: Math.max(0, score),
+    score: Math.round(Math.max(0, score)),
     issues,
     riskLevel,
     recommendations: issues.flatMap(issue => issue.recommendations)
@@ -905,14 +1267,16 @@ function analyzeOverallPosture(bodyPartMap: BodyPartMap, faces: any[], imageProp
 
 // Intelligent Scoring Engine
 function calculateIntelligentScore(detailedAnalysis: any): ScoreCalculation {
+  // Enhanced weighted scoring algorithm with proper weighting
   const weights: ScoringWeights = {
-    spine: 0.30,
-    shoulders: 0.20,
-    headNeck: 0.20,
-    hips: 0.15,
-    overall: 0.15
+    spine: 0.30,        // Most critical for health (30%)
+    shoulders: 0.20,    // Major postural component (20%)
+    headNeck: 0.20,     // Critical for neck health (20%)
+    hips: 0.15,         // Foundation of posture (15%)
+    overall: 0.15       // Global assessment (15%)
   };
 
+  // Calculate weighted base score
   const baseScore = 
     detailedAnalysis.spine.score * weights.spine +
     detailedAnalysis.shoulders.score * weights.shoulders +
@@ -923,56 +1287,101 @@ function calculateIntelligentScore(detailedAnalysis: any): ScoreCalculation {
   const penalties: PosturePenalty[] = [];
   const bonuses: PostureBonus[] = [];
 
-  // Apply penalties based on severity
+  // Enhanced penalty system for different severity levels
   Object.entries(detailedAnalysis).forEach(([region, analysis]: [string, any]) => {
     (analysis.issues as PostureIssue[]).forEach((issue: PostureIssue) => {
       let penaltyPoints = 0;
+      let penaltyMultiplier = 1.0;
+      
+      // Base penalty points by severity
       switch (issue.severity) {
         case 'critical':
-          penaltyPoints = 80;
+          penaltyPoints = 80; // Critical issues (90° bending, severe misalignment)
+          penaltyMultiplier = 1.2; // Additional penalty for critical issues
           break;
         case 'major':
-          penaltyPoints = 45;
+          penaltyPoints = 45; // Major issues (rounded shoulders, significant tilt)
+          penaltyMultiplier = 1.1; // Slight additional penalty for major issues
           break;
         case 'moderate':
-          penaltyPoints = 25;
+          penaltyPoints = 25; // Moderate issues (head tilt, minor asymmetry)
+          penaltyMultiplier = 1.0; // Standard penalty
           break;
         case 'minor':
-          penaltyPoints = 10;
+          penaltyPoints = 10; // Minor issues (slight asymmetry, visibility issues)
+          penaltyMultiplier = 0.8; // Reduced penalty for minor issues
           break;
       }
+      
+      // Apply region-specific multipliers for consistency
+      const regionMultiplier = weights[region as keyof ScoringWeights] || 1.0;
+      const finalPenalty = Math.round(penaltyPoints * penaltyMultiplier * regionMultiplier);
       
       penalties.push({
         type: `${region} - ${issue.type}`,
         severity: issue.severity,
-        points: penaltyPoints,
+        points: finalPenalty,
         description: issue.description
       });
     });
   });
 
-  // Apply bonuses for good posture
-  if (baseScore > 80) {
+  // Enhanced bonus system for good posture
+  if (baseScore > 85) {
+    bonuses.push({
+      type: 'Excellent Overall Posture',
+      points: 15,
+      description: 'Maintaining excellent posture habits across all regions'
+    });
+  } else if (baseScore > 75) {
     bonuses.push({
       type: 'Good Overall Posture',
       points: 10,
       description: 'Maintaining good posture habits'
     });
+  } else if (baseScore > 65) {
+    bonuses.push({
+      type: 'Fair Posture with Improvement',
+      points: 5,
+      description: 'Showing some good posture habits'
+    });
   }
 
+  // Consistency validation to ensure similar postures get similar scores
   const totalPenalties = penalties.reduce((sum, penalty) => sum + penalty.points, 0);
   const totalBonuses = bonuses.reduce((sum, bonus) => sum + bonus.points, 0);
   
-  const finalScore = Math.max(0, Math.min(100, baseScore - totalPenalties + totalBonuses));
+  let finalScore = Math.max(0, Math.min(100, baseScore - totalPenalties + totalBonuses));
   
-  // Calculate confidence based on analysis completeness
-  const confidence = Math.min(0.95, 0.7 + (finalScore / 100) * 0.25);
+  // Consistency adjustments based on overall pattern
+  const criticalIssues = penalties.filter(p => p.severity === 'critical').length;
+  const majorIssues = penalties.filter(p => p.severity === 'major').length;
+  
+  // Ensure critical issues result in poor scores
+  if (criticalIssues > 0 && finalScore > 40) {
+    finalScore = Math.min(finalScore, 40);
+  }
+  
+  // Ensure multiple major issues result in fair or poor scores
+  if (majorIssues > 2 && finalScore > 60) {
+    finalScore = Math.min(finalScore, 60);
+  }
+  
+  // Ensure good base scores with few issues get good final scores
+  if (baseScore > 80 && totalPenalties < 20) {
+    finalScore = Math.max(finalScore, 70);
+  }
+  
+  // Calculate confidence based on analysis completeness and consistency
+  const analysisCompleteness = Object.keys(detailedAnalysis).length / 5; // 5 regions
+  const issueConsistency = penalties.length > 0 ? Math.min(1, 10 / penalties.length) : 1;
+  const confidence = Math.min(0.95, 0.7 + (finalScore / 100) * 0.15 + analysisCompleteness * 0.1);
 
   return {
-    baseScore,
+    baseScore: Math.round(baseScore),
     penalties,
     bonuses,
-    finalScore,
+    finalScore: Math.round(finalScore),
     confidence
   };
 }
@@ -993,23 +1402,59 @@ function generateCategorizedFeedback(detailedAnalysis: any, scoreCalculation: Sc
     minor: []
   };
 
-  // Categorize issues by severity
+  // Enhanced categorization of issues by severity with detailed descriptions
   Object.entries(detailedAnalysis).forEach(([region, analysis]: [string, any]) => {
     (analysis.issues as PostureIssue[]).forEach((issue: PostureIssue) => {
-      const message = `[${region.toUpperCase()}] ${issue.description}`;
+      const regionDisplay = region.charAt(0).toUpperCase() + region.slice(1).replace(/([A-Z])/g, ' $1');
+      const message = `[${regionDisplay.toUpperCase()}] ${issue.description}`;
       feedback[issue.severity].push(message);
     });
   });
 
-  // Add score-based feedback
+  // Enhanced score-based feedback with specific guidance
   if (scoreCalculation.finalScore < 30) {
-    feedback.critical.push('CRITICAL: Immediate posture intervention required');
+    feedback.critical.push('🚨 CRITICAL: Immediate posture intervention required - Score indicates severe postural issues');
+    feedback.critical.push('⚠️ URGENT: Consult with a healthcare professional for comprehensive assessment');
+    feedback.critical.push('🛑 STOP: Avoid activities that may worsen current posture problems');
   } else if (scoreCalculation.finalScore < 50) {
-    feedback.major.push('MAJOR: Significant posture improvements needed');
+    feedback.major.push('⚠️ MAJOR: Significant posture improvements needed - Multiple serious issues detected');
+    feedback.major.push('📋 ACTION: Create a structured posture improvement plan');
+    feedback.major.push('🏥 CONSIDER: Professional assessment may be beneficial');
   } else if (scoreCalculation.finalScore < 70) {
-    feedback.moderate.push('MODERATE: Some posture improvements recommended');
+    feedback.moderate.push('📊 MODERATE: Some posture improvements recommended - Several areas need attention');
+    feedback.moderate.push('💪 FOCUS: Prioritize the most critical issues first');
+    feedback.moderate.push('📈 PROGRESS: Regular monitoring and exercises will help');
   } else if (scoreCalculation.finalScore < 85) {
-    feedback.minor.push('MINOR: Minor posture adjustments suggested');
+    feedback.minor.push('✅ MINOR: Minor posture adjustments suggested - Overall good posture with room for improvement');
+    feedback.minor.push('🎯 REFINE: Focus on maintaining good habits and minor corrections');
+    feedback.minor.push('🌟 MAINTAIN: Continue current good posture practices');
+  } else {
+    feedback.minor.push('🏆 EXCELLENT: Outstanding posture! Continue maintaining these good habits');
+    feedback.minor.push('💎 PREVENT: Focus on maintaining current excellent posture');
+  }
+
+  // Add specific feedback based on detected issues
+  const criticalIssues = scoreCalculation.penalties.filter(p => p.severity === 'critical');
+  const majorIssues = scoreCalculation.penalties.filter(p => p.severity === 'major');
+  
+  if (criticalIssues.length > 0) {
+    feedback.critical.push(`🚨 ${criticalIssues.length} critical issue(s) detected requiring immediate attention`);
+  }
+  
+  if (majorIssues.length > 0) {
+    feedback.major.push(`⚠️ ${majorIssues.length} major issue(s) detected requiring significant improvement`);
+  }
+
+  // Add overall posture assessment
+  const totalIssues = scoreCalculation.penalties.length;
+  if (totalIssues === 0) {
+    feedback.minor.push('🎉 No posture issues detected - Excellent posture!');
+  } else if (totalIssues <= 2) {
+    feedback.minor.push(`📊 Only ${totalIssues} minor issue(s) detected - Great posture overall!`);
+  } else if (totalIssues <= 5) {
+    feedback.moderate.push(`📊 ${totalIssues} posture issues detected - Several areas need attention`);
+  } else {
+    feedback.major.push(`📊 ${totalIssues} posture issues detected - Comprehensive improvement plan needed`);
   }
 
   return feedback;
@@ -1022,62 +1467,170 @@ function generatePrioritizedRecommendations(detailedAnalysis: any, scoreCalculat
   const exercises: Exercise[] = [];
   const lifestyle: string[] = [];
 
-  // Critical issues need immediate attention
+  // Enhanced critical issues for immediate attention
   scoreCalculation.penalties
     .filter((penalty: PosturePenalty) => penalty.severity === 'critical')
     .forEach((penalty: PosturePenalty) => {
-      immediate.push(`Address ${penalty.type}: ${penalty.description}`);
+      immediate.push(`🚨 IMMEDIATE: Address ${penalty.type} - ${penalty.description}`);
+      immediate.push(`🛑 STOP: Avoid activities that worsen ${penalty.type.toLowerCase()}`);
+      immediate.push(`🏥 SEEK: Professional assessment for ${penalty.type.toLowerCase()}`);
     });
 
-  // Major issues for short-term goals
+  // Enhanced major issues for short-term goals (1-4 weeks)
   scoreCalculation.penalties
     .filter((penalty: PosturePenalty) => penalty.severity === 'major')
     .forEach((penalty: PosturePenalty) => {
-      shortTerm.push(`Improve ${penalty.type}: ${penalty.description}`);
+      shortTerm.push(`⚠️ SHORT-TERM (1-4 weeks): Improve ${penalty.type} - ${penalty.description}`);
+      shortTerm.push(`💪 FOCUS: Daily exercises targeting ${penalty.type.toLowerCase()}`);
+      shortTerm.push(`📋 PLAN: Create specific improvement goals for ${penalty.type.toLowerCase()}`);
     });
 
-  // Moderate issues for long-term goals
+  // Enhanced moderate issues for long-term goals (1-3 months)
   scoreCalculation.penalties
     .filter((penalty: PosturePenalty) => penalty.severity === 'moderate')
     .forEach((penalty: PosturePenalty) => {
-      longTerm.push(`Work on ${penalty.type}: ${penalty.description}`);
+      longTerm.push(`📊 LONG-TERM (1-3 months): Work on ${penalty.type} - ${penalty.description}`);
+      longTerm.push(`🎯 CONSISTENCY: Regular practice for ${penalty.type.toLowerCase()} improvement`);
+      longTerm.push(`📈 PROGRESS: Monitor improvements in ${penalty.type.toLowerCase()}`);
     });
 
-  // Generate specific exercises
+  // Enhanced specific exercise recommendations based on detected issues
+  const hasNeckIssues = scoreCalculation.penalties.some(p => p.type.includes('headNeck') || p.type.includes('neck'));
+  const hasShoulderIssues = scoreCalculation.penalties.some(p => p.type.includes('shoulder'));
+  const hasSpineIssues = scoreCalculation.penalties.some(p => p.type.includes('spine'));
+  const hasHipIssues = scoreCalculation.penalties.some(p => p.type.includes('hip'));
+
+  // Core exercises for all users
   exercises.push(
     {
-      name: 'Chin Tucks',
-      description: 'Strengthen neck muscles and improve head position',
-      targetArea: 'Neck',
+      name: 'Core Strengthening - Plank',
+      description: 'Strengthen core muscles to support proper posture',
+      targetArea: 'Core',
+      difficulty: 'beginner',
+      duration: '30-60 seconds, 3 sets',
+      frequency: 'Daily'
+    },
+    {
+      name: 'Posture Awareness - Wall Stand',
+      description: 'Practice proper standing posture against a wall',
+      targetArea: 'Full Body',
       difficulty: 'beginner',
       duration: '5-10 minutes',
       frequency: '3 times daily'
-    },
-    {
-      name: 'Wall Angels',
-      description: 'Improve shoulder blade positioning and upper back strength',
-      targetArea: 'Shoulders',
-      difficulty: 'beginner',
-      duration: '10-15 minutes',
-      frequency: 'Daily'
-    },
-    {
-      name: 'Pelvic Tilts',
-      description: 'Strengthen core and improve pelvic alignment',
-      targetArea: 'Hips',
-      difficulty: 'beginner',
-      duration: '5-10 minutes',
-      frequency: 'Daily'
     }
   );
 
-  // Lifestyle recommendations
+  // Specific exercises based on detected issues
+  if (hasNeckIssues) {
+    exercises.push(
+      {
+        name: 'Chin Tucks',
+        description: 'Strengthen deep neck flexors and improve head position',
+        targetArea: 'Neck',
+        difficulty: 'beginner',
+        duration: '10 repetitions, 3 sets',
+        frequency: '3 times daily'
+      },
+      {
+        name: 'Neck Stretches',
+        description: 'Improve neck flexibility and reduce muscle tension',
+        targetArea: 'Neck',
+        difficulty: 'beginner',
+        duration: '30 seconds each side, 3 sets',
+        frequency: 'Daily'
+      }
+    );
+  }
+
+  if (hasShoulderIssues) {
+    exercises.push(
+      {
+        name: 'Wall Angels',
+        description: 'Improve shoulder blade positioning and upper back strength',
+        targetArea: 'Shoulders',
+        difficulty: 'beginner',
+        duration: '10-15 repetitions, 3 sets',
+        frequency: 'Daily'
+      },
+      {
+        name: 'Shoulder Blade Squeezes',
+        description: 'Strengthen rhomboid muscles and improve shoulder positioning',
+        targetArea: 'Shoulders',
+        difficulty: 'beginner',
+        duration: '10 seconds hold, 10 repetitions',
+        frequency: '3 times daily'
+      }
+    );
+  }
+
+  if (hasSpineIssues) {
+    exercises.push(
+      {
+        name: 'Cat-Cow Stretch',
+        description: 'Improve spinal mobility and flexibility',
+        targetArea: 'Spine',
+        difficulty: 'beginner',
+        duration: '10 repetitions, 2 sets',
+        frequency: 'Daily'
+      },
+      {
+        name: 'Thoracic Extension',
+        description: 'Reduce kyphosis and improve upper back posture',
+        targetArea: 'Spine',
+        difficulty: 'beginner',
+        duration: '10 repetitions, 3 sets',
+        frequency: 'Daily'
+      }
+    );
+  }
+
+  if (hasHipIssues) {
+    exercises.push(
+      {
+        name: 'Pelvic Tilts',
+        description: 'Strengthen core and improve pelvic alignment',
+        targetArea: 'Hips',
+        difficulty: 'beginner',
+        duration: '10 repetitions, 3 sets',
+        frequency: 'Daily'
+      },
+      {
+        name: 'Hip Flexor Stretch',
+        description: 'Improve hip flexibility and reduce anterior pelvic tilt',
+        targetArea: 'Hips',
+        difficulty: 'beginner',
+        duration: '30 seconds each side, 3 sets',
+        frequency: 'Daily'
+      }
+    );
+  }
+
+  // Enhanced lifestyle recommendations
   lifestyle.push(
-    'Take regular breaks from sitting (every 30 minutes)',
-    'Adjust workstation ergonomics',
-    'Practice good posture awareness throughout the day',
-    'Consider posture-correcting exercises or physical therapy'
+    '⏰ Take regular breaks from sitting (every 30 minutes)',
+    '🪑 Adjust workstation ergonomics for optimal posture',
+    '🧘 Practice good posture awareness throughout the day',
+    '💧 Stay hydrated to maintain muscle function',
+    '😴 Ensure adequate sleep for muscle recovery',
+    '🏃‍♂️ Incorporate regular physical activity into daily routine',
+    '📱 Limit screen time and practice digital wellness',
+    '🎒 Use proper bag carrying techniques to avoid asymmetry'
   );
+
+  // Add specific lifestyle recommendations based on score
+  if (scoreCalculation.finalScore < 50) {
+    lifestyle.push(
+      '🏥 Consider consulting with a physical therapist or posture specialist',
+      '📋 Create a structured posture improvement plan',
+      '📊 Track progress with regular posture assessments'
+    );
+  } else if (scoreCalculation.finalScore < 70) {
+    lifestyle.push(
+      '📈 Set specific posture improvement goals',
+      '📱 Use posture reminder apps throughout the day',
+      '🎯 Focus on the most critical issues first'
+    );
+  }
 
   return {
     immediate,
@@ -1097,16 +1650,21 @@ function generateAnalysisMetadata(
   processingTime: number,
   detectionConfidence: number
 ): AnalysisMetadata {
-  // Assess image quality based on available data
-  const imageQuality = Math.min(100, 
-    50 + // Base quality
-    (labels.length > 10 ? 20 : 0) + // Good label detection
-    (objects.length > 5 ? 15 : 0) + // Good object detection
-    (faces.length > 0 ? 15 : 0) // Face detection
+  // Enhanced image quality assessment based on available data
+  const labelQuality = Math.min(100, (labels.length / 25) * 100);
+  const objectQuality = Math.min(100, (objects.length / 15) * 100);
+  const faceQuality = faces.length > 0 ? 100 : 0;
+  
+  const imageQuality = Math.round(
+    (labelQuality * 0.4) + // Label detection quality (40%)
+    (objectQuality * 0.3) + // Object detection quality (30%)
+    (faceQuality * 0.3) // Face detection quality (30%)
   );
 
-  // Determine lighting conditions
+  // Enhanced lighting conditions assessment
   let lightingConditions = 'unknown';
+  let lightingScore = 0;
+  
   if (imageProperties?.dominantColors?.colors) {
     const colors = imageProperties.dominantColors.colors;
     const brightness = colors.reduce((sum: number, color: any) => {
@@ -1114,16 +1672,47 @@ function generateAnalysisMetadata(
       return sum + (rgb.red + rgb.green + rgb.blue) / 3;
     }, 0) / colors.length;
     
-    if (brightness > 200) lightingConditions = 'bright';
-    else if (brightness > 100) lightingConditions = 'moderate';
-    else lightingConditions = 'dim';
+    lightingScore = Math.min(100, brightness);
+    
+    if (brightness > 180) {
+      lightingConditions = 'excellent';
+    } else if (brightness > 140) {
+      lightingConditions = 'good';
+    } else if (brightness > 100) {
+      lightingConditions = 'moderate';
+    } else if (brightness > 60) {
+      lightingConditions = 'dim';
+    } else {
+      lightingConditions = 'poor';
+    }
   }
 
-  // Calculate body visibility
-  const bodyVisibility = Math.min(100, 
-    (labels.length / 20) * 50 + // Label-based visibility
-    (objects.length / 10) * 30 + // Object-based visibility
-    (faces.length > 0 ? 20 : 0) // Face detection bonus
+  // Enhanced body visibility calculation
+  const labelVisibility = Math.min(100, (labels.length / 20) * 60);
+  const objectVisibility = Math.min(100, (objects.length / 10) * 30);
+  const faceVisibility = faces.length > 0 ? 20 : 0;
+  const personDetectionBonus = labels.some(l => l.description.toLowerCase().includes('person')) ? 10 : 0;
+  
+  const bodyVisibility = Math.round(
+    labelVisibility + 
+    objectVisibility + 
+    faceVisibility + 
+    personDetectionBonus
+  );
+
+  // Enhanced processing time tracking
+  const processingEfficiency = processingTime < 1000 ? 100 : 
+                               processingTime < 2000 ? 80 : 
+                               processingTime < 3000 ? 60 : 40;
+
+  // Enhanced detection confidence calculation
+  const finalDetectionConfidence = Math.round(
+    Math.min(100, 
+      detectionConfidence * 100 * 0.6 + // Base detection confidence (60%)
+      (imageQuality / 100) * 20 + // Image quality contribution (20%)
+      (lightingScore / 100) * 10 + // Lighting contribution (10%)
+      (bodyVisibility / 100) * 10 // Body visibility contribution (10%)
+    )
   );
 
   return {
@@ -1131,7 +1720,7 @@ function generateAnalysisMetadata(
     lightingConditions,
     bodyVisibility,
     processingTime,
-    detectionConfidence
+    detectionConfidence: finalDetectionConfidence
   };
 }
 
@@ -1140,7 +1729,7 @@ function createPersonNotDetectedResponse(): PostureAnalysis {
   return {
     score: 0,
     status: "poor",
-    confidence: 0.05,
+    confidence: 5,
     personDetected: false,
     faceDetected: false,
     detectionMethods: [],
@@ -1152,24 +1741,29 @@ function createPersonNotDetectedResponse(): PostureAnalysis {
       overall: createEmptyAnalysis()
     },
     feedback: [
-      "❌ CRITICAL: No person detected in the image",
-      "⚠️ You must be fully visible in the camera frame",
-      "🚫 Analysis cannot proceed without clear person detection"
+      "🚨 CRITICAL: No person detected in the image",
+      "⚠️ Analysis cannot proceed without clear person detection",
+      "📸 Image quality or positioning may be insufficient",
+      "🔍 Multiple detection methods failed to identify a person"
     ],
     recommendations: [
-      "📱 Position yourself in the center of the frame",
-      "💡 Ensure excellent lighting on your entire body",
-      "🚫 Remove any obstructions between you and the camera",
-      "📏 Stand 3-6 feet away from the camera",
-      "👤 Face the camera directly with your full body visible",
-      "📸 Use a stable camera position"
+      "📱 POSITIONING: Stand in the center of the frame with your full body visible",
+      "💡 LIGHTING: Ensure excellent, even lighting on your entire body",
+      "🚫 OBSTRUCTIONS: Remove any objects between you and the camera",
+      "📏 DISTANCE: Stand 3-6 feet away from the camera for optimal framing",
+      "👤 ORIENTATION: Face the camera directly with your full body in view",
+      "📸 STABILITY: Use a stable camera position or tripod",
+      "🎨 BACKGROUND: Use a plain, contrasting background",
+      "👕 CLOTHING: Wear clothing that clearly shows your body shape",
+      "🌅 TIMING: Take photos during daylight hours for better lighting",
+      "🔄 RETRY: Take multiple photos from different angles"
     ],
     analysisMetadata: {
       imageQuality: 10,
       lightingConditions: 'unknown',
       bodyVisibility: 5,
       processingTime: 0,
-      detectionConfidence: 0.05
+      detectionConfidence: 5
     }
   };
 }
@@ -1187,7 +1781,7 @@ function createErrorResponse(error: any): PostureAnalysis {
   return {
     score: 25,
     status: "poor",
-    confidence: 0.1,
+    confidence: 10,
     personDetected: false,
     faceDetected: false,
     detectionMethods: [],
@@ -1199,21 +1793,27 @@ function createErrorResponse(error: any): PostureAnalysis {
       overall: createEmptyAnalysis()
     },
     feedback: [
-      "❌ Analysis failed due to technical issues",
-      "⚠️ Image quality may be insufficient for proper analysis"
+      "🚨 CRITICAL: Analysis failed due to technical issues",
+      "⚠️ Image quality may be insufficient for proper analysis",
+      "🔧 System encountered an error during processing",
+      "📊 Analysis results are incomplete or unreliable"
     ],
     recommendations: [
-      "📸 Ensure high-quality image capture",
-      "💡 Improve lighting conditions",
-      "📱 Use a stable camera position",
-      "🔄 Retry the analysis"
+      "📸 IMAGE QUALITY: Ensure high-quality image capture with good resolution",
+      "💡 LIGHTING: Improve lighting conditions for better visibility",
+      "📱 CAMERA: Use a stable camera position to avoid blur",
+      "🔄 RETRY: Wait a moment and try the analysis again",
+      "🌐 CONNECTION: Check your internet connection stability",
+      "📋 ALTERNATIVE: Try uploading a different image",
+      "⏰ TIMING: The service may be temporarily busy, try again later",
+      "📞 SUPPORT: Contact support if the issue persists"
     ],
     analysisMetadata: {
       imageQuality: 20,
       lightingConditions: 'unknown',
       bodyVisibility: 10,
       processingTime: 0,
-      detectionConfidence: 0.1
+      detectionConfidence: 10
     }
   };
 } 

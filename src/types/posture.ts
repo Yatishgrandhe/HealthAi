@@ -112,7 +112,7 @@ export interface FaceAnnotation {
 
 export interface PostureAnalysisError {
   success: false;
-  errorType: 'PERSON_NOT_DETECTED' | 'IMAGE_QUALITY' | 'API_ERROR' | 'PROCESSING_ERROR';
+  errorType: 'PERSON_NOT_DETECTED' | 'IMAGE_QUALITY' | 'API_ERROR' | 'PROCESSING_ERROR' | 'RATE_LIMIT';
   errorCode: string;
   message: string;
   suggestions: string[];

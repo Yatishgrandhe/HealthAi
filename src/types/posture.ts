@@ -18,9 +18,13 @@ export interface PostureAnalysis {
     overall: BodyPartAnalysis;
   };
   
-  // Feedback
-  feedback: CategorizedFeedback;
-  recommendations: PrioritizedRecommendations;
+  // Feedback - Backward compatibility with array format
+  feedback: string[];
+  recommendations: string[];
+  
+  // Enhanced Feedback (optional for new features)
+  categorizedFeedback?: CategorizedFeedback;
+  prioritizedRecommendations?: PrioritizedRecommendations;
   
   // Metadata
   analysisMetadata: AnalysisMetadata;

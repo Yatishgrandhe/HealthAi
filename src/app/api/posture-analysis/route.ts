@@ -214,6 +214,22 @@ function performEnhancedPostureAnalysis(visionData: any, startTime: number): Pos
       labels, objects, faces, imageProperties, processingTime, personDetectionResult.confidence
     );
 
+    // Flatten feedback for backward compatibility
+    const flattenedFeedback = [
+      ...feedback.critical,
+      ...feedback.major,
+      ...feedback.moderate,
+      ...feedback.minor
+    ];
+
+    // Flatten recommendations for backward compatibility
+    const flattenedRecommendations = [
+      ...recommendations.immediate,
+      ...recommendations.shortTerm,
+      ...recommendations.longTerm,
+      ...recommendations.lifestyle
+    ];
+
     return {
       score: scoreCalculation.finalScore,
       status,
@@ -222,9 +238,12 @@ function performEnhancedPostureAnalysis(visionData: any, startTime: number): Pos
       faceDetected: faces.length > 0,
       detectionMethods: personDetectionResult.detectionMethods,
       detailedAnalysis,
-      feedback,
-      recommendations,
-      analysisMetadata
+      feedback: flattenedFeedback, // Backward compatibility
+      recommendations: flattenedRecommendations, // Backward compatibility
+      analysisMetadata,
+      // Enhanced fields for new features
+      categorizedFeedback: feedback,
+      prioritizedRecommendations: recommendations
     };
 
   } catch (error) {
@@ -1121,32 +1140,19 @@ function createPersonNotDetectedResponse(): PostureAnalysis {
       hips: createEmptyAnalysis(),
       overall: createEmptyAnalysis()
     },
-    feedback: {
-      critical: [
-        "❌ CRITICAL: No person detected in the image",
-        "⚠️ You must be fully visible in the camera frame",
-        "🚫 Analysis cannot proceed without clear person detection"
-      ],
-      major: [],
-      moderate: [],
-      minor: []
-    },
-    recommendations: {
-      immediate: [
-        "📱 Position yourself in the center of the frame",
-        "💡 Ensure excellent lighting on your entire body"
-      ],
-      shortTerm: [
-        "🚫 Remove any obstructions between you and the camera",
-        "📏 Stand 3-6 feet away from the camera"
-      ],
-      longTerm: [
-        "👤 Face the camera directly with your full body visible",
-        "📸 Use a stable camera position"
-      ],
-      exercises: [],
-      lifestyle: []
-    },
+    feedback: [
+      "❌ CRITICAL: No person detected in the image",
+      "⚠️ You must be fully visible in the camera frame",
+      "🚫 Analysis cannot proceed without clear person detection"
+    ],
+    recommendations: [
+      "📱 Position yourself in the center of the frame",
+      "💡 Ensure excellent lighting on your entire body",
+      "🚫 Remove any obstructions between you and the camera",
+      "📏 Stand 3-6 feet away from the camera",
+      "👤 Face the camera directly with your full body visible",
+      "📸 Use a stable camera position"
+    ],
     analysisMetadata: {
       imageQuality: 10,
       lightingConditions: 'unknown',
@@ -1181,28 +1187,16 @@ function createErrorResponse(error: any): PostureAnalysis {
       hips: createEmptyAnalysis(),
       overall: createEmptyAnalysis()
     },
-    feedback: {
-      critical: [
-        "❌ Analysis failed due to technical issues",
-        "⚠️ Image quality may be insufficient for proper analysis"
-      ],
-      major: [],
-      moderate: [],
-      minor: []
-    },
-    recommendations: {
-      immediate: [
-        "📸 Ensure high-quality image capture",
-        "💡 Improve lighting conditions"
-      ],
-      shortTerm: [
-        "📱 Use a stable camera position",
-        "🔄 Retry the analysis"
-      ],
-      longTerm: [],
-      exercises: [],
-      lifestyle: []
-    },
+    feedback: [
+      "❌ Analysis failed due to technical issues",
+      "⚠️ Image quality may be insufficient for proper analysis"
+    ],
+    recommendations: [
+      "📸 Ensure high-quality image capture",
+      "💡 Improve lighting conditions",
+      "📱 Use a stable camera position",
+      "🔄 Retry the analysis"
+    ],
     analysisMetadata: {
       imageQuality: 20,
       lightingConditions: 'unknown',

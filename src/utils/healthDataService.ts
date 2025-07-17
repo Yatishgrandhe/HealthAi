@@ -618,5 +618,4 @@ export const getBrowserData = HealthDataService.getBrowserData;
 export const saveBrowserData = HealthDataService.saveBrowserData;
 export const clearBrowserData = HealthDataService.clearBrowserData;
 
-export const healthDataService = new HealthDataService();
-export default healthDataService; 
+export default HealthDataService; 

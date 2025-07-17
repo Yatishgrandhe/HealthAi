@@ -44,11 +44,16 @@ import {
   Person,
   SmartToy,
   ArrowBack,
-  Add
+  Add,
+  Chat,
+  Mic,
+  GraphicEq
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import aiService from "@/utils/aiService";
+import HealthDataService from "@/utils/healthDataService";
+import { useUser } from "@/utils/supabaseClient";
 
 // Type declarations for Web Speech API
 interface SpeechRecognition extends EventTarget {
@@ -124,6 +129,9 @@ export default function TherapistChatPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
+  const healthDataService = new HealthDataService();
+  const { user, loading: userLoading } = useUser();
+
   // Initialize speech recognition
   useEffect(() => {
     if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
@@ -158,7 +166,7 @@ export default function TherapistChatPage() {
     }
   }, [isVoiceChat]);
 
-  const generateResponse = useEffect(async (userMessage: string) => {
+  async function generateResponse(userMessage: string) {
     if (!currentChat) return;
 
     setLoading(true);
@@ -284,9 +292,18 @@ export default function TherapistChatPage() {
       setLoading(false);
       setIsTyping(false);
     }
-  }, [currentChat]);
+  }
 
-  const handleVoiceMessage = useEffect((message: string) => {
+  useEffect(() => {
+    if (!currentChat) return;
+
+    const userMessage = inputText.trim();
+    if (userMessage) {
+      handleSendMessage();
+    }
+  }, [inputText, currentChat]);
+
+  function handleVoiceMessage(message: string) {
     if (!currentChat) return;
     
     const userMessage: Message = {
@@ -331,7 +348,7 @@ export default function TherapistChatPage() {
 
     // Generate AI response
     generateResponse(message);
-  }, [currentChat, generateResponse, chatSessions]);
+  }
 
   // Load chats from localStorage on component mount and create new chat
   useEffect(() => {
@@ -388,8 +405,7 @@ export default function TherapistChatPage() {
     }
   }, [currentChat?.messages, isTyping]);
 
-  // Ensure user messages are always visible - fallback mechanism
-  const ensureUserMessageVisible = useEffect((message: string) => {
+  function ensureUserMessageVisible(message: string) {
     if (!currentChat) return;
     
     // Check if the message is already in the chat
@@ -420,7 +436,7 @@ export default function TherapistChatPage() {
       
       console.log('User message ensured visible:', message);
     }
-  }, [currentChat]);
+  }
 
   const createNewChat = () => {
     const newChat: ChatSession = {
@@ -485,15 +501,27 @@ export default function TherapistChatPage() {
     const messageText = inputText.trim();
     setInputText("");
     
-    // Force immediate save to localStorage
+    // Force immediate save to localStorage or Supabase
     try {
-      const updatedSessions = chatSessions.map(chat => 
-        chat.id === updatedChat.id ? updatedChat : chat
-      );
-      localStorage.setItem('therapist-chats', JSON.stringify(updatedSessions));
+      if (user) {
+        // Save to Supabase for logged-in users
+        await healthDataService.saveTherapistChatSession({
+          session_title: updatedChat.title,
+          messages: updatedChat.messages,
+          ai_model_used: 'openrouter', // or your model name
+          session_duration: 0, // Add real duration if available
+          mood_score: null, // Add mood score if available
+          tags: []
+        });
+      } else {
+        // Save to localStorage for guests
+        const updatedSessions = chatSessions.map(chat => 
+          chat.id === updatedChat.id ? updatedChat : chat
+        );
+        localStorage.setItem('therapist-chats', JSON.stringify(updatedSessions));
+      }
       setLastSavedMessage(messageText);
       console.log('User message saved immediately:', messageText);
-      
       // Clear the saved message indicator after 3 seconds
       setTimeout(() => {
         setLastSavedMessage("");
@@ -501,7 +529,7 @@ export default function TherapistChatPage() {
     } catch (error) {
       console.error('Failed to save user message:', error);
     }
-    
+
     // Generate AI response
     await generateResponse(messageText);
   };

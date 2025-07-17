@@ -55,6 +55,9 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 
 import { PostureAnalysis, ProgressReport } from "@/types/posture";
+import { useUser } from "@/utils/supabaseClient";
+import HealthDataService from "@/utils/healthDataService";
+import imageUploadService from "@/utils/imageUploadService";
 
 export default function PostureCheckPage() {
   const [cameraPermission, setCameraPermission] = useState<"granted" | "denied" | "pending">("pending");
@@ -84,6 +87,8 @@ export default function PostureCheckPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const cameraContainerRef = useRef<HTMLDivElement>(null);
+  const { user, loading: userLoading } = useUser();
+  const healthDataService = new HealthDataService();
 
   // Check if browser supports getUserMedia
   const isBrowserSupported = () => {
@@ -560,6 +565,21 @@ export default function PostureCheckPage() {
         confidence: 0.3,
         personDetected: false,
         faceDetected: false,
+        detectionMethods: [],
+        detailedAnalysis: {
+          headNeck: { score: 50, issues: [], riskLevel: 'moderate', recommendations: [] },
+          shoulders: { score: 50, issues: [], riskLevel: 'moderate', recommendations: [] },
+          spine: { score: 50, issues: [], riskLevel: 'moderate', recommendations: [] },
+          hips: { score: 50, issues: [], riskLevel: 'moderate', recommendations: [] },
+          overall: { score: 50, issues: [], riskLevel: 'moderate', recommendations: [] },
+        },
+        analysisMetadata: {
+          imageQuality: 0.5,
+          lightingConditions: 'unknown',
+          bodyVisibility: 0.5,
+          processingTime: 0,
+          detectionConfidence: 0.3,
+        },
         capturedImage: capturedImage || undefined,
         timestamp: new Date().toISOString()
       };
@@ -577,30 +597,42 @@ export default function PostureCheckPage() {
     if (!analysis || !capturedImage) return;
 
     try {
-      // Generate a unique image URL (in a real app, this would upload to cloud storage)
-      const imageUrl = `data:image/jpeg;base64,${capturedImage.split(',')[1]}`;
-      
-      const progressReport: ProgressReport = {
-        id: Date.now().toString(),
-        timestamp: analysis.timestamp || new Date().toISOString(),
-        score: analysis.score,
-        status: analysis.status,
-        imageUrl: imageUrl,
-        analysis: analysis
-      };
-
-      // Save to localStorage for now (in a real app, this would go to a database)
-      const existingReports = JSON.parse(localStorage.getItem('postureProgressReports') || '[]');
-      const updatedReports = [...existingReports, progressReport];
-      localStorage.setItem('postureProgressReports', JSON.stringify(updatedReports));
-      
-      setProgressReports(updatedReports);
+      if (user) {
+        // Convert data URL to File
+        const res = await fetch(capturedImage);
+        const blob = await res.blob();
+        const file = new File([blob], `posture_${Date.now()}.jpg`, { type: blob.type });
+        // Upload to Supabase Storage and get public URL
+        const uploadResult = await imageUploadService.uploadImageToStorage(file, 'posture', 'Posture Check Image');
+        // Save to Supabase
+        await healthDataService.savePostureCheckSession({
+          session_title: analysis.status + ' Posture Check',
+          posture_score: analysis.score,
+          analysis_data: analysis,
+          image_urls: [uploadResult.url],
+          recommendations: analysis.recommendations,
+          duration_seconds: 0 // Add real duration if available
+        });
+      } else {
+        // Save to localStorage for guests
+        const imageUrl = `data:image/jpeg;base64,${capturedImage.split(',')[1]}`;
+        const progressReport = {
+          id: Date.now().toString(),
+          timestamp: analysis.timestamp || new Date().toISOString(),
+          score: analysis.score,
+          status: analysis.status,
+          imageUrl: imageUrl,
+          analysis: analysis
+        };
+        const existingReports = JSON.parse(localStorage.getItem('postureProgressReports') || '[]');
+        const updatedReports = [...existingReports, progressReport];
+        localStorage.setItem('postureProgressReports', JSON.stringify(updatedReports));
+        setProgressReports(updatedReports);
+      }
       setShowImageOptions(false);
       setCapturedImage(null);
-      
       setSnackbarMessage("Progress report saved successfully!");
       setSnackbarOpen(true);
-      
     } catch (error) {
       console.error('Error saving progress report:', error);
       setSnackbarMessage("Failed to save progress report");
@@ -1803,6 +1835,18 @@ export default function PostureCheckPage() {
                       </Button>
                     </Box>
                   </Box>
+                )}
+                {!userLoading && user && capturedImage && (
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="primary"
+                    startIcon={<Save />}
+                    onClick={saveToProgressReport}
+                    sx={{ mt: 2 }}
+                  >
+                    Save Image
+                  </Button>
                 )}
 
                 <Button

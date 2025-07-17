@@ -35,6 +35,62 @@ class ImageUploadService {
     });
   }
 
+  // Upload image to Supabase Storage and return public URL
+  async uploadImageToStorage(
+    file: File,
+    imageType: 'posture' | 'fitness' | 'progress' | 'routine' | 'profile',
+    altText?: string,
+    tags?: string[]
+  ): Promise<ImageUploadResult> {
+    // Generate a unique file path
+    const filePath = `${imageType}/${Date.now()}_${file.name}`;
+    // Upload to Supabase Storage
+    const { data: storageData, error: storageError } = await supabase.storage
+      .from('user-images')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+    if (storageError) throw storageError;
+    // Get public URL
+    const { data: publicUrlData } = supabase.storage
+      .from('user-images')
+      .getPublicUrl(filePath);
+    const publicUrl = publicUrlData?.publicUrl;
+    if (!publicUrl) throw new Error('Failed to get public URL for uploaded image');
+    // Get image dimensions
+    const dimensions = await this.getImageDimensions(file);
+    // Create metadata
+    const metadata: ImageMetadata = {
+      image_url: publicUrl,
+      image_type: imageType,
+      file_name: file.name,
+      file_size: file.size,
+      mime_type: file.type,
+      width: dimensions.width,
+      height: dimensions.height,
+      alt_text: altText || file.name,
+      tags: tags || []
+    };
+    // Save metadata to database
+    const { data, error } = await supabase
+      .from('image_metadata')
+      .insert(metadata)
+      .select()
+      .single();
+    if (error) throw error;
+    return {
+      url: publicUrl,
+      metadata: {
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: file.type,
+        width: dimensions.width,
+        height: dimensions.height
+      }
+    };
+  }
+
   // Upload image and return URL
   async uploadImage(
     file: File, 

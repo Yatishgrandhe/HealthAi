@@ -135,6 +135,7 @@ export async function POST(request: NextRequest) {
       let errorType: 'API_ERROR' | 'IMAGE_QUALITY' | 'RATE_LIMIT' = 'API_ERROR';
       let message = `External service error: ${visionResponse.status}`;
       let suggestions = ['Please try again later', 'Check your internet connection'];
+      let warning: string | undefined = undefined;
       
       // Enhanced error categorization
       if (visionResponse.status === 400) {
@@ -148,13 +149,14 @@ export async function POST(request: NextRequest) {
         ];
       } else if (visionResponse.status === 429) {
         errorType = 'RATE_LIMIT';
-        message = 'Service temporarily overloaded - too many requests';
+        message = 'Service temporarily overloaded - too many requests (rate limit hit)';
         suggestions = [
           '⏰ Please wait a few minutes and try again',
           '🔄 The service will be available shortly',
           '📊 We are experiencing high demand',
           '💡 Try again in 5-10 minutes'
         ];
+        warning = '⚠️ You have hit the rate limit for the posture analysis service. Please wait before retrying.';
       } else if (visionResponse.status >= 500) {
         errorType = 'API_ERROR';
         message = 'External service temporarily unavailable';
@@ -173,8 +175,9 @@ export async function POST(request: NextRequest) {
           errorCode: `VISION_API_${visionResponse.status}`,
           message,
           suggestions,
+          warning,
           retryable: true
-        } as PostureAnalysisError,
+        } as PostureAnalysisError & { warning?: string },
         { status: 500 }
       );
     }

@@ -71,12 +71,15 @@ export default function PostureCheckPage() {
   const [progressReports, setProgressReports] = useState<ProgressReport[]>([]);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [maxZoom, setMaxZoom] = useState(3);
-  const [minZoom, setMinZoom] = useState(0.5);
+  const [minZoom, setMinZoom] = useState(0.3);
   const [isZooming, setIsZooming] = useState(false);
   const [zoomStartDistance, setZoomStartDistance] = useState(0);
   const [zoomStartLevel, setZoomStartLevel] = useState(1);
   const [countdown, setCountdown] = useState(0);
   const [isCountingDown, setIsCountingDown] = useState(false);
+  const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
+  const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
+  const [showZoomPercentage, setShowZoomPercentage] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -85,6 +88,69 @@ export default function PostureCheckPage() {
   // Check if browser supports getUserMedia
   const isBrowserSupported = () => {
     return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  };
+
+  // Get available cameras
+  const getAvailableCameras = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      setAvailableCameras(videoDevices);
+      console.log("Available cameras:", videoDevices);
+      return videoDevices;
+    } catch (error) {
+      console.error('Error getting cameras:', error);
+      return;
+    }
+  };
+
+  // Flip to next camera
+  const flipCamera = async () => {
+    if (availableCameras.length <= 1) {
+      setSnackbarMessage("Only one camera available");
+      setSnackbarOpen(true);
+      return;
+    }
+
+    const nextIndex = (currentCameraIndex + 1) % availableCameras.length;
+    setCurrentCameraIndex(nextIndex);
+    
+    // Restart camera with new device
+    await restartCameraWithDevice(availableCameras[nextIndex].deviceId);
+  };
+
+  // Restart camera with specific device
+  const restartCameraWithDevice = async (deviceId?: string) => {
+    try {
+      stopCamera();
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const constraints = {
+        video: { 
+          deviceId: deviceId ? { exact: deviceId } : undefined,
+          facingMode: deviceId ? undefined : "user",
+          width: { ideal: 1280, min: 640, max: 1920 },
+          height: { ideal: 720, min: 480, max: 1080 },
+          aspectRatio: { ideal: 16/9 },
+          frameRate: { ideal: 30, min: 15 }
+        },
+        audio: false
+      };
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+      setIsCameraOn(true);
+      setCameraPermission("granted");
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+        setVideoReady(true);
+      }
+    } catch (error) {
+      console.error('Error switching camera:', error);
+      setSnackbarMessage("Failed to switch camera");
+      setSnackbarOpen(true);
+    }
   };
 
   // Check API status and request camera permission on component mount
@@ -194,6 +260,9 @@ export default function PostureCheckPage() {
       streamRef.current = stream;
       setIsCameraOn(true);
       setCameraPermission("granted");
+      
+      // Get available cameras after permission is granted
+      await getAvailableCameras();
       
       if (videoRef.current) {
         // Set up video element
@@ -1037,24 +1106,30 @@ export default function PostureCheckPage() {
                       )}
                     </Box>
                     
-                    {/* Zoom Level Indicator */}
-                    <Box
-                      sx={{
-                        position: "absolute",
-                        bottom: 20,
-                        left: 20,
-                        bgcolor: "rgba(0, 0, 0, 0.6)",
-                        color: "white",
-                        px: 2,
-                        py: 1,
-                        borderRadius: 1,
-                        zIndex: 3
-                      }}
-                    >
-                      <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                        {Math.round(zoomLevel * 100)}%
-                      </Typography>
-                    </Box>
+                    {/* Remove the Zoom Level Indicator */}
+                    {availableCameras.length > 1 && (
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          bottom: 20,
+                          left: 20,
+                          zIndex: 3
+                        }}
+                      >
+                        <IconButton
+                          onClick={flipCamera}
+                          sx={{
+                            bgcolor: "rgba(0, 0, 0, 0.6)",
+                            color: "white",
+                            '&:hover': {
+                              bgcolor: "rgba(0, 0, 0, 0.8)"
+                            }
+                          }}
+                        >
+                          <CameraAlt />
+                        </IconButton>
+                      </Box>
+                    )}
 
                     {/* Countdown Overlay */}
                     {isCountingDown && (

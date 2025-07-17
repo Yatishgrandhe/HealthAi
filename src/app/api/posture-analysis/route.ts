@@ -192,7 +192,7 @@ function performEnhancedPostureAnalysis(visionData: any, startTime: number): Pos
     const spatialAnalysis = analyzeSpatialRelationships(bodyPartData);
     
     // Comprehensive posture analysis modules
-    const detailedAnalysis = {
+    const detailedAnalysisRaw = {
       headNeck: analyzeHeadNeckPosition(faces, bodyPartData, spatialAnalysis),
       shoulders: analyzeShoulderPosition(bodyPartData, spatialAnalysis),
       spine: analyzeSpineAlignment(bodyPartData, spatialAnalysis),
@@ -200,13 +200,24 @@ function performEnhancedPostureAnalysis(visionData: any, startTime: number): Pos
       overall: analyzeOverallPosture(bodyPartData, faces, imageProperties, spatialAnalysis)
     };
 
+    // Flatten issues for backward compatibility
+    const detailedAnalysis = Object.entries(detailedAnalysisRaw).reduce((acc, [key, analysis]) => {
+      acc[key] = {
+        score: analysis.score,
+        issues: (analysis.issues as PostureIssue[]).map((issue: PostureIssue) => issue.description), // Flatten to strings
+        riskLevel: analysis.riskLevel,
+        recommendations: analysis.recommendations
+      };
+      return acc;
+    }, {} as any);
+
     // Intelligent scoring engine
     const scoreCalculation = calculateIntelligentScore(detailedAnalysis);
     const status = determineEnhancedStatus(scoreCalculation.finalScore);
     
     // Enhanced feedback generation
-    const feedback = generateCategorizedFeedback(detailedAnalysis, scoreCalculation);
-    const recommendations = generatePrioritizedRecommendations(detailedAnalysis, scoreCalculation);
+    const feedback = generateCategorizedFeedback(detailedAnalysisRaw, scoreCalculation);
+    const recommendations = generatePrioritizedRecommendations(detailedAnalysisRaw, scoreCalculation);
     
     // Analysis metadata
     const processingTime = Date.now() - startTime;
@@ -237,7 +248,7 @@ function performEnhancedPostureAnalysis(visionData: any, startTime: number): Pos
       personDetected: true,
       faceDetected: faces.length > 0,
       detectionMethods: personDetectionResult.detectionMethods,
-      detailedAnalysis,
+      detailedAnalysis, // Backward compatibility
       feedback: flattenedFeedback, // Backward compatibility
       recommendations: flattenedRecommendations, // Backward compatibility
       analysisMetadata,
@@ -914,7 +925,7 @@ function calculateIntelligentScore(detailedAnalysis: any): ScoreCalculation {
 
   // Apply penalties based on severity
   Object.entries(detailedAnalysis).forEach(([region, analysis]: [string, any]) => {
-    (analysis as BodyPartAnalysis).issues.forEach((issue: PostureIssue) => {
+    (analysis.issues as PostureIssue[]).forEach((issue: PostureIssue) => {
       let penaltyPoints = 0;
       switch (issue.severity) {
         case 'critical':
@@ -984,7 +995,7 @@ function generateCategorizedFeedback(detailedAnalysis: any, scoreCalculation: Sc
 
   // Categorize issues by severity
   Object.entries(detailedAnalysis).forEach(([region, analysis]: [string, any]) => {
-    (analysis as BodyPartAnalysis).issues.forEach((issue: PostureIssue) => {
+    (analysis.issues as PostureIssue[]).forEach((issue: PostureIssue) => {
       const message = `[${region.toUpperCase()}] ${issue.description}`;
       feedback[issue.severity].push(message);
     });

@@ -9,7 +9,7 @@ export interface PostureAnalysis {
   faceDetected: boolean;
   detectionMethods: string[];
   
-  // Analysis Results
+  // Analysis Results - Backward compatibility
   detailedAnalysis: {
     headNeck: BodyPartAnalysis;
     shoulders: BodyPartAnalysis;
@@ -17,6 +17,8 @@ export interface PostureAnalysis {
     hips: BodyPartAnalysis;
     overall: BodyPartAnalysis;
   };
+  
+
   
   // Feedback - Backward compatibility with array format
   feedback: string[];
@@ -36,7 +38,7 @@ export interface PostureAnalysis {
 
 export interface BodyPartAnalysis {
   score: number;
-  issues: PostureIssue[];
+  issues: string[] | PostureIssue[]; // Support both formats for backward compatibility
   measurements?: PostureMeasurements;
   riskLevel: 'low' | 'moderate' | 'high' | 'critical';
   recommendations: string[];

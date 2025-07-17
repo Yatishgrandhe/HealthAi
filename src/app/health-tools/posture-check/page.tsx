@@ -705,21 +705,23 @@ export default function PostureCheckPage() {
         <Container maxWidth="xl">
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <Box sx={{ display: "flex", alignItems: "center" }}>
-              <Link href="/health-tools" passHref>
-                <IconButton
-                  sx={{
-                    color: "white",
-                    mr: 2,
-                    "&:hover": {
-                      background: "rgba(255, 255, 255, 0.1)",
-                      transform: "translateX(-2px)",
-                    },
-                    transition: "all 0.3s ease"
-                  }}
-                >
-                  <ArrowBack />
-                </IconButton>
-              </Link>
+              {!userLoading && !user && (
+                <Link href="/health-tools" passHref>
+                  <IconButton
+                    sx={{
+                      color: "white",
+                      mr: 2,
+                      "&:hover": {
+                        background: "rgba(255, 255, 255, 0.1)",
+                        transform: "translateX(-2px)",
+                      },
+                      transition: "all 0.3s ease"
+                    }}
+                  >
+                    <ArrowBack />
+                  </IconButton>
+                </Link>
+              )}
               <img 
                 src="/health-ai-logo.png" 
                 alt="Health AI Logo" 

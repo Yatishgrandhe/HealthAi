@@ -25,6 +25,7 @@ import {
 import { motion } from "framer-motion";
 import Link from "next/link";
 import APIStatusChecker from "@/components/APIStatusChecker";
+import { useUser } from "@/utils/supabaseClient";
 
 const healthTools = [
   {
@@ -87,6 +88,7 @@ const comingSoonTools = [
 ];
 
 export default function HealthToolsPage() {
+  const { user, loading: userLoading } = useUser();
   return (
     <Box sx={{ minHeight: "100vh", background: "#f8f9ff" }}>
       {/* Header with Back Navigation */}
@@ -116,21 +118,23 @@ export default function HealthToolsPage() {
           <APIStatusChecker />
           
           <Box sx={{ display: "flex", alignItems: "center", mb: 4 }}>
-            <Link href="/" passHref>
-              <IconButton
-                sx={{
-                  color: "white",
-                  mr: 2,
-                  "&:hover": {
-                    background: "rgba(255, 255, 255, 0.1)",
-                    transform: "translateX(-2px)",
-                  },
-                  transition: "all 0.3s ease"
-                }}
-              >
-                <ArrowBack />
-              </IconButton>
-            </Link>
+            {!userLoading && !user && (
+              <Link href="/" passHref>
+                <IconButton
+                  sx={{
+                    color: "white",
+                    mr: 2,
+                    "&:hover": {
+                      background: "rgba(255, 255, 255, 0.1)",
+                      transform: "translateX(-2px)",
+                    },
+                    transition: "all 0.3s ease"
+                  }}
+                >
+                  <ArrowBack />
+                </IconButton>
+              </Link>
+            )}
             <img 
               src="/health-ai-logo.png" 
               alt="Health AI Logo" 

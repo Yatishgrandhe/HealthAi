@@ -29,7 +29,12 @@ import {
   Stepper,
   Step,
   StepLabel,
-  StepContent
+  StepContent,
+  FormControl,
+  FormLabel,
+  RadioGroup,
+  FormControlLabel,
+  Radio
 } from "@mui/material";
 import { 
   FitnessCenter, 
@@ -48,11 +53,14 @@ import {
   Warning,
   Info,
   ArrowBack,
-  CloudUpload
+  CloudUpload,
+  Restaurant,
+  DirectionsRun
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import aiService from "@/utils/aiService";
+import { useUser } from "@/utils/supabaseClient";
 
 
 interface FitnessPlan {
@@ -97,6 +105,8 @@ export default function FitnessPlannerPage() {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [imageAnalysis, setImageAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const { user, loading: userLoading } = useUser();
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -307,21 +317,23 @@ export default function FitnessPlannerPage() {
         <Container maxWidth="lg">
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <Box sx={{ display: "flex", alignItems: "center" }}>
-              <Link href="/health-tools" passHref>
-                <IconButton
-                  sx={{
-                    color: "white",
-                    mr: 2,
-                    "&:hover": {
-                      background: "rgba(255, 255, 255, 0.1)",
-                      transform: "translateX(-2px)",
-                    },
-                    transition: "all 0.3s ease"
-                  }}
-                >
-                  <ArrowBack />
-                </IconButton>
-              </Link>
+              {!userLoading && !user && (
+                <Link href="/health-tools" passHref>
+                  <IconButton
+                    sx={{
+                      color: "white",
+                      mr: 2,
+                      "&:hover": {
+                        background: "rgba(255, 255, 255, 0.1)",
+                        transform: "translateX(-2px)",
+                      },
+                      transition: "all 0.3s ease"
+                    }}
+                  >
+                    <ArrowBack />
+                  </IconButton>
+                </Link>
+              )}
               <img 
               src="/health-ai-logo.png" 
               alt="Health AI Logo" 

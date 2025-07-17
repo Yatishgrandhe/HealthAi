@@ -44,6 +44,7 @@ import {
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useUser } from "@/utils/supabaseClient";
 
 interface SavedRoutine {
   id: string;
@@ -140,6 +141,8 @@ function SavedRoutinesPageInner(props: any) {
     return date.toLocaleDateString();
   };
 
+  const { user, loading: userLoading } = useUser();
+
   return (
     <Box sx={{ minHeight: "100vh", background: "#f8f9ff" }}>
       {/* Header */}
@@ -155,21 +158,23 @@ function SavedRoutinesPageInner(props: any) {
         <Container maxWidth="lg">
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <Box sx={{ display: "flex", alignItems: "center" }}>
-              <Link href="/health-tools" passHref>
-                <IconButton
-                  sx={{
-                    color: "white",
-                    mr: 2,
-                    "&:hover": {
-                      background: "rgba(255, 255, 255, 0.1)",
-                      transform: "translateX(-2px)",
-                    },
-                    transition: "all 0.3s ease"
-                  }}
-                >
-                  <ArrowBack />
-                </IconButton>
-              </Link>
+              {!userLoading && !user && (
+                <Link href="/health-tools" passHref>
+                  <IconButton
+                    sx={{
+                      color: "white",
+                      mr: 2,
+                      "&:hover": {
+                        background: "rgba(255, 255, 255, 0.1)",
+                        transform: "translateX(-2px)",
+                      },
+                      transition: "all 0.3s ease"
+                    }}
+                  >
+                    <ArrowBack />
+                  </IconButton>
+                </Link>
+              )}
               <img 
               src="/health-ai-logo.png" 
               alt="Health AI Logo" 
@@ -635,5 +640,6 @@ function SavedRoutinesPageInner(props: any) {
 }
 
 export default function SavedRoutinesPage() {
+  const { user, loading: userLoading } = useUser();
   return <SavedRoutinesPageInner />;
 } 

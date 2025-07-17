@@ -613,18 +613,20 @@ export default function TherapistChatPage() {
           </Typography>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <Link href="/health-tools" passHref>
-            <IconButton
-              sx={{
-                color: "white",
-                "&:hover": {
-                  background: "rgba(255, 255, 255, 0.1)",
-                },
-              }}
-            >
-              <ArrowBack />
-            </IconButton>
-          </Link>
+          {!userLoading && !user && (
+            <Link href="/health-tools" passHref>
+              <IconButton
+                sx={{
+                  color: "white",
+                  "&:hover": {
+                    background: "rgba(255, 255, 255, 0.1)",
+                  },
+                }}
+              >
+                <ArrowBack />
+              </IconButton>
+            </Link>
+          )}
           <Button
             variant="outlined"
             startIcon={<Add />}

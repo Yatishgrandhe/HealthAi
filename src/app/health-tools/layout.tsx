@@ -67,12 +67,12 @@ export default function HealthToolsLayout({
       <Box sx={{ 
         flex: 1, 
         minWidth: 0,
-        marginTop: { xs: '64px', md: '64px' }, // Account for TopBar height
-        marginLeft: { xs: 0, md: '280px' }, // Account for Sidebar width on desktop
+        marginTop: user ? { xs: '64px', md: '64px' } : 0, // Only add margin for logged-in users
+        marginLeft: user ? { xs: 0, md: '280px' } : 0, // Only add margin for logged-in users
         padding: { xs: 2, md: 3 },
         boxSizing: 'border-box',
-        width: { xs: '100%', md: 'calc(100% - 280px)' },
-        minHeight: { xs: 'calc(100vh - 64px)', md: 'calc(100vh - 64px)' }
+        width: user ? { xs: '100%', md: 'calc(100% - 280px)' } : '100%', // Full width for logged-out users
+        minHeight: user ? { xs: 'calc(100vh - 64px)', md: 'calc(100vh - 64px)' } : '100vh' // Full height for logged-out users
       }}>
         <Suspense fallback={<div />}>
           {children}

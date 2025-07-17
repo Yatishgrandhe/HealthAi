@@ -77,6 +77,7 @@ import Link from "next/link";
 import aiService from "@/utils/aiService";
 import { useUser } from "@/utils/supabaseClient";
 import HealthDataService from "@/utils/healthDataService";
+import BackButton from "@/components/BackButton";
 
 interface FitnessPlan {
   id: string;
@@ -584,7 +585,13 @@ export default function FitnessPlannerPage() {
   };
 
   return (
-    <Box sx={{ minHeight: "100vh", background: "#f8f9ff" }}>
+    <Box sx={{ minHeight: user ? "calc(100vh - 120px)" : "100vh", background: "#f8f9ff" }}>
+      {/* Back Button for logged-in users */}
+      {user && (
+        <Box sx={{ mb: 2 }}>
+          <BackButton href="/dashboard" label="Back to Dashboard" />
+        </Box>
+      )}
       {/* Status Bar */}
       <Box
         sx={{

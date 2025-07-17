@@ -59,6 +59,7 @@ import { PostureAnalysis, ProgressReport } from "@/types/posture";
 import { useUser } from "@/utils/supabaseClient";
 import HealthDataService from "@/utils/healthDataService";
 import imageUploadService from "@/utils/imageUploadService";
+import BackButton from "@/components/BackButton";
 
 export default function PostureCheckPage() {
   const [cameraPermission, setCameraPermission] = useState<"granted" | "denied" | "pending">("pending");
@@ -720,7 +721,7 @@ export default function PostureCheckPage() {
 
   return (
     <Box sx={{ 
-      minHeight: "100vh", 
+      minHeight: user ? "calc(100vh - 120px)" : "100vh", 
       background: "#f8f9ff",
       "@keyframes pulse": {
         "0%": { opacity: 1 },
@@ -728,6 +729,12 @@ export default function PostureCheckPage() {
         "100%": { opacity: 1 }
       }
     }}>
+      {/* Back Button for logged-in users */}
+      {user && (
+        <Box sx={{ mb: 2 }}>
+          <BackButton href="/dashboard" label="Back to Dashboard" />
+        </Box>
+      )}
       {/* Status Bar */}
       <Box
         sx={{

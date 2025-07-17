@@ -36,6 +36,7 @@ import {
   Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { supabase, useUser } from '@/utils/supabaseClient';
+import BackButton from '@/components/BackButton';
 
 interface PostureSession {
   id: string;
@@ -176,7 +177,18 @@ const PostureHistory = () => {
   }
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
+    <Box sx={{ 
+      p: 3, 
+      maxWidth: 1200, 
+      mx: 'auto',
+      minHeight: user ? "calc(100vh - 120px)" : "100vh"
+    }}>
+      {/* Back Button for logged-in users */}
+      {user && (
+        <Box sx={{ mb: 2 }}>
+          <BackButton href="/dashboard" label="Back to Dashboard" />
+        </Box>
+      )}
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>

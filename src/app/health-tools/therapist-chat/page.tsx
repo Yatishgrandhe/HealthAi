@@ -69,6 +69,7 @@ import Link from "next/link";
 import aiService from "@/utils/aiService";
 import HealthDataService from "@/utils/healthDataService";
 import { useUser } from "@/utils/supabaseClient";
+import BackButton from "@/components/BackButton";
 
 // Type declarations for Web Speech API
 interface SpeechRecognition extends EventTarget {
@@ -674,12 +675,18 @@ export default function TherapistChatPage() {
 
   return (
     <Box sx={{ 
-      height: "calc(100vh - 120px)", 
+      height: user ? "calc(100vh - 120px)" : "100vh", 
       display: "flex", 
       background: "#f7f7f8",
       position: "relative",
-      mt: 2
+      mt: user ? 2 : 0
     }}>
+      {/* Back Button for logged-in users */}
+      {user && (
+        <Box sx={{ position: "absolute", top: -60, left: 0, zIndex: 10 }}>
+          <BackButton href="/dashboard" label="Back to Dashboard" />
+        </Box>
+      )}
       {/* Sidebar - Chat History */}
       <Box
         sx={{

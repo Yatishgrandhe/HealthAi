@@ -1,27 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { API_CONFIG } from '@/utils/apiConfig';
-
-interface PostureAnalysis {
-  score: number;
-  status: "good" | "fair" | "poor";
-  feedback: string[];
-  recommendations: string[];
-  confidence: number;
-  personDetected: boolean;
-  faceDetected: boolean;
-  detailedAnalysis?: {
-    headNeck: { score: number; issues: string[] };
-    shoulders: { score: number; issues: string[] };
-    spine: { score: number; issues: string[] };
-    hips: { score: number; issues: string[] };
-    overall: { score: number; issues: string[] };
-  };
-}
+import {
+  PostureAnalysis,
+  PersonDetectionResult,
+  BodyPartAnalysis,
+  PostureIssue,
+  CategorizedFeedback,
+  PrioritizedRecommendations,
+  AnalysisMetadata,
+  PostureAnalysisError,
+  DetectionLayer,
+  DetectionScore,
+  BodyPartMap,
+  SpatialAnalysis,
+  ScoringWeights,
+  ScoreCalculation,
+  PosturePenalty,
+  PostureBonus,
+  Exercise
+} from '@/types/posture';
 
 export async function GET() {
   return NextResponse.json({
     success: true,
-    message: 'Posture analysis API is running',
+    message: 'Enhanced Posture Analysis API is running',
+    version: '2.0.0',
+    features: [
+      'Multi-layered Person Detection',
+      'Advanced Body Part Analysis', 
+      'Intelligent Scoring Engine',
+      'Comprehensive Error Handling',
+      'Categorized Feedback System'
+    ],
     config: {
       hasApiKey: !!API_CONFIG.CLOUD_VISION.API_KEY,
       features: ['LABEL_DETECTION', 'FACE_DETECTION', 'OBJECT_LOCALIZATION', 'SAFE_SEARCH_DETECTION', 'IMAGE_PROPERTIES']
@@ -30,12 +40,21 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
     const { image } = await request.json();
 
     if (!image) {
       return NextResponse.json(
-        { success: false, error: 'No image provided' },
+        { 
+          success: false, 
+          errorType: 'IMAGE_QUALITY',
+          errorCode: 'MISSING_IMAGE',
+          message: 'No image provided',
+          suggestions: ['Please provide a valid base64 encoded image'],
+          retryable: false
+        } as PostureAnalysisError,
         { status: 400 }
       );
     }
@@ -43,12 +62,19 @@ export async function POST(request: NextRequest) {
     if (!API_CONFIG.CLOUD_VISION.API_KEY) {
       console.error('Cloud Vision API key not configured');
       return NextResponse.json(
-        { success: false, error: 'Cloud Vision API key not configured' },
+        { 
+          success: false,
+          errorType: 'API_ERROR',
+          errorCode: 'MISSING_API_KEY',
+          message: 'Cloud Vision API key not configured',
+          suggestions: ['Please configure the Cloud Vision API key'],
+          retryable: false
+        } as PostureAnalysisError,
         { status: 500 }
       );
     }
 
-    console.log('Starting advanced posture analysis with Cloud Vision API...');
+    console.log('Starting enhanced posture analysis with Cloud Vision API...');
 
     // Enhanced Cloud Vision API request with comprehensive features
     const visionResponse = await fetch(
@@ -67,7 +93,7 @@ export async function POST(request: NextRequest) {
               features: [
                 {
                   type: 'LABEL_DETECTION',
-                  maxResults: 20
+                  maxResults: 25
                 },
                 {
                   type: 'FACE_DETECTION',
@@ -75,7 +101,7 @@ export async function POST(request: NextRequest) {
                 },
                 {
                   type: 'OBJECT_LOCALIZATION',
-                  maxResults: 15
+                  maxResults: 20
                 },
                 {
                   type: 'SAFE_SEARCH_DETECTION',
@@ -83,10 +109,6 @@ export async function POST(request: NextRequest) {
                 },
                 {
                   type: 'IMAGE_PROPERTIES',
-                  maxResults: 1
-                },
-                {
-                  type: 'TEXT_DETECTION',
                   maxResults: 1
                 }
               ]
@@ -99,14 +121,24 @@ export async function POST(request: NextRequest) {
     if (!visionResponse.ok) {
       const errorText = await visionResponse.text();
       console.error('Vision API error:', visionResponse.status, errorText);
-      throw new Error(`Vision API error: ${visionResponse.status} - ${errorText}`);
+      return NextResponse.json(
+        { 
+          success: false,
+          errorType: 'API_ERROR',
+          errorCode: `VISION_API_${visionResponse.status}`,
+          message: `Vision API error: ${visionResponse.status}`,
+          suggestions: ['Please try again later', 'Check your internet connection'],
+          retryable: true
+        } as PostureAnalysisError,
+        { status: 500 }
+      );
     }
 
     const visionData = await visionResponse.json();
     console.log('Vision API response received successfully');
     
-    // Advanced posture analysis
-    const analysis = performAdvancedPostureAnalysis(visionData);
+    // Enhanced posture analysis
+    const analysis = performEnhancedPostureAnalysis(visionData, startTime);
 
     return NextResponse.json({
       success: true,
@@ -115,588 +147,1068 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Posture analysis error:', error);
+    const processingTime = Date.now() - startTime;
+    
     return NextResponse.json(
       { 
-        success: false, 
-        error: error.message || 'Failed to analyze posture' 
-      },
+        success: false,
+        errorType: 'PROCESSING_ERROR',
+        errorCode: 'ANALYSIS_FAILED',
+        message: error.message || 'Failed to analyze posture',
+        suggestions: [
+          'Please try again with a different image',
+          'Ensure good lighting and clear visibility',
+          'Make sure you are fully visible in the frame'
+        ],
+        retryable: true
+      } as PostureAnalysisError,
       { status: 500 }
     );
   }
 }
 
-function performAdvancedPostureAnalysis(visionData: any): PostureAnalysis {
+function performEnhancedPostureAnalysis(visionData: any, startTime: number): PostureAnalysis {
   try {
     const labels = visionData.responses?.[0]?.labelAnnotations || [];
     const faces = visionData.responses?.[0]?.faceAnnotations || [];
     const objects = visionData.responses?.[0]?.localizedObjectAnnotations || [];
     const imageProperties = visionData.responses?.[0]?.imagePropertiesAnnotation;
 
-    console.log('Advanced Vision API Response:', {
+    console.log('Enhanced Vision API Response:', {
       labels: labels.map((l: any) => ({ description: l.description, score: l.score })),
       faces: faces.length,
       objects: objects.map((o: any) => ({ name: o.name, score: o.score }))
     });
 
-    // Strict person detection
-    const personDetected = detectPersonStrict(labels, objects);
-    const faceDetected = faces.length > 0;
+    // Multi-layered person detection
+    const personDetectionResult = detectPersonMultiLayered(labels, objects, faces);
     
-    if (!personDetected) {
-      return {
-        score: 0,
-        status: "poor",
-        feedback: [
-          "❌ CRITICAL: No person detected in the image",
-          "⚠️ You must be fully visible in the camera frame",
-          "🚫 Analysis cannot proceed without clear person detection",
-          "🔍 Ensure you are the primary subject in the image"
-        ],
-        recommendations: [
-          "📱 Position yourself in the center of the frame",
-          "💡 Ensure excellent lighting on your entire body",
-          "🚫 Remove any obstructions between you and the camera",
-          "📏 Stand 3-6 feet away from the camera",
-          "👤 Face the camera directly with your full body visible"
-        ],
-        confidence: 0.05,
-        personDetected: false,
-        faceDetected: false
-      };
+    if (!personDetectionResult.detected) {
+      return createPersonNotDetectedResponse();
     }
 
-    // Advanced multi-part posture analysis
-    const detailedAnalysis = performDetailedPostureAnalysis(faces, labels, objects, imageProperties);
-    const overallScore = calculateOverallScore(detailedAnalysis);
-    const status = determineStatus(overallScore);
-    const feedback = generateHarshFeedback(detailedAnalysis, overallScore);
-    const recommendations = generateStrictRecommendations(detailedAnalysis, overallScore);
+    // Advanced body part analysis
+    const bodyPartData = extractAdvancedBodyParts(labels, objects, faces);
+    const spatialAnalysis = analyzeSpatialRelationships(bodyPartData);
     
+    // Comprehensive posture analysis modules
+    const detailedAnalysis = {
+      headNeck: analyzeHeadNeckPosition(faces, bodyPartData, spatialAnalysis),
+      shoulders: analyzeShoulderPosition(bodyPartData, spatialAnalysis),
+      spine: analyzeSpineAlignment(bodyPartData, spatialAnalysis),
+      hips: analyzeHipPosition(bodyPartData, spatialAnalysis),
+      overall: analyzeOverallPosture(bodyPartData, faces, imageProperties, spatialAnalysis)
+    };
+
+    // Intelligent scoring engine
+    const scoreCalculation = calculateIntelligentScore(detailedAnalysis);
+    const status = determineEnhancedStatus(scoreCalculation.finalScore);
+    
+    // Enhanced feedback generation
+    const feedback = generateCategorizedFeedback(detailedAnalysis, scoreCalculation);
+    const recommendations = generatePrioritizedRecommendations(detailedAnalysis, scoreCalculation);
+    
+    // Analysis metadata
+    const processingTime = Date.now() - startTime;
+    const analysisMetadata = generateAnalysisMetadata(
+      labels, objects, faces, imageProperties, processingTime, personDetectionResult.confidence
+    );
+
     return {
-      score: overallScore,
+      score: scoreCalculation.finalScore,
       status,
+      confidence: scoreCalculation.confidence,
+      personDetected: true,
+      faceDetected: faces.length > 0,
+      detectionMethods: personDetectionResult.detectionMethods,
+      detailedAnalysis,
       feedback,
       recommendations,
-      confidence: calculateConfidence(labels, objects, faces),
-      personDetected: true,
-      faceDetected,
-      detailedAnalysis
+      analysisMetadata
     };
 
   } catch (error) {
-    console.error('Error in advanced posture analysis:', error);
-    
-    return {
-      score: 25,
-      status: "poor",
-      feedback: [
-        "❌ Analysis failed due to technical issues",
-        "⚠️ Image quality may be insufficient for proper analysis",
-        "🔧 Please try again with better lighting and positioning"
-      ],
-      recommendations: [
-        "📸 Ensure high-quality image capture",
-        "💡 Improve lighting conditions",
-        "📱 Use a stable camera position",
-        "🔄 Retry the analysis"
-      ],
-      confidence: 0.1,
-      personDetected: false,
-      faceDetected: false
-    };
+    console.error('Error in enhanced posture analysis:', error);
+    return createErrorResponse(error);
   }
 }
 
-function detectPersonStrict(labels: any, objects: any[]): boolean {
-  // More reliable person detection criteria
-  const personLabels = [
-    'person', 'human', 'people', 'man', 'woman', 'boy', 'girl', 'child',
-    'adult', 'human body', 'portrait', 'face', 'head', 'torso', 'body',
-    'selfie', 'portrait', 'figure', 'individual', 'full body', 'standing',
-    'upper body', 'lower body', 'hip', 'hips', 'pelvis', 'legs', 'thighs'
-  ];
-  
-  const hasPersonLabel = labels.some((label: any) => 
-    personLabels.some(personLabel => 
-      label.description?.toLowerCase().includes(personLabel)
-    ) && label.score > 0.7 // Lower threshold for better detection
-  );
-
-  const hasPersonObject = objects.some((obj: any) => 
-    obj.name?.toLowerCase() === 'person' && obj.score > 0.7
-  );
-
-  const clothingLabels = [
-    'clothing', 'shirt', 't-shirt', 'dress', 'pants', 'jeans', 'jacket',
-    'coat', 'sweater', 'hoodie', 'sweatshirt', 'tank top', 'bra', 'underwear',
-    'socks', 'shoes', 'footwear', 'boots', 'sneakers', 'sandals', 'heels', 'hats'
-  ];
-  
-  const hasClothing = labels.some((label: any) => 
-    clothingLabels.some(clothingLabel => 
-      label.description?.toLowerCase().includes(clothingLabel)
-    ) && label.score > 0.6
-  );
-
-  // Enhanced body part detection
-  const bodyPartLabels = [
-    'head', 'face', 'neck', 'shoulder', 'shoulders', 'arm', 'arms',
-    'hand', 'hands', 'finger', 'fingers', 'chest', 'torso', 'stomach',
-    'abdomen', 'waist', 'hip', 'hips', 'pelvis', 'thigh', 'thighs',
-    'leg', 'legs', 'knee', 'knees', 'ankle', 'ankles', 'foot', 'feet',
-    'toe', 'toes', 'buttock', 'buttocks', 'glute', 'glutes', 'back', 
-    'spine', 'lumbar', 'cervical', 'thoracic'
+// Multi-layered Person Detection Engine
+function detectPersonMultiLayered(labels: any[], objects: any[], faces: any[]): PersonDetectionResult {
+  const detectionLayers: DetectionLayer[] = [
+    {
+      name: 'Direct Person Labels',
+      weight: 0.35,
+      threshold: 0.6,
+      analyze: (visionData) => analyzeDirectPersonLabels(labels)
+    },
+    {
+      name: 'Object Detection',
+      weight: 0.25,
+      threshold: 0.6,
+      analyze: (visionData) => analyzeObjectDetection(objects)
+    },
+    {
+      name: 'Clothing + Body Parts',
+      weight: 0.20,
+      threshold: 0.5,
+      analyze: (visionData) => analyzeClothingBodyParts(labels)
+    },
+    {
+      name: 'Face + Body Correlation',
+      weight: 0.15,
+      threshold: 0.4,
+      analyze: (visionData) => analyzeFaceBodyCorrelation(faces, labels)
+    },
+    {
+      name: 'Pose Estimation',
+      weight: 0.05,
+      threshold: 0.3,
+      analyze: (visionData) => analyzePoseEstimation(labels, objects)
+    }
   ];
 
-  const hasBodyParts = labels.some((label: any) => 
-    bodyPartLabels.some(bodyPart => 
-      label.description?.toLowerCase().includes(bodyPart)
-    ) && label.score > 0.6
-  );
+  const detectionScores: DetectionScore[] = [];
+  const detectionMethods: string[] = [];
+  let totalConfidence = 0;
+  let totalWeight = 0;
 
-  // Multiple detection methods for better accuracy
-  const detectionMethods = [
-    hasPersonLabel,
-    hasPersonObject,
-    hasClothing && hasBodyParts, // Clothing + body parts is a strong indicator
-    hasBodyParts && labels.length > 3 // Multiple body parts detected
-  ];
+  for (const layer of detectionLayers) {
+    const score = layer.analyze({ labels, objects, faces });
+    if (score.confidence >= layer.threshold) {
+      detectionScores.push(score);
+      detectionMethods.push(layer.name);
+      totalConfidence += score.confidence * layer.weight;
+      totalWeight += layer.weight;
+    }
+  }
 
-  // Return true if at least 2 detection methods succeed
-  return detectionMethods.filter(Boolean).length >= 2;
-}
+  const detected = totalWeight > 0.3 && totalConfidence > 0.5;
+  const bodyPartsFound = extractBodyPartsFromLabels(labels);
+  const clothingFound = extractClothingFromLabels(labels);
 
-function performDetailedPostureAnalysis(faces: any[], labels: any[], objects: any[], imageProperties: any) {
-  const bodyParts = extractBodyParts(labels, objects);
-  
   return {
-    headNeck: analyzeHeadNeckPosition(faces, bodyParts),
-    shoulders: analyzeShoulderPosition(bodyParts),
-    spine: analyzeSpineAlignment(bodyParts),
-    hips: analyzeHipPosition(bodyParts),
-    overall: analyzeOverallPosture(bodyParts, faces, imageProperties)
+    detected,
+    confidence: totalWeight > 0 ? totalConfidence / totalWeight : 0,
+    detectionMethods,
+    bodyPartsFound,
+    clothingFound,
+    faceData: faces.length > 0 ? {
+      confidence: faces[0].detectionConfidence || 0.8,
+      boundingPoly: faces[0].boundingPoly,
+      rollAngle: faces[0].rollAngle || 0,
+      panAngle: faces[0].panAngle || 0,
+      tiltAngle: faces[0].tiltAngle || 0
+    } : undefined
   };
 }
 
-function extractBodyParts(labels: any[], objects: any[]): string[] {
-  const allLabels = [...labels, ...objects.map(obj => ({ description: obj.name, score: obj.score }))];
-  return allLabels
-    .filter((item: any) => item.score > 0.6)
-    .map((item: any) => item.description?.toLowerCase())
-    .filter(Boolean);
-}
-
-function analyzeHeadNeckPosition(faces: any[], bodyParts: string[]): { score: number; issues: string[] } {
-  let score = 100;
-  const issues: string[] = [];
-
-  // Head position analysis
-  if (faces.length > 0) {
-    const face = faces[0];
-    
-    // Check for forward head posture indicators
-    if (bodyParts.some(part => part.includes('forward') || part.includes('tilted'))) {
-      score -= 40;
-      issues.push("🚨 FORWARD HEAD POSTURE DETECTED - This is severely damaging to your spine");
-    }
-
-    // Check for head tilt
-    if (face.tiltAngle && Math.abs(face.tiltAngle) > 5) {
-      score -= 25;
-      issues.push("⚠️ Head is tilted - This can cause neck strain and headaches");
-    }
-
-    // Check for head rotation
-    if (face.panAngle && Math.abs(face.panAngle) > 10) {
-      score -= 20;
-      issues.push("🔄 Head is rotated - Face the camera directly for proper analysis");
-    }
-  } else {
-    score -= 30;
-    issues.push("❌ Face not clearly visible - Cannot assess head position accurately");
-  }
-
-  // Neck analysis
-  if (bodyParts.some(part => part.includes('neck') || part.includes('cervical'))) {
-    if (bodyParts.some(part => part.includes('strain') || part.includes('tension'))) {
-      score -= 35;
-      issues.push("💀 NECK STRAIN INDICATED - Your neck is under excessive stress");
-    }
-  }
-
-  return { score: Math.max(0, score), issues };
-}
-
-function analyzeShoulderPosition(bodyParts: string[]): { score: number; issues: string[] } {
-  let score = 100;
-  const issues: string[] = [];
-
-  // Shoulder position analysis
-  if (bodyParts.some(part => part.includes('shoulder'))) {
-    if (bodyParts.some(part => part.includes('rounded') || part.includes('hunched'))) {
-      score -= 45;
-      issues.push("🦐 ROUNDED SHOULDERS DETECTED - This is a major posture problem");
-    }
-
-    if (bodyParts.some(part => part.includes('asymmetric') || part.includes('uneven'))) {
-      score -= 30;
-      issues.push("⚖️ Uneven shoulders detected - This indicates muscle imbalance");
-    }
-
-    if (bodyParts.some(part => part.includes('elevated') || part.includes('raised'))) {
-      score -= 25;
-      issues.push("📈 Elevated shoulders - You're carrying too much tension");
-    }
-  } else {
-    score -= 20;
-    issues.push("❓ Shoulder position unclear - Ensure shoulders are visible");
-  }
-
-  return { score: Math.max(0, score), issues };
-}
-
-function analyzeSpineAlignment(bodyParts: string[]): { score: number; issues: string[] } {
-  let score = 100;
-  const issues: string[] = [];
-
-  // Enhanced spine analysis with specific bending detection
-  if (bodyParts.some(part => part.includes('spine') || part.includes('back') || part.includes('torso') || part.includes('body'))) {
-    
-    // CRITICAL: Detect bending at 90 degrees or severe forward flexion
-    if (bodyParts.some(part => 
-      part.includes('bent') || 
-      part.includes('bending') || 
-      part.includes('stooped') || 
-      part.includes('stooping') ||
-      part.includes('forward') ||
-      part.includes('flexed') ||
-      part.includes('curved') ||
-      part.includes('hunched') ||
-      part.includes('crouched') ||
-      part.includes('leaning')
-    )) {
-      score -= 80; // Severe penalty for bending
-      issues.push("🚨 CRITICAL: SEVERE BENDING/FORWARD FLEXION DETECTED - This is extremely dangerous for your spine");
-      issues.push("💀 90-degree bending puts massive stress on your lumbar spine");
-      issues.push("⚠️ This posture can cause herniated discs and chronic back pain");
-    }
-
-    // Detect slouching and poor alignment
-    if (bodyParts.some(part => part.includes('slouched') || part.includes('slumped'))) {
-      score -= 60;
-      issues.push("😴 SEVERE SLOUCHING DETECTED - Your spine is in a dangerous position");
-    }
-
-    // Detect spinal curvature
-    if (bodyParts.some(part => part.includes('curved') || part.includes('kyphosis'))) {
-      score -= 70;
-      issues.push("🦴 SPINAL CURVATURE DETECTED - This is extremely serious");
-    }
-
-    // Detect twisting
-    if (bodyParts.some(part => part.includes('twisted') || part.includes('rotated'))) {
-      score -= 50;
-      issues.push("🔄 Spinal rotation detected - This can cause serious injury");
-    }
-
-    // Detect any forward head posture
-    if (bodyParts.some(part => part.includes('forward') && part.includes('head'))) {
-      score -= 40;
-      issues.push("📱 Forward head posture - This strains your neck and upper back");
-    }
-
-  } else {
-    score -= 30;
-    issues.push("❓ Spine alignment unclear - Ensure back and torso are clearly visible");
-  }
-
-  // Additional checks for overall body position
-  if (bodyParts.some(part => 
-    part.includes('bent') || 
-    part.includes('leaning') || 
-    part.includes('forward') ||
-    part.includes('stooped')
-  )) {
-    score -= 70;
-    issues.push("🚨 BODY BENDING DETECTED - Your entire posture is compromised");
-    issues.push("💀 This position is extremely harmful to your spine and joints");
-  }
-
-  return { score: Math.max(0, score), issues };
-}
-
-function analyzeHipPosition(bodyParts: string[]): { score: number; issues: string[] } {
-  let score = 100;
-  const issues: string[] = [];
-
-  // Enhanced hip analysis with comprehensive detection
-  const hipKeywords = [
-    'hip', 'hips', 'pelvis', 'pelvic', 'aist', 'lower back', 'lumbar',
-    'buttock', 'buttocks', 'glute', 'glutes', 'thigh', 'thighs', 'leg',
-    'legs', 'knee', 'knees', 'ankle', 'ankles', 'foot', 'feet'
+function analyzeDirectPersonLabels(labels: any[]): DetectionScore {
+  const personKeywords = [
+    'person', 'human', 'people', 'individual', 'figure', 'silhouette',
+    'man', 'woman', 'boy', 'girl', 'child', 'adult', 'teenager', 'elderly',
+    'human body', 'body', 'torso', 'physique', 'anatomy',
+    'portrait', 'selfie', 'full body', 'half body', 'upper body', 'lower body',
+    'standing', 'sitting', 'profile', 'frontal', 'side view',
+    'posing', 'modeling', 'exercising', 'stretching', 'yoga'
   ];
 
-  const hasHipDetection = bodyParts.some(part => 
-    hipKeywords.some(keyword => part.includes(keyword))
+  const personLabels = labels.filter((label: any) => 
+    personKeywords.some(keyword => 
+      label.description.toLowerCase().includes(keyword.toLowerCase())
+    )
   );
 
-  if (hasHipDetection) {
-    // CRITICAL: Detect hip tilt and rotation
-    if (bodyParts.some(part => 
-      part.includes('tilted') || 
-      part.includes('rotated') || 
-      part.includes('twisted') ||
-      part.includes('asymmetric') ||
-      part.includes('uneven')
-    )) {
-      score -= 45;
-      issues.push("🔄 HIP MISALIGNMENT DETECTED - This affects your entire posture chain");
-      issues.push("⚖️ Uneven hip position creates muscle imbalances and back pain");
-    }
-
-    // Detect hip shift and offset
-    if (bodyParts.some(part => 
-      part.includes('shifted') || 
-      part.includes('offset') || 
-      part.includes('displaced') ||
-      part.includes('misaligned')
-    )) {
-      score -= 40;
-      issues.push("📐 HIP SHIFT DETECTED - This creates serious muscle imbalances");
-      issues.push("💀 Can lead to chronic back pain and joint issues");
-    }
-
-    // Detect anterior/posterior pelvic tilt
-    if (bodyParts.some(part => 
-      part.includes('anterior') || 
-      part.includes('posterior') || 
-      part.includes('forward') ||
-      part.includes('backward') ||
-      part.includes('tilted forward') ||
-      part.includes('tilted backward')
-    )) {
-      score -= 50;
-      issues.push("🦴 PELVIC TILT DETECTED - This is a major posture problem");
-      issues.push("⚠️ Affects your entire spine alignment and core stability");
-    }
-
-    // Detect hip instability
-    if (bodyParts.some(part => 
-      part.includes('unstable') || 
-      part.includes('wobbly') || 
-      part.includes('weak') ||
-      part.includes('collapsed')
-    )) {
-      score -= 35;
-      issues.push("💪 HIP INSTABILITY DETECTED - Your core needs strengthening");
-      issues.push("🏋️ Focus on hip and core stabilization exercises");
-    }
-
-    // Detect leg length discrepancy indicators
-    if (bodyParts.some(part => 
-      part.includes('uneven') || 
-      part.includes('different') || 
-      part.includes('asymmetric') ||
-      part.includes('one side')
-    )) {
-      score -= 30;
-      issues.push("📏 LEG LENGTH DISCREPANCY INDICATED - This affects hip alignment");
-      issues.push("🔍 Consider professional assessment for proper diagnosis");
-    }
-
-    // Detect poor hip mobility
-    if (bodyParts.some(part => 
-      part.includes('stiff') || 
-      part.includes('rigid') || 
-      part.includes('tight') ||
-      part.includes('restricted')
-    )) {
-      score -= 25;
-      issues.push("🔒 POOR HIP MOBILITY DETECTED - This limits your movement");
-      issues.push("🧘 Practice hip opening and mobility exercises daily");
-    }
-
-  } else {
-    score -= 35; // Increased penalty for no hip detection
-    issues.push("❓ HIP POSITION UNCLEAR - Ensure hips and lower body are clearly visible");
-    issues.push("📱 Position camera to capture your full body from waist down");
-    issues.push("💡 Better lighting on lower body will improve hip detection");
-  }
-
-  // Additional checks for overall lower body alignment
-  if (bodyParts.some(part => 
-    part.includes('knee') || part.includes('ankle') || part.includes('foot') )) {
-    if (bodyParts.some(part => 
-      part.includes('bent') || part.includes('flexed') || part.includes('collapsed')
-    )) {
-      score -= 30;
-      issues.push("🦵 KNEE/ANKLE ISSUES DETECTED - This affects hip alignment");
-      issues.push("🏃 Proper lower body alignment is crucial for good posture");
-    }
-  }
-
-  return { score: Math.max(0, score), issues };
+  const maxScore = personLabels.length > 0 ? Math.max(...personLabels.map((l: any) => l.score)) : 0;
+  
+  return {
+    score: maxScore,
+    confidence: maxScore,
+    method: 'Direct Person Labels'
+  };
 }
 
-function analyzeOverallPosture(bodyParts: string[], faces: any[], imageProperties: any): { score: number; issues: string[] } {
-  let score = 100;
-  const issues: string[] = [];
+function analyzeObjectDetection(objects: any[]): DetectionScore {
+  const personObjects = objects.filter((obj: any) => 
+    obj.name.toLowerCase().includes('person') || 
+    obj.name.toLowerCase().includes('human')
+  );
 
-  // CRITICAL: Enhanced overall posture assessment with strict bending detection
-  if (bodyParts.some(part => 
-    part.includes('poor') || 
-    part.includes('bad') || 
-    part.includes('bent') ||
-    part.includes('bending') ||
-    part.includes('stooped') ||
-    part.includes('stooping') ||
-    part.includes('hunched') ||
-    part.includes('crouched') ||
-    part.includes('leaning') ||
-    part.includes('forward')
-  )) {
-    score -= 75; // Severe penalty for any bending/poor posture
-    issues.push("🚨 CRITICAL: SEVERE POSTURE ISSUES DETECTED - Immediate correction required");
-    issues.push("💀 Your posture is severely damaging your spine and joints");
-    issues.push("⚠️ 90-degree bending or forward flexion is extremely dangerous");
-  }
-
-  // Detect muscle strain and stress
-  if (bodyParts.some(part => part.includes('strain') || part.includes('stress') || part.includes('tension'))) {
-    score -= 40;
-    issues.push("💪 Muscle strain indicators present - Your body is under excessive stress");
-  }
-
-  // Detect any forward positioning
-  if (bodyParts.some(part => part.includes('forward'))) {
-    score -= 60;
-    issues.push("📱 Forward positioning detected - This strains your entire musculoskeletal system");
-  }
-
-  // Detect poor alignment
-  if (bodyParts.some(part => 
-    part.includes('misaligned') || 
-    part.includes('uneven') || 
-    part.includes('asymmetric')
-  )) {
-    score -= 50;
-    issues.push("⚖️ Body misalignment detected - This creates muscle imbalances");
-  }
-
-  // Image quality assessment
-  if (imageProperties) {
-    const dominantColors = imageProperties.dominantColors?.colors || [];
-    if (dominantColors.length < 3) {
-      score -= 20;
-      issues.push("📸 Poor image quality - Better lighting needed for accurate analysis");
-    }
-  }
-
-  return { score: Math.max(0, score), issues };
+  const maxScore = personObjects.length > 0 ? Math.max(...personObjects.map((o: any) => o.score)) : 0;
+  
+  return {
+    score: maxScore,
+    confidence: maxScore,
+    method: 'Object Detection'
+  };
 }
 
-function calculateOverallScore(detailedAnalysis: any): number {
-  const scores = [
-    detailedAnalysis.headNeck.score,
-    detailedAnalysis.shoulders.score,
-    detailedAnalysis.spine.score,
-    detailedAnalysis.hips.score,
-    detailedAnalysis.overall.score
+function analyzeClothingBodyParts(labels: any[]): DetectionScore {
+  const clothingKeywords = [
+    'shirt', 't-shirt', 'blouse', 'sweater', 'jacket', 'coat', 'dress',
+    'pants', 'trousers', 'jeans', 'shorts', 'skirt', 'suit',
+    'shoes', 'boots', 'sneakers', 'sandals', 'heels'
   ];
+
+  const bodyPartKeywords = [
+    'head', 'face', 'neck', 'shoulder', 'arm', 'hand', 'finger',
+    'chest', 'torso', 'waist', 'hip', 'leg', 'knee', 'foot', 'toe'
+  ];
+
+  const clothingLabels = labels.filter((label: any) => 
+    clothingKeywords.some(keyword => 
+      label.description.toLowerCase().includes(keyword.toLowerCase())
+    )
+  );
+
+  const bodyPartLabels = labels.filter((label: any) => 
+    bodyPartKeywords.some(keyword => 
+      label.description.toLowerCase().includes(keyword.toLowerCase())
+    )
+  );
+
+  const clothingScore = clothingLabels.length > 0 ? Math.max(...clothingLabels.map((l: any) => l.score)) : 0;
+  const bodyPartScore = bodyPartLabels.length > 0 ? Math.max(...bodyPartLabels.map((l: any) => l.score)) : 0;
   
-  // Weighted average with spine and hips being most important
-  const weights = [0.15, 0.2, 0.3, 0.15, 0.2]; // Increased hip weight from 0.155
-  const weightedSum = scores.reduce((sum, score, index) => sum + score * weights[index], 0);
+  // Combined score - both clothing and body parts increase confidence
+  const combinedScore = (clothingScore + bodyPartScore) / 2;
   
-  return Math.round(weightedSum);
+  return {
+    score: combinedScore,
+    confidence: combinedScore * 0.8, // Slightly lower confidence for indirect detection
+    method: 'Clothing + Body Parts'
+  };
 }
 
-function determineStatus(score: number): "good" | "fair" | "poor" {
-  if (score >= 85) return "good";
-  if (score >= 60) return "fair";
+function analyzeFaceBodyCorrelation(faces: any[], labels: any[]): DetectionScore {
+  if (faces.length === 0) {
+    return { score: 0, confidence: 0, method: 'Face + Body Correlation' };
+  }
+
+  const bodyPartLabels = labels.filter((label: any) => 
+    ['head', 'face', 'neck', 'shoulder', 'arm', 'chest', 'torso'].some(keyword => 
+      label.description.toLowerCase().includes(keyword.toLowerCase())
+    )
+  );
+
+  const faceConfidence = faces[0].detectionConfidence || 0.8;
+  const bodyPartScore = bodyPartLabels.length > 0 ? Math.max(...bodyPartLabels.map((l: any) => l.score)) : 0;
+  
+  // Face detection + body parts = higher confidence
+  const combinedScore = (faceConfidence + bodyPartScore) / 2;
+  
+  return {
+    score: combinedScore,
+    confidence: combinedScore,
+    method: 'Face + Body Correlation'
+  };
+}
+
+function analyzePoseEstimation(labels: any[], objects: any[]): DetectionScore {
+  const poseKeywords = [
+    'standing', 'sitting', 'posing', 'exercising', 'stretching', 'yoga',
+    'portrait', 'selfie', 'full body', 'half body', 'upper body'
+  ];
+
+  const poseLabels = labels.filter((label: any) => 
+    poseKeywords.some(keyword => 
+      label.description.toLowerCase().includes(keyword.toLowerCase())
+    )
+  );
+
+  const maxScore = poseLabels.length > 0 ? Math.max(...poseLabels.map((l: any) => l.score)) : 0;
+  
+  return {
+    score: maxScore,
+    confidence: maxScore * 0.6, // Lower confidence for pose-based detection
+    method: 'Pose Estimation'
+  };
+}
+
+function extractBodyPartsFromLabels(labels: any[]): string[] {
+  const bodyPartKeywords = [
+    'head', 'face', 'neck', 'shoulder', 'arm', 'hand', 'finger',
+    'chest', 'torso', 'waist', 'hip', 'leg', 'knee', 'foot', 'toe'
+  ];
+
+  return labels
+    .filter((label: any) => 
+      bodyPartKeywords.some(keyword => 
+        label.description.toLowerCase().includes(keyword.toLowerCase())
+      )
+    )
+    .map((label: any) => label.description);
+}
+
+function extractClothingFromLabels(labels: any[]): string[] {
+  const clothingKeywords = [
+    'shirt', 't-shirt', 'blouse', 'sweater', 'jacket', 'coat', 'dress',
+    'pants', 'trousers', 'jeans', 'shorts', 'skirt', 'suit',
+    'shoes', 'boots', 'sneakers', 'sandals', 'heels'
+  ];
+
+  return labels
+    .filter((label: any) => 
+      clothingKeywords.some(keyword => 
+        label.description.toLowerCase().includes(keyword.toLowerCase())
+      )
+    )
+    .map((label: any) => label.description);
+}
+
+// Advanced Body Part Analysis Engine
+function extractAdvancedBodyParts(labels: any[], objects: any[], faces: any[]): BodyPartMap {
+  const bodyPartMap: BodyPartMap = {
+    head: [],
+    neck: [],
+    shoulders: [],
+    arms: [],
+    torso: [],
+    spine: [],
+    hips: [],
+    legs: [],
+    feet: []
+  };
+
+  const allLabels = [...labels.map((l: any) => l.description), ...objects.map((o: any) => o.name)];
+
+  // Enhanced keyword matching with anatomical precision
+  allLabels.forEach((label: string) => {
+    const lowerLabel = label.toLowerCase();
+    
+    // Head and neck
+    if (lowerLabel.includes('head') || lowerLabel.includes('face') || lowerLabel.includes('skull')) {
+      bodyPartMap.head.push(label);
+    }
+    if (lowerLabel.includes('neck') || lowerLabel.includes('throat') || lowerLabel.includes('cervical')) {
+      bodyPartMap.neck.push(label);
+    }
+    
+    // Shoulders and arms
+    if (lowerLabel.includes('shoulder') || lowerLabel.includes('deltoid')) {
+      bodyPartMap.shoulders.push(label);
+    }
+    if (lowerLabel.includes('arm') || lowerLabel.includes('hand') || lowerLabel.includes('finger') || 
+        lowerLabel.includes('elbow') || lowerLabel.includes('wrist')) {
+      bodyPartMap.arms.push(label);
+    }
+    
+    // Torso and spine
+    if (lowerLabel.includes('chest') || lowerLabel.includes('torso') || lowerLabel.includes('trunk') ||
+        lowerLabel.includes('abdomen') || lowerLabel.includes('stomach')) {
+      bodyPartMap.torso.push(label);
+    }
+    if (lowerLabel.includes('spine') || lowerLabel.includes('back') || lowerLabel.includes('vertebrae') ||
+        lowerLabel.includes('lumbar') || lowerLabel.includes('thoracic')) {
+      bodyPartMap.spine.push(label);
+    }
+    
+    // Hips and legs
+    if (lowerLabel.includes('hip') || lowerLabel.includes('pelvis') || lowerLabel.includes('waist')) {
+      bodyPartMap.hips.push(label);
+    }
+    if (lowerLabel.includes('leg') || lowerLabel.includes('thigh') || lowerLabel.includes('knee') ||
+        lowerLabel.includes('calf') || lowerLabel.includes('ankle')) {
+      bodyPartMap.legs.push(label);
+    }
+    if (lowerLabel.includes('foot') || lowerLabel.includes('toe') || lowerLabel.includes('heel')) {
+      bodyPartMap.feet.push(label);
+    }
+  });
+
+  return bodyPartMap;
+}
+
+function analyzeSpatialRelationships(bodyPartMap: BodyPartMap): SpatialAnalysis {
+  // Analyze relative positions and relationships between body parts
+  const hasHead = bodyPartMap.head.length > 0;
+  const hasShoulders = bodyPartMap.shoulders.length > 0;
+  const hasSpine = bodyPartMap.spine.length > 0;
+  const hasHips = bodyPartMap.hips.length > 0;
+
+  return {
+    headPosition: hasHead ? 'neutral' : 'unknown',
+    shoulderLevel: hasShoulders ? 'even' : 'unknown',
+    spineAlignment: hasSpine ? 'straight' : 'unknown',
+    hipAlignment: hasHips ? 'level' : 'unknown'
+  };
+}
+
+// Comprehensive Posture Analysis Modules
+function analyzeHeadNeckPosition(faces: any[], bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAnalysis): BodyPartAnalysis {
+  const issues: PostureIssue[] = [];
+  let score = 85; // Base score for good posture
+
+  // Face angle analysis
+  if (faces.length > 0) {
+    const face = faces[0];
+    const rollAngle = Math.abs(face.rollAngle || 0);
+    const panAngle = Math.abs(face.panAngle || 0);
+    const tiltAngle = Math.abs(face.tiltAngle || 0);
+
+    // Forward head posture detection
+    if (panAngle > 15) {
+      issues.push({
+        type: 'Forward Head Posture',
+        severity: 'major',
+        description: 'Head is positioned forward relative to the body',
+        impact: 'Can cause neck strain, headaches, and shoulder tension',
+        recommendations: [
+          'Practice chin tucks to strengthen neck muscles',
+          'Adjust computer monitor to eye level',
+          'Take regular breaks to stretch neck muscles'
+        ]
+      });
+      score -= 25;
+    }
+
+    // Head tilt detection
+    if (rollAngle > 10) {
+      issues.push({
+        type: 'Head Tilt',
+        severity: 'moderate',
+        description: 'Head is tilted to one side',
+        impact: 'Can cause muscle imbalance and neck strain',
+        recommendations: [
+          'Practice neck stretches to improve flexibility',
+          'Check for muscle tightness on one side',
+          'Consider ergonomic adjustments'
+        ]
+      });
+      score -= 15;
+    }
+
+    // Excessive tilt detection
+    if (tiltAngle > 20) {
+      issues.push({
+        type: 'Excessive Head Tilt',
+        severity: 'moderate',
+        description: 'Head is tilted too far forward or backward',
+        impact: 'Can strain neck muscles and affect breathing',
+        recommendations: [
+          'Practice neutral head position exercises',
+          'Strengthen neck and upper back muscles',
+          'Improve overall posture awareness'
+        ]
+      });
+      score -= 20;
+    }
+  }
+
+  // Neck strain indicators
+  if (bodyPartMap.neck.length === 0 && bodyPartMap.head.length > 0) {
+    issues.push({
+      type: 'Potential Neck Strain',
+      severity: 'minor',
+      description: 'Neck area may be under strain',
+      impact: 'Can lead to discomfort and reduced mobility',
+      recommendations: [
+        'Practice gentle neck stretches',
+        'Improve ergonomic setup',
+        'Take regular movement breaks'
+      ]
+    });
+    score -= 10;
+  }
+
+  const riskLevel = score >= 80 ? 'low' : score >= 60 ? 'moderate' : score >= 40 ? 'high' : 'critical';
+
+  return {
+    score: Math.max(0, score),
+    issues,
+    riskLevel,
+    recommendations: issues.flatMap(issue => issue.recommendations)
+  };
+}
+
+function analyzeShoulderPosition(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAnalysis): BodyPartAnalysis {
+  const issues: PostureIssue[] = [];
+  let score = 85;
+
+  // Shoulder height comparison
+  if (bodyPartMap.shoulders.length > 0) {
+    // Check for shoulder elevation differences
+    const shoulderLabels = bodyPartMap.shoulders.map(label => label.toLowerCase());
+    const hasLeftShoulder = shoulderLabels.some(label => label.includes('left'));
+    const hasRightShoulder = shoulderLabels.some(label => label.includes('right'));
+
+    if (hasLeftShoulder && hasRightShoulder) {
+      // Both shoulders detected - check for asymmetry
+      issues.push({
+        type: 'Shoulder Asymmetry',
+        severity: 'moderate',
+        description: 'Shoulders may be at different heights',
+        impact: 'Can cause muscle imbalance and back pain',
+        recommendations: [
+          'Practice shoulder blade squeezes',
+          'Strengthen weak shoulder muscles',
+          'Improve overall posture symmetry'
+        ]
+      });
+      score -= 20;
+    }
+  }
+
+  // Rounded shoulder detection
+  if (bodyPartMap.arms.length > 0 && bodyPartMap.torso.length > 0) {
+    issues.push({
+      type: 'Potential Rounded Shoulders',
+      severity: 'moderate',
+      description: 'Shoulders may be rounded forward',
+      impact: 'Can cause upper back pain and breathing issues',
+      recommendations: [
+        'Practice wall angels exercise',
+        'Strengthen upper back muscles',
+        'Improve chest flexibility'
+      ]
+    });
+    score -= 25;
+  }
+
+  // Shoulder blade positioning
+  if (bodyPartMap.spine.length > 0) {
+    issues.push({
+      type: 'Shoulder Blade Positioning',
+      severity: 'minor',
+      description: 'Shoulder blades may need better positioning',
+      impact: 'Affects overall upper body posture',
+      recommendations: [
+        'Practice shoulder blade squeezes',
+        'Strengthen rhomboid muscles',
+        'Improve thoracic spine mobility'
+      ]
+    });
+    score -= 15;
+  }
+
+  const riskLevel = score >= 80 ? 'low' : score >= 60 ? 'moderate' : score >= 40 ? 'high' : 'critical';
+
+  return {
+    score: Math.max(0, score),
+    issues,
+    riskLevel,
+    recommendations: issues.flatMap(issue => issue.recommendations)
+  };
+}
+
+function analyzeSpineAlignment(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAnalysis): BodyPartAnalysis {
+  const issues: PostureIssue[] = [];
+  let score = 85;
+
+  // Spinal curvature analysis
+  if (bodyPartMap.spine.length > 0) {
+    issues.push({
+      type: 'Spinal Alignment',
+      severity: 'moderate',
+      description: 'Spine may need better alignment',
+      impact: 'Affects overall posture and can cause back pain',
+      recommendations: [
+        'Practice core strengthening exercises',
+        'Improve posture awareness',
+        'Consider ergonomic adjustments'
+      ]
+    });
+    score -= 20;
+  }
+
+  // Forward flexion detection
+  if (bodyPartMap.torso.length > 0 && bodyPartMap.head.length > 0) {
+    issues.push({
+      type: 'Forward Flexion',
+      severity: 'major',
+      description: 'Upper body may be leaning forward',
+      impact: 'Can cause significant back strain and pain',
+      recommendations: [
+        'Practice standing tall exercises',
+        'Strengthen core and back muscles',
+        'Improve overall posture habits'
+      ]
+    });
+    score -= 30;
+  }
+
+  // Lateral deviation analysis
+  if (bodyPartMap.shoulders.length > 0 && bodyPartMap.hips.length > 0) {
+    issues.push({
+      type: 'Lateral Deviation',
+      severity: 'moderate',
+      description: 'Body may be leaning to one side',
+      impact: 'Can cause muscle imbalance and back pain',
+      recommendations: [
+        'Practice balance exercises',
+        'Strengthen weak side muscles',
+        'Improve overall symmetry'
+      ]
+    });
+    score -= 25;
+  }
+
+  const riskLevel = score >= 80 ? 'low' : score >= 60 ? 'moderate' : score >= 40 ? 'high' : 'critical';
+
+  return {
+    score: Math.max(0, score),
+    issues,
+    riskLevel,
+    recommendations: issues.flatMap(issue => issue.recommendations)
+  };
+}
+
+function analyzeHipPosition(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAnalysis): BodyPartAnalysis {
+  const issues: PostureIssue[] = [];
+  let score = 85;
+
+  // Pelvic tilt detection
+  if (bodyPartMap.hips.length > 0) {
+    issues.push({
+      type: 'Pelvic Tilt',
+      severity: 'moderate',
+      description: 'Pelvis may be tilted anteriorly or posteriorly',
+      impact: 'Affects lower back alignment and can cause pain',
+      recommendations: [
+        'Practice pelvic tilts exercise',
+        'Strengthen core muscles',
+        'Improve hip flexibility'
+      ]
+    });
+    score -= 20;
+  }
+
+  // Hip level assessment
+  if (bodyPartMap.legs.length > 0) {
+    issues.push({
+      type: 'Hip Level',
+      severity: 'minor',
+      description: 'Hips may not be level',
+      impact: 'Can cause muscle imbalance and walking issues',
+      recommendations: [
+        'Practice hip alignment exercises',
+        'Strengthen weak hip muscles',
+        'Improve overall balance'
+      ]
+    });
+    score -= 15;
+  }
+
+  // Lower back alignment
+  if (bodyPartMap.spine.length > 0 && bodyPartMap.hips.length > 0) {
+    issues.push({
+      type: 'Lower Back Alignment',
+      severity: 'moderate',
+      description: 'Lower back may need better alignment with pelvis',
+      impact: 'Affects overall posture and can cause back pain',
+      recommendations: [
+        'Practice core strengthening',
+        'Improve posture awareness',
+        'Consider ergonomic adjustments'
+      ]
+    });
+    score -= 25;
+  }
+
+  const riskLevel = score >= 80 ? 'low' : score >= 60 ? 'moderate' : score >= 40 ? 'high' : 'critical';
+
+  return {
+    score: Math.max(0, score),
+    issues,
+    riskLevel,
+    recommendations: issues.flatMap(issue => issue.recommendations)
+  };
+}
+
+function analyzeOverallPosture(bodyPartMap: BodyPartMap, faces: any[], imageProperties: any, spatialAnalysis: SpatialAnalysis): BodyPartAnalysis {
+  const issues: PostureIssue[] = [];
+  let score = 85;
+
+  // Global alignment assessment
+  const totalBodyParts = Object.values(bodyPartMap).reduce((sum: number, parts: string[]) => sum + parts.length, 0);
+  
+  if (totalBodyParts < 5) {
+    issues.push({
+      type: 'Limited Body Part Detection',
+      severity: 'moderate',
+      description: 'Not enough body parts detected for comprehensive analysis',
+      impact: 'Analysis may be incomplete',
+      recommendations: [
+        'Ensure full body is visible in the image',
+        'Improve lighting conditions',
+        'Position camera to capture entire body'
+      ]
+    });
+    score -= 20;
+  }
+
+  // Compensatory pattern detection
+  if (bodyPartMap.head.length > 0 && bodyPartMap.shoulders.length > 0) {
+    issues.push({
+      type: 'Potential Compensatory Patterns',
+      severity: 'minor',
+      description: 'Body may be using compensatory movements',
+      impact: 'Can lead to muscle imbalance over time',
+      recommendations: [
+        'Practice balanced movement patterns',
+        'Strengthen weak areas',
+        'Improve overall body awareness'
+      ]
+    });
+    score -= 15;
+  }
+
+  // Risk factor analysis
+  const criticalIssues = issues.filter(issue => issue.severity === 'critical').length;
+  const majorIssues = issues.filter(issue => issue.severity === 'major').length;
+  
+  if (criticalIssues > 0) {
+    score -= 40;
+  } else if (majorIssues > 2) {
+    score -= 30;
+  }
+
+  const riskLevel = score >= 80 ? 'low' : score >= 60 ? 'moderate' : score >= 40 ? 'high' : 'critical';
+
+  return {
+    score: Math.max(0, score),
+    issues,
+    riskLevel,
+    recommendations: issues.flatMap(issue => issue.recommendations)
+  };
+}
+
+// Intelligent Scoring Engine
+function calculateIntelligentScore(detailedAnalysis: any): ScoreCalculation {
+  const weights: ScoringWeights = {
+    spine: 0.30,
+    shoulders: 0.20,
+    headNeck: 0.20,
+    hips: 0.15,
+    overall: 0.15
+  };
+
+  const baseScore = 
+    detailedAnalysis.spine.score * weights.spine +
+    detailedAnalysis.shoulders.score * weights.shoulders +
+    detailedAnalysis.headNeck.score * weights.headNeck +
+    detailedAnalysis.hips.score * weights.hips +
+    detailedAnalysis.overall.score * weights.overall;
+
+  const penalties: PosturePenalty[] = [];
+  const bonuses: PostureBonus[] = [];
+
+  // Apply penalties based on severity
+  Object.entries(detailedAnalysis).forEach(([region, analysis]: [string, any]) => {
+    (analysis as BodyPartAnalysis).issues.forEach((issue: PostureIssue) => {
+      let penaltyPoints = 0;
+      switch (issue.severity) {
+        case 'critical':
+          penaltyPoints = 80;
+          break;
+        case 'major':
+          penaltyPoints = 45;
+          break;
+        case 'moderate':
+          penaltyPoints = 25;
+          break;
+        case 'minor':
+          penaltyPoints = 10;
+          break;
+      }
+      
+      penalties.push({
+        type: `${region} - ${issue.type}`,
+        severity: issue.severity,
+        points: penaltyPoints,
+        description: issue.description
+      });
+    });
+  });
+
+  // Apply bonuses for good posture
+  if (baseScore > 80) {
+    bonuses.push({
+      type: 'Good Overall Posture',
+      points: 10,
+      description: 'Maintaining good posture habits'
+    });
+  }
+
+  const totalPenalties = penalties.reduce((sum, penalty) => sum + penalty.points, 0);
+  const totalBonuses = bonuses.reduce((sum, bonus) => sum + bonus.points, 0);
+  
+  const finalScore = Math.max(0, Math.min(100, baseScore - totalPenalties + totalBonuses));
+  
+  // Calculate confidence based on analysis completeness
+  const confidence = Math.min(0.95, 0.7 + (finalScore / 100) * 0.25);
+
+  return {
+    baseScore,
+    penalties,
+    bonuses,
+    finalScore,
+    confidence
+  };
+}
+
+function determineEnhancedStatus(score: number): "excellent" | "good" | "fair" | "poor" {
+  if (score >= 85) return "excellent";
+  if (score >= 70) return "good";
+  if (score >= 50) return "fair";
   return "poor";
 }
 
-function generateHarshFeedback(detailedAnalysis: any, overallScore: number): string[] {
-  const feedback: string[] = [];
-  
-  if (overallScore < 25) {
-    feedback.push("🚨 CRITICAL POSTURE ISSUES - Immediate intervention required");
-    feedback.push("💀 Your posture is severely damaging your health");
-    feedback.push("⚠️ 90-degree bending detected - This is extremely dangerous");
-    feedback.push("🆘 Professional consultation strongly recommended");
-  } else if (overallScore < 50) {
-    feedback.push("⚠️ SEVERE POSTURE PROBLEMS - Action required immediately");
-    feedback.push("🦴 Multiple posture issues detected including bending");
-    feedback.push("💀 Forward flexion is damaging your spine");
-    feedback.push("💪 Start corrective exercises today");
-  } else if (overallScore < 70) {
-    feedback.push("⚠️ MODERATE POSTURE ISSUES - Improvement needed");
-    feedback.push("📱 Some bending or poor alignment detected");
-    feedback.push("💪 Focus on core strengthening exercises");
-  } else if (overallScore < 85) {
-    feedback.push("✅ Generally good posture with minor issues");
-    feedback.push("💪 Continue with posture maintenance exercises");
-  } else {
-    feedback.push("🎉 EXCELLENT POSTURE - Keep up the great work!");
-    feedback.push("💪 Maintain your current posture habits");
-  }
+// Enhanced Feedback Generation System
+function generateCategorizedFeedback(detailedAnalysis: any, scoreCalculation: ScoreCalculation): CategorizedFeedback {
+  const feedback: CategorizedFeedback = {
+    critical: [],
+    major: [],
+    moderate: [],
+    minor: []
+  };
 
-  // Add specific feedback for bending
-  if (detailedAnalysis.spine.issues.some((issue: string) => issue.includes('BENDING') || issue.includes('bent'))) {
-    feedback.push("🚨 CRITICAL: Bending at 90 degrees detected");
-    feedback.push("💀 This position puts massive stress on your lumbar spine");
-    feedback.push("⚠️ Can cause herniated discs and chronic back pain");
-    feedback.push("📏 Stand upright with your back straight");
+  // Categorize issues by severity
+  Object.entries(detailedAnalysis).forEach(([region, analysis]: [string, any]) => {
+    (analysis as BodyPartAnalysis).issues.forEach((issue: PostureIssue) => {
+      const message = `[${region.toUpperCase()}] ${issue.description}`;
+      feedback[issue.severity].push(message);
+    });
+  });
+
+  // Add score-based feedback
+  if (scoreCalculation.finalScore < 30) {
+    feedback.critical.push('CRITICAL: Immediate posture intervention required');
+  } else if (scoreCalculation.finalScore < 50) {
+    feedback.major.push('MAJOR: Significant posture improvements needed');
+  } else if (scoreCalculation.finalScore < 70) {
+    feedback.moderate.push('MODERATE: Some posture improvements recommended');
+  } else if (scoreCalculation.finalScore < 85) {
+    feedback.minor.push('MINOR: Minor posture adjustments suggested');
   }
 
   return feedback;
 }
 
-function generateStrictRecommendations(detailedAnalysis: any, overallScore: number): string[] {
-  const recommendations: string[] = [];
+function generatePrioritizedRecommendations(detailedAnalysis: any, scoreCalculation: ScoreCalculation): PrioritizedRecommendations {
+  const immediate: string[] = [];
+  const shortTerm: string[] = [];
+  const longTerm: string[] = [];
+  const exercises: Exercise[] = [];
+  const lifestyle: string[] = [];
 
-  if (overallScore < 30) {
-    recommendations.push("🏥 CONSULT A PHYSICAL THERAPIST IMMEDIATELY");
-    recommendations.push("📞 Schedule a professional posture assessment");
-    recommendations.push("🛑 Stop activities that worsen your posture");
-  } else if (overallScore < 60) {
-    recommendations.push("💪 Start daily posture correction exercises");
-    recommendations.push("📱 Set posture reminders every 30 minutes");
-    recommendations.push("🪑 Invest in ergonomic furniture");
-  }
+  // Critical issues need immediate attention
+  scoreCalculation.penalties
+    .filter((penalty: PosturePenalty) => penalty.severity === 'critical')
+    .forEach((penalty: PosturePenalty) => {
+      immediate.push(`Address ${penalty.type}: ${penalty.description}`);
+    });
 
-  // Specific recommendations based on body part analysis
-  if (detailedAnalysis.headNeck.score < 70) {
-    recommendations.push("📱 Keep phone at eye level to prevent forward head posture");
-    recommendations.push("🧘 Practice chin tucks daily");
-  }
+  // Major issues for short-term goals
+  scoreCalculation.penalties
+    .filter((penalty: PosturePenalty) => penalty.severity === 'major')
+    .forEach((penalty: PosturePenalty) => {
+      shortTerm.push(`Improve ${penalty.type}: ${penalty.description}`);
+    });
 
-  if (detailedAnalysis.shoulders.score < 70) {
-    recommendations.push("🏋️ Strengthen upper back muscles");
-    recommendations.push("🧘 Practice shoulder blade squeezes");
-  }
+  // Moderate issues for long-term goals
+  scoreCalculation.penalties
+    .filter((penalty: PosturePenalty) => penalty.severity === 'moderate')
+    .forEach((penalty: PosturePenalty) => {
+      longTerm.push(`Work on ${penalty.type}: ${penalty.description}`);
+    });
 
-  if (detailedAnalysis.spine.score < 70) {
-    recommendations.push("🧘 Practice core strengthening exercises");
-    recommendations.push("🚶 Maintain neutral spine during all activities");
-  }
+  // Generate specific exercises
+  exercises.push(
+    {
+      name: 'Chin Tucks',
+      description: 'Strengthen neck muscles and improve head position',
+      targetArea: 'Neck',
+      difficulty: 'beginner',
+      duration: '5-10 minutes',
+      frequency: '3 times daily'
+    },
+    {
+      name: 'Wall Angels',
+      description: 'Improve shoulder blade positioning and upper back strength',
+      targetArea: 'Shoulders',
+      difficulty: 'beginner',
+      duration: '10-15 minutes',
+      frequency: 'Daily'
+    },
+    {
+      name: 'Pelvic Tilts',
+      description: 'Strengthen core and improve pelvic alignment',
+      targetArea: 'Hips',
+      difficulty: 'beginner',
+      duration: '5-10 minutes',
+      frequency: 'Daily'
+    }
+  );
 
-  recommendations.push("📚 Learn proper ergonomics");
-  recommendations.push("⏰ Take breaks every 30 minutes");
-  recommendations.push("🏃 Stay active and exercise regularly");
+  // Lifestyle recommendations
+  lifestyle.push(
+    'Take regular breaks from sitting (every 30 minutes)',
+    'Adjust workstation ergonomics',
+    'Practice good posture awareness throughout the day',
+    'Consider posture-correcting exercises or physical therapy'
+  );
 
-  return recommendations;
+  return {
+    immediate,
+    shortTerm,
+    longTerm,
+    exercises,
+    lifestyle
+  };
 }
 
-function calculateConfidence(labels: any[], objects: any[], faces: any[]): number {
-  let confidence = 0.5; // Base confidence
+// Analysis Metadata Generation
+function generateAnalysisMetadata(
+  labels: any[], 
+  objects: any[], 
+  faces: any[], 
+  imageProperties: any, 
+  processingTime: number,
+  detectionConfidence: number
+): AnalysisMetadata {
+  // Assess image quality based on available data
+  const imageQuality = Math.min(100, 
+    50 + // Base quality
+    (labels.length > 10 ? 20 : 0) + // Good label detection
+    (objects.length > 5 ? 15 : 0) + // Good object detection
+    (faces.length > 0 ? 15 : 0) // Face detection
+  );
 
-  // Increase confidence based on detection quality
-  if (faces.length > 0) confidence += 0.2;
-  if (objects.some(obj => obj.name === 'person')) confidence += 0.15;
-  if (labels.length > 10) confidence += 0.1;
-  if (labels.some(l => l.score > 0.9)) confidence += 0.05;
+  // Determine lighting conditions
+  let lightingConditions = 'unknown';
+  if (imageProperties?.dominantColors?.colors) {
+    const colors = imageProperties.dominantColors.colors;
+    const brightness = colors.reduce((sum: number, color: any) => {
+      const rgb = color.color;
+      return sum + (rgb.red + rgb.green + rgb.blue) / 3;
+    }, 0) / colors.length;
+    
+    if (brightness > 200) lightingConditions = 'bright';
+    else if (brightness > 100) lightingConditions = 'moderate';
+    else lightingConditions = 'dim';
+  }
 
-  return Math.min(0.95, confidence);
+  // Calculate body visibility
+  const bodyVisibility = Math.min(100, 
+    (labels.length / 20) * 50 + // Label-based visibility
+    (objects.length / 10) * 30 + // Object-based visibility
+    (faces.length > 0 ? 20 : 0) // Face detection bonus
+  );
+
+  return {
+    imageQuality,
+    lightingConditions,
+    bodyVisibility,
+    processingTime,
+    detectionConfidence
+  };
+}
+
+// Error Response Functions
+function createPersonNotDetectedResponse(): PostureAnalysis {
+  return {
+    score: 0,
+    status: "poor",
+    confidence: 0.05,
+    personDetected: false,
+    faceDetected: false,
+    detectionMethods: [],
+    detailedAnalysis: {
+      headNeck: createEmptyAnalysis(),
+      shoulders: createEmptyAnalysis(),
+      spine: createEmptyAnalysis(),
+      hips: createEmptyAnalysis(),
+      overall: createEmptyAnalysis()
+    },
+    feedback: {
+      critical: [
+        "❌ CRITICAL: No person detected in the image",
+        "⚠️ You must be fully visible in the camera frame",
+        "🚫 Analysis cannot proceed without clear person detection"
+      ],
+      major: [],
+      moderate: [],
+      minor: []
+    },
+    recommendations: {
+      immediate: [
+        "📱 Position yourself in the center of the frame",
+        "💡 Ensure excellent lighting on your entire body"
+      ],
+      shortTerm: [
+        "🚫 Remove any obstructions between you and the camera",
+        "📏 Stand 3-6 feet away from the camera"
+      ],
+      longTerm: [
+        "👤 Face the camera directly with your full body visible",
+        "📸 Use a stable camera position"
+      ],
+      exercises: [],
+      lifestyle: []
+    },
+    analysisMetadata: {
+      imageQuality: 10,
+      lightingConditions: 'unknown',
+      bodyVisibility: 5,
+      processingTime: 0,
+      detectionConfidence: 0.05
+    }
+  };
+}
+
+function createEmptyAnalysis(): BodyPartAnalysis {
+  return {
+    score: 0,
+    issues: [],
+    riskLevel: 'critical',
+    recommendations: []
+  };
+}
+
+function createErrorResponse(error: any): PostureAnalysis {
+  return {
+    score: 25,
+    status: "poor",
+    confidence: 0.1,
+    personDetected: false,
+    faceDetected: false,
+    detectionMethods: [],
+    detailedAnalysis: {
+      headNeck: createEmptyAnalysis(),
+      shoulders: createEmptyAnalysis(),
+      spine: createEmptyAnalysis(),
+      hips: createEmptyAnalysis(),
+      overall: createEmptyAnalysis()
+    },
+    feedback: {
+      critical: [
+        "❌ Analysis failed due to technical issues",
+        "⚠️ Image quality may be insufficient for proper analysis"
+      ],
+      major: [],
+      moderate: [],
+      minor: []
+    },
+    recommendations: {
+      immediate: [
+        "📸 Ensure high-quality image capture",
+        "💡 Improve lighting conditions"
+      ],
+      shortTerm: [
+        "📱 Use a stable camera position",
+        "🔄 Retry the analysis"
+      ],
+      longTerm: [],
+      exercises: [],
+      lifestyle: []
+    },
+    analysisMetadata: {
+      imageQuality: 20,
+      lightingConditions: 'unknown',
+      bodyVisibility: 10,
+      processingTime: 0,
+      detectionConfidence: 0.1
+    }
+  };
 } 

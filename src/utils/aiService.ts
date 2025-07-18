@@ -104,6 +104,101 @@ Respond as Dr. Sarah would - with genuine care, empathy, and helpful insight. Ma
     }
   }
 
+  // Gemini API for complete 90-day fitness plan generation (fast)
+  async generateCompleteFitnessPlan(userData: {
+    dietaryPreference: string;
+    fitnessGoals: string[];
+    fitnessLevel: string;
+    totalDays: number;
+  }): Promise<{ success: boolean; plan?: any; error?: string }> {
+    try {
+      const apiKey = API_CONFIG.GEMINI.API_KEY;
+      if (!validateAPIKey(apiKey, 'Gemini')) {
+        // Return success but no plan - will use local generation
+        return {
+          success: true,
+          plan: null
+        };
+      }
+
+      const prompt = `Generate a complete ${userData.totalDays}-day fitness plan in JSON format. 
+
+User Profile:
+- Dietary Preference: ${userData.dietaryPreference}
+- Fitness Goals: ${userData.fitnessGoals.join(', ')}
+- Fitness Level: ${userData.fitnessLevel}
+
+Requirements:
+1. Generate exactly ${userData.totalDays} daily plans
+2. Include rest days every 7th day
+3. Each day should have unique meals and exercises
+4. Format as JSON array with objects containing: day, meals (breakfast, lunch, dinner, snacks), exercises (cardio, strength, flexibility), tips
+5. Keep each meal/exercise description concise (1-2 sentences max)
+6. Ensure variety and progression throughout the plan
+
+Return ONLY valid JSON, no additional text.`;
+
+      const response = await fetch(`${API_CONFIG.GEMINI.BASE_URL}/${API_CONFIG.GEMINI.DEFAULT_MODEL}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: prompt }]
+            }
+          ],
+          generationConfig: {
+            maxOutputTokens: 8000, // Allow for complete plan
+            temperature: 0.7,
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`,
+          response.status,
+          'Gemini Fitness Plan'
+        );
+      }
+
+      const data: GeminiResponse = await response.json();
+      let aiResponse = data.candidates[0]?.content?.parts[0]?.text;
+
+      if (!aiResponse) {
+        throw new APIError('No response received from AI model', 500, 'Gemini Fitness Plan');
+      }
+
+      // Try to parse the JSON response
+      try {
+        const planData = JSON.parse(aiResponse.trim());
+        return {
+          success: true,
+          plan: planData
+        };
+      } catch (parseError) {
+        console.warn('Failed to parse AI response as JSON, using local generation');
+        return {
+          success: true,
+          plan: null
+        };
+      }
+
+    } catch (error) {
+      const formattedError = formatError(error, 'Gemini Fitness Plan');
+      console.error('Complete fitness plan generation error:', formattedError);
+      
+      return {
+        success: false,
+        error: formattedError.message
+      };
+    }
+  }
+
   // Gemini API for nutrition planning
   async generateNutritionPlan(userData: {
     dietaryPreference: string;

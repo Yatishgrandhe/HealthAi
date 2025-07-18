@@ -220,96 +220,174 @@ export default function FitnessPlannerPage() {
       };
       setPlan(newPlan);
 
-      // Generate daily plans using Gemini API
-      const dailyPlansData: DailyPlan[] = [];
-      const previousMeals: { breakfast: string[]; lunch: string[]; dinner: string[] } = {
-        breakfast: [],
-        lunch: [],
-        dinner: []
-      };
-      for (let day = 1; day <= 90; day++) {
-        if (day % 7 === 0) {
-          // Insert rest day
-          dailyPlansData.push({
-            day,
-        meals: {
-              breakfast: "Rest day - light breakfast (e.g., fruit, yogurt)",
-              lunch: "Rest day - light lunch (e.g., salad, soup)",
-              dinner: "Rest day - light dinner (e.g., steamed veggies, rice)",
-              snacks: ["Herbal tea", "Fruit"]
-            },
-            exercises: {
-              cardio: "Rest day - no cardio",
-              strength: "Rest day - no strength training",
-              flexibility: "Gentle stretching or yoga (optional)"
-            },
-            tips: "Today is a rest day! Focus on recovery, hydration, and gentle movement if desired.",
-            progress_notes: "Rest and recharge."
-          });
-          continue;
-        }
-        try {
-          const dailyResult = await aiService.generateDailyFitnessPlan({
-            dietaryPreference: dietaryPreference,
-            fitnessGoals: fitnessGoals.length > 0 ? fitnessGoals : ["Weight Loss", "Muscle Tone", "Overall Fitness"],
-            fitnessLevel: "Intermediate",
-            currentDay: day,
-            totalDays: 90,
-            restrictions: [],
-            preferences: [],
-            previousMeals // Pass previous meals for uniqueness
-          });
-          if (dailyResult.success && dailyResult.plan) {
-            // Track unique meals
-            previousMeals.breakfast.push(dailyResult.plan.meals.breakfast);
-            previousMeals.lunch.push(dailyResult.plan.meals.lunch);
-            previousMeals.dinner.push(dailyResult.plan.meals.dinner);
-            dailyPlansData.push(dailyResult.plan);
-          } else {
-            // Fallback daily plan
-            dailyPlansData.push({
-              day: day,
-              meals: {
-                breakfast: `Unique breakfast for day ${day}`,
-                lunch: `Unique lunch for day ${day}`,
-                dinner: `Unique dinner for day ${day}`,
-                snacks: ["Apple with almond butter", "Greek yogurt"]
-              },
-              exercises: {
-                cardio: "30 minutes brisk walking",
-                strength: "Push-ups and squats (3 sets each)",
-                flexibility: "10 minutes stretching routine"
-              },
-              tips: "Stay hydrated and get adequate rest for optimal results."
-            });
-          }
-        } catch (error) {
-          console.error(`Error generating daily plan for day ${day}:`, error);
-          // Fallback daily plan
-          dailyPlansData.push({
-            day: day,
-            meals: {
-              breakfast: `Unique breakfast for day ${day}`,
-              lunch: `Unique lunch for day ${day}`,
-              dinner: `Unique dinner for day ${day}`,
-              snacks: ["Apple with almond butter", "Greek yogurt"]
-            },
-            exercises: {
-              cardio: "30 minutes brisk walking",
-              strength: "Push-ups and squats (3 sets each)",
-              flexibility: "10 minutes stretching routine"
-            },
-            tips: "Stay hydrated and get adequate rest for optimal results."
-          });
-        }
+      // Generate complete 90-day plan in a single API call
+      const completePlanResult = await aiService.generateCompleteFitnessPlan({
+        dietaryPreference: dietaryPreference,
+        fitnessGoals: fitnessGoals.length > 0 ? fitnessGoals : ["Weight Loss", "Muscle Tone", "Overall Fitness"],
+        fitnessLevel: "Intermediate",
+        totalDays: 90
+      });
+
+      let dailyPlansData: DailyPlan[] = [];
+
+      if (completePlanResult.success && completePlanResult.plan) {
+        // Use the AI-generated plan
+        dailyPlansData = completePlanResult.plan;
+      } else {
+        // Fallback: Generate plan locally with templates
+        dailyPlansData = generateLocalPlan();
       }
+
       setDailyPlans(dailyPlansData);
       setIsGenerating(false);
       setActiveStep(3);
     } catch (error) {
       console.error('Error generating plan:', error);
+      // Fallback to local generation
+      const fallbackPlan = generateLocalPlan();
+      setDailyPlans(fallbackPlan);
       setIsGenerating(false);
+      setActiveStep(3);
     }
+  };
+
+  // Generate plan locally using templates for faster generation
+  const generateLocalPlan = (): DailyPlan[] => {
+    const dailyPlansData: DailyPlan[] = [];
+    
+    // Meal templates for variety
+    const breakfastTemplates = [
+      "Oatmeal with berries and nuts",
+      "Greek yogurt with honey and granola",
+      "Whole grain toast with avocado and eggs",
+      "Smoothie bowl with banana and protein powder",
+      "Quinoa breakfast bowl with fruits",
+      "Protein pancakes with maple syrup",
+      "Chia pudding with coconut milk",
+      "Breakfast burrito with vegetables"
+    ];
+
+    const lunchTemplates = [
+      "Grilled chicken salad with mixed greens",
+      "Quinoa bowl with roasted vegetables",
+      "Turkey and avocado sandwich on whole grain bread",
+      "Lentil soup with whole grain crackers",
+      "Tuna salad with mixed greens",
+      "Vegetable stir-fry with brown rice",
+      "Chickpea and spinach curry",
+      "Grilled salmon with steamed vegetables"
+    ];
+
+    const dinnerTemplates = [
+      "Baked salmon with quinoa and asparagus",
+      "Lean beef stir-fry with vegetables",
+      "Grilled chicken with sweet potato and broccoli",
+      "Vegetarian pasta with tomato sauce",
+      "Fish tacos with cabbage slaw",
+      "Turkey meatballs with whole grain pasta",
+      "Stuffed bell peppers with quinoa",
+      "Grilled shrimp with brown rice"
+    ];
+
+    const cardioTemplates = [
+      "30 minutes brisk walking",
+      "25 minutes jogging",
+      "20 minutes cycling",
+      "15 minutes HIIT training",
+      "30 minutes swimming",
+      "20 minutes elliptical training",
+      "25 minutes stair climbing",
+      "30 minutes dancing"
+    ];
+
+    const strengthTemplates = [
+      "Push-ups, squats, and lunges (3 sets each)",
+      "Dumbbell rows and shoulder presses (3 sets each)",
+      "Planks and mountain climbers (3 sets each)",
+      "Burpees and jumping jacks (3 sets each)",
+      "Wall sits and calf raises (3 sets each)",
+      "Tricep dips and bicep curls (3 sets each)",
+      "Deadlifts and bench presses (3 sets each)",
+      "Pull-ups and chin-ups (3 sets each)"
+    ];
+
+    const flexibilityTemplates = [
+      "10 minutes stretching routine",
+      "15 minutes yoga flow",
+      "12 minutes pilates exercises",
+      "10 minutes foam rolling",
+      "15 minutes tai chi movements",
+      "12 minutes dynamic stretching",
+      "10 minutes static stretching",
+      "15 minutes mobility exercises"
+    ];
+
+    const snackTemplates = [
+      ["Apple with almond butter", "Greek yogurt"],
+      ["Mixed nuts and dried fruits", "Protein shake"],
+      ["Carrot sticks with hummus", "Hard-boiled eggs"],
+      ["Banana with peanut butter", "Cottage cheese"],
+      ["Berries with cottage cheese", "Trail mix"],
+      ["Celery with peanut butter", "Protein bar"],
+      ["Orange segments", "Mixed nuts"],
+      ["Grapes and cheese", "Smoothie"]
+    ];
+
+    const tipTemplates = [
+      "Stay hydrated and get adequate rest for optimal results.",
+      "Focus on proper form during exercises to prevent injury.",
+      "Listen to your body and adjust intensity as needed.",
+      "Consistency is key - stick to your plan for best results.",
+      "Don't forget to warm up before workouts and cool down after.",
+      "Track your progress to stay motivated and see improvements.",
+      "Include variety in your workouts to prevent plateaus.",
+      "Remember that nutrition is just as important as exercise."
+    ];
+
+    for (let day = 1; day <= 90; day++) {
+      if (day % 7 === 0) {
+        // Insert rest day
+        dailyPlansData.push({
+          day,
+          meals: {
+            breakfast: "Rest day - light breakfast (e.g., fruit, yogurt)",
+            lunch: "Rest day - light lunch (e.g., salad, soup)",
+            dinner: "Rest day - light dinner (e.g., steamed veggies, rice)",
+            snacks: ["Herbal tea", "Fruit"]
+          },
+          exercises: {
+            cardio: "Rest day - no cardio",
+            strength: "Rest day - no strength training",
+            flexibility: "Gentle stretching or yoga (optional)"
+          },
+          tips: "Today is a rest day! Focus on recovery, hydration, and gentle movement if desired.",
+          progress_notes: "Rest and recharge."
+        });
+        continue;
+      }
+
+      // Generate unique daily plan using templates
+      const templateIndex = (day - 1) % 8; // Cycle through 8 different templates
+      const variationIndex = Math.floor((day - 1) / 8) % 3; // Add variation every 8 days
+
+      dailyPlansData.push({
+        day: day,
+        meals: {
+          breakfast: `${breakfastTemplates[templateIndex]}${variationIndex > 0 ? ` (Day ${day} variation)` : ''}`,
+          lunch: `${lunchTemplates[templateIndex]}${variationIndex > 0 ? ` (Day ${day} variation)` : ''}`,
+          dinner: `${dinnerTemplates[templateIndex]}${variationIndex > 0 ? ` (Day ${day} variation)` : ''}`,
+          snacks: snackTemplates[templateIndex]
+        },
+        exercises: {
+          cardio: cardioTemplates[templateIndex],
+          strength: strengthTemplates[templateIndex],
+          flexibility: flexibilityTemplates[templateIndex]
+        },
+        tips: tipTemplates[templateIndex]
+      });
+    }
+
+    return dailyPlansData;
   };
 
   const handleSavePlan = async () => {
@@ -389,7 +467,7 @@ export default function FitnessPlannerPage() {
       weeks.push(days.slice(i, i + 7));
     }
 
-    return (
+  return (
       <Box sx={{ mt: 3 }}>
         <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
           90-Day Progress Calendar
@@ -997,7 +1075,7 @@ export default function FitnessPlannerPage() {
                         {isGenerating ? (
                           <>
                             <CircularProgress size={20} sx={{ color: "white", mr: 1 }} />
-                            Generating Plan...
+                            ⚡ Generating Plan (2 min or less)...
                           </>
                         ) : (
                           "Generate My Plan"
@@ -1045,21 +1123,21 @@ export default function FitnessPlannerPage() {
                             >
                               {showCalendar ? "Hide Calendar" : "Show Calendar"}
                             </Button>
-                            <Button
-                              variant="outlined"
-                              startIcon={<Save />}
+                      <Button
+                        variant="outlined"
+                        startIcon={<Save />}
                               onClick={() => setSaveDialogOpen(true)}
-                              sx={{
-                                borderColor: "#FFD166",
-                                color: "#FFD166",
-                                "&:hover": {
-                                  borderColor: "#FFC107",
-                                  background: "rgba(255, 209, 102, 0.05)",
-                                },
-                              }}
-                            >
-                              Save Plan
-                            </Button>
+                        sx={{
+                          borderColor: "#FFD166",
+                          color: "#FFD166",
+                          "&:hover": {
+                            borderColor: "#FFC107",
+                            background: "rgba(255, 209, 102, 0.05)",
+                          },
+                        }}
+                      >
+                        Save Plan
+                      </Button>
                           </>
                         )}
                         {/* Export button for logged-out users */}

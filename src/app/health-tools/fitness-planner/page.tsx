@@ -232,9 +232,11 @@ export default function FitnessPlannerPage() {
 
       if (completePlanResult.success && completePlanResult.plan) {
         // Use the AI-generated plan
+        console.log('🤖 Using AI-generated fitness plan');
         dailyPlansData = completePlanResult.plan;
       } else {
         // Fallback: Generate plan locally with templates
+        console.log('🔄 AI generation failed or unavailable, using local templates');
         dailyPlansData = generateLocalPlan();
       }
 
@@ -242,7 +244,8 @@ export default function FitnessPlannerPage() {
       setIsGenerating(false);
       setActiveStep(3);
     } catch (error) {
-      console.error('Error generating plan:', error);
+      console.error('❌ Error generating plan:', error);
+      console.log('🔄 Falling back to local template generation due to error');
       // Fallback to local generation
       const fallbackPlan = generateLocalPlan();
       setDailyPlans(fallbackPlan);
@@ -251,75 +254,188 @@ export default function FitnessPlannerPage() {
     }
   };
 
-  // Generate plan locally using templates for faster generation
+    // Generate plan locally using templates for faster generation
   const generateLocalPlan = (): DailyPlan[] => {
+    console.log('🔄 Using local template generation (rollback data)');
     const dailyPlansData: DailyPlan[] = [];
     
-    // Meal templates for variety
-    const breakfastTemplates = [
-      "Oatmeal with berries and nuts",
-      "Greek yogurt with honey and granola",
-      "Whole grain toast with avocado and eggs",
-      "Smoothie bowl with banana and protein powder",
-      "Quinoa breakfast bowl with fruits",
-      "Protein pancakes with maple syrup",
-      "Chia pudding with coconut milk",
-      "Breakfast burrito with vegetables"
+    // Weekly meal routines (7-day cycles)
+    const weeklyMealRoutines = [
+      // Week 1 Routine
+      {
+        breakfast: [
+          "Oatmeal with berries and nuts",
+          "Greek yogurt with honey and granola", 
+          "Whole grain toast with avocado and eggs",
+          "Smoothie bowl with banana and protein powder",
+          "Quinoa breakfast bowl with fruits",
+          "Protein pancakes with maple syrup",
+          "Chia pudding with coconut milk"
+        ],
+        lunch: [
+          "Grilled chicken salad with mixed greens",
+          "Quinoa bowl with roasted vegetables",
+          "Turkey and avocado sandwich on whole grain bread",
+          "Lentil soup with whole grain crackers",
+          "Tuna salad with mixed greens",
+          "Vegetable stir-fry with brown rice",
+          "Chickpea and spinach curry"
+        ],
+        dinner: [
+          "Baked salmon with quinoa and asparagus",
+          "Lean beef stir-fry with vegetables",
+          "Grilled chicken with sweet potato and broccoli",
+          "Vegetarian pasta with tomato sauce",
+          "Fish tacos with cabbage slaw",
+          "Turkey meatballs with whole grain pasta",
+          "Stuffed bell peppers with quinoa"
+        ]
+      },
+      // Week 2 Routine
+      {
+        breakfast: [
+          "Protein smoothie with spinach and banana",
+          "Egg white omelette with vegetables",
+          "Cottage cheese with fresh fruits",
+          "Whole grain cereal with almond milk",
+          "Breakfast burrito with black beans",
+          "French toast with berries",
+          "Yogurt parfait with granola"
+        ],
+        lunch: [
+          "Grilled salmon with steamed vegetables",
+          "Mediterranean salad with feta cheese",
+          "Chicken wrap with hummus",
+          "Vegetable soup with whole grain bread",
+          "Tofu stir-fry with brown rice",
+          "Turkey burger with sweet potato fries",
+          "Lentil curry with quinoa"
+        ],
+        dinner: [
+          "Grilled shrimp with brown rice",
+          "Lean pork chops with roasted vegetables",
+          "Vegetarian lasagna with salad",
+          "Fish curry with coconut rice",
+          "Chicken fajitas with whole grain tortillas",
+          "Beef stir-fry with noodles",
+          "Stuffed mushrooms with quinoa"
+        ]
+      },
+      // Week 3 Routine
+      {
+        breakfast: [
+          "Avocado toast with poached eggs",
+          "Protein waffles with berries",
+          "Breakfast bowl with sweet potato",
+          "Smoothie with protein powder",
+          "Egg muffins with vegetables",
+          "Overnight oats with chia seeds",
+          "Breakfast sandwich with turkey"
+        ],
+        lunch: [
+          "Chicken Caesar salad",
+          "Vegetable wrap with hummus",
+          "Tuna pasta salad",
+          "Bean and vegetable soup",
+          "Grilled cheese with tomato soup",
+          "Chicken noodle soup",
+          "Vegetable curry with rice"
+        ],
+        dinner: [
+          "Baked cod with lemon herbs",
+          "Chicken stir-fry with vegetables",
+          "Vegetarian chili with cornbread",
+          "Pork tenderloin with roasted potatoes",
+          "Fish tacos with slaw",
+          "Beef and broccoli stir-fry",
+          "Stuffed zucchini with quinoa"
+        ]
+      }
     ];
 
-    const lunchTemplates = [
-      "Grilled chicken salad with mixed greens",
-      "Quinoa bowl with roasted vegetables",
-      "Turkey and avocado sandwich on whole grain bread",
-      "Lentil soup with whole grain crackers",
-      "Tuna salad with mixed greens",
-      "Vegetable stir-fry with brown rice",
-      "Chickpea and spinach curry",
-      "Grilled salmon with steamed vegetables"
-    ];
-
-    const dinnerTemplates = [
-      "Baked salmon with quinoa and asparagus",
-      "Lean beef stir-fry with vegetables",
-      "Grilled chicken with sweet potato and broccoli",
-      "Vegetarian pasta with tomato sauce",
-      "Fish tacos with cabbage slaw",
-      "Turkey meatballs with whole grain pasta",
-      "Stuffed bell peppers with quinoa",
-      "Grilled shrimp with brown rice"
-    ];
-
-    const cardioTemplates = [
-      "30 minutes brisk walking",
-      "25 minutes jogging",
-      "20 minutes cycling",
-      "15 minutes HIIT training",
-      "30 minutes swimming",
-      "20 minutes elliptical training",
-      "25 minutes stair climbing",
-      "30 minutes dancing"
-    ];
-
-    const strengthTemplates = [
-      "Push-ups, squats, and lunges (3 sets each)",
-      "Dumbbell rows and shoulder presses (3 sets each)",
-      "Planks and mountain climbers (3 sets each)",
-      "Burpees and jumping jacks (3 sets each)",
-      "Wall sits and calf raises (3 sets each)",
-      "Tricep dips and bicep curls (3 sets each)",
-      "Deadlifts and bench presses (3 sets each)",
-      "Pull-ups and chin-ups (3 sets each)"
-    ];
-
-    const flexibilityTemplates = [
-      "10 minutes stretching routine",
-      "15 minutes yoga flow",
-      "12 minutes pilates exercises",
-      "10 minutes foam rolling",
-      "15 minutes tai chi movements",
-      "12 minutes dynamic stretching",
-      "10 minutes static stretching",
-      "15 minutes mobility exercises"
+    // Weekly workout routines (6 days active, 1 day rest)
+    const weeklyWorkoutRoutines = [
+      // Week 1 Routine
+      {
+        cardio: [
+          "30 minutes brisk walking",
+          "25 minutes jogging",
+          "20 minutes cycling",
+          "15 minutes HIIT training",
+          "30 minutes swimming",
+          "20 minutes elliptical training"
+        ],
+        strength: [
+          "Push-ups, squats, and lunges (3 sets each)",
+          "Dumbbell rows and shoulder presses (3 sets each)",
+          "Planks and mountain climbers (3 sets each)",
+          "Burpees and jumping jacks (3 sets each)",
+          "Wall sits and calf raises (3 sets each)",
+          "Tricep dips and bicep curls (3 sets each)"
+        ],
+        flexibility: [
+          "10 minutes stretching routine",
+          "15 minutes yoga flow",
+          "12 minutes pilates exercises",
+          "10 minutes foam rolling",
+          "15 minutes tai chi movements",
+          "12 minutes dynamic stretching"
+        ]
+      },
+      // Week 2 Routine
+      {
+        cardio: [
+          "25 minutes jogging",
+          "20 minutes cycling",
+          "15 minutes HIIT training",
+          "30 minutes swimming",
+          "20 minutes elliptical training",
+          "25 minutes stair climbing"
+        ],
+        strength: [
+          "Dumbbell rows and shoulder presses (3 sets each)",
+          "Planks and mountain climbers (3 sets each)",
+          "Burpees and jumping jacks (3 sets each)",
+          "Wall sits and calf raises (3 sets each)",
+          "Tricep dips and bicep curls (3 sets each)",
+          "Deadlifts and bench presses (3 sets each)"
+        ],
+        flexibility: [
+          "15 minutes yoga flow",
+          "12 minutes pilates exercises",
+          "10 minutes foam rolling",
+          "15 minutes tai chi movements",
+          "12 minutes dynamic stretching",
+          "10 minutes static stretching"
+        ]
+      },
+      // Week 3 Routine
+      {
+        cardio: [
+          "20 minutes cycling",
+          "15 minutes HIIT training",
+          "30 minutes swimming",
+          "20 minutes elliptical training",
+          "25 minutes stair climbing",
+          "30 minutes dancing"
+        ],
+        strength: [
+          "Planks and mountain climbers (3 sets each)",
+          "Burpees and jumping jacks (3 sets each)",
+          "Wall sits and calf raises (3 sets each)",
+          "Tricep dips and bicep curls (3 sets each)",
+          "Deadlifts and bench presses (3 sets each)",
+          "Pull-ups and chin-ups (3 sets each)"
+        ],
+        flexibility: [
+          "12 minutes pilates exercises",
+          "10 minutes foam rolling",
+          "15 minutes tai chi movements",
+          "12 minutes dynamic stretching",
+          "10 minutes static stretching",
+          "15 minutes mobility exercises"
+        ]
+      }
     ];
 
     const snackTemplates = [
@@ -328,9 +444,7 @@ export default function FitnessPlannerPage() {
       ["Carrot sticks with hummus", "Hard-boiled eggs"],
       ["Banana with peanut butter", "Cottage cheese"],
       ["Berries with cottage cheese", "Trail mix"],
-      ["Celery with peanut butter", "Protein bar"],
-      ["Orange segments", "Mixed nuts"],
-      ["Grapes and cheese", "Smoothie"]
+      ["Celery with peanut butter", "Protein bar"]
     ];
 
     const tipTemplates = [
@@ -339,54 +453,63 @@ export default function FitnessPlannerPage() {
       "Listen to your body and adjust intensity as needed.",
       "Consistency is key - stick to your plan for best results.",
       "Don't forget to warm up before workouts and cool down after.",
-      "Track your progress to stay motivated and see improvements.",
-      "Include variety in your workouts to prevent plateaus.",
-      "Remember that nutrition is just as important as exercise."
+      "Track your progress to stay motivated and see improvements."
     ];
 
     for (let day = 1; day <= 90; day++) {
-      if (day % 7 === 0) {
-        // Insert rest day
+      const weekNumber = Math.floor((day - 1) / 7); // 0-based week number
+      const dayInWeek = ((day - 1) % 7) + 1; // 1-7 for days in week
+      const routineIndex = weekNumber % 3; // Cycle through 3 different routines
+      
+      console.log(`📅 Day ${day}: Week ${weekNumber + 1}, Day ${dayInWeek}, Routine ${routineIndex + 1}`);
+
+      if (dayInWeek === 7) {
+        // Rest day (every 7th day)
+        console.log(`🛌 Day ${day}: REST DAY`);
         dailyPlansData.push({
           day,
           meals: {
-            breakfast: "Rest day - light breakfast (e.g., fruit, yogurt)",
-            lunch: "Rest day - light lunch (e.g., salad, soup)",
-            dinner: "Rest day - light dinner (e.g., steamed veggies, rice)",
-            snacks: ["Herbal tea", "Fruit"]
+            breakfast: "Rest day - light breakfast (e.g., fruit, yogurt, smoothie)",
+            lunch: "Rest day - light lunch (e.g., salad, soup, light sandwich)",
+            dinner: "Rest day - light dinner (e.g., steamed veggies, rice, light protein)",
+            snacks: ["Herbal tea", "Fruit", "Light yogurt"]
           },
           exercises: {
-            cardio: "Rest day - no cardio",
+            cardio: "Rest day - no cardio training",
             strength: "Rest day - no strength training",
-            flexibility: "Gentle stretching or yoga (optional)"
+            flexibility: "Gentle stretching or yoga (optional, 10-15 minutes)"
           },
-          tips: "Today is a rest day! Focus on recovery, hydration, and gentle movement if desired.",
-          progress_notes: "Rest and recharge."
+          tips: "Today is a rest day! Focus on recovery, hydration, and gentle movement if desired. Your body needs this time to repair and grow stronger.",
+          progress_notes: "Rest and recharge for optimal performance."
         });
         continue;
       }
 
-      // Generate unique daily plan using templates
-      const templateIndex = (day - 1) % 8; // Cycle through 8 different templates
-      const variationIndex = Math.floor((day - 1) / 8) % 3; // Add variation every 8 days
+      // Active day (days 1-6 of each week)
+      const mealRoutine = weeklyMealRoutines[routineIndex];
+      const workoutRoutine = weeklyWorkoutRoutines[routineIndex];
+      const dayIndex = dayInWeek - 1; // 0-based index for arrays
+
+      console.log(`💪 Day ${day}: ACTIVE DAY - Cardio: ${workoutRoutine.cardio[dayIndex].substring(0, 30)}...`);
 
       dailyPlansData.push({
         day: day,
         meals: {
-          breakfast: `${breakfastTemplates[templateIndex]}${variationIndex > 0 ? ` (Day ${day} variation)` : ''}`,
-          lunch: `${lunchTemplates[templateIndex]}${variationIndex > 0 ? ` (Day ${day} variation)` : ''}`,
-          dinner: `${dinnerTemplates[templateIndex]}${variationIndex > 0 ? ` (Day ${day} variation)` : ''}`,
-          snacks: snackTemplates[templateIndex]
+          breakfast: mealRoutine.breakfast[dayIndex],
+          lunch: mealRoutine.lunch[dayIndex],
+          dinner: mealRoutine.dinner[dayIndex],
+          snacks: snackTemplates[dayIndex]
         },
         exercises: {
-          cardio: cardioTemplates[templateIndex],
-          strength: strengthTemplates[templateIndex],
-          flexibility: flexibilityTemplates[templateIndex]
+          cardio: workoutRoutine.cardio[dayIndex],
+          strength: workoutRoutine.strength[dayIndex],
+          flexibility: workoutRoutine.flexibility[dayIndex]
         },
-        tips: tipTemplates[templateIndex]
+        tips: tipTemplates[dayIndex]
       });
     }
 
+    console.log(`✅ Generated ${dailyPlansData.length} days of fitness plan using local templates`);
     return dailyPlansData;
   };
 
@@ -461,29 +584,103 @@ export default function FitnessPlannerPage() {
   ];
 
   const renderCalendar = () => {
-    const days = Array.from({ length: 90 }, (_, i) => i + 1);
-    const weeks = [];
+    // Calculate exactly 90 days with proper week structure
+    const totalDays = 90;
+    const days = Array.from({ length: totalDays }, (_, i) => i + 1);
+    const weeks: (number | null)[][] = [];
+    
+    // Create weeks with exactly 7 days each, handling the last week properly
     for (let i = 0; i < days.length; i += 7) {
-      weeks.push(days.slice(i, i + 7));
+      const weekDays: (number | null)[] = days.slice(i, i + 7);
+      // Fill the last week with null values if it's not complete
+      while (weekDays.length < 7) {
+        weekDays.push(null);
+      }
+      weeks.push(weekDays);
     }
 
-  return (
+    console.log(`📅 Rendering calendar with ${totalDays} days in ${weeks.length} weeks`);
+
+    return (
       <Box sx={{ mt: 3 }}>
-        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <CalendarToday sx={{ color: '#06D6A0' }} />
           90-Day Progress Calendar
         </Typography>
+        
+        {/* Calendar Legend */}
+        <Box sx={{ mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ width: 20, height: 20, background: 'linear-gradient(135deg, #FFD166, #06D6A0)', borderRadius: 1 }} />
+            <Typography variant="caption">Today</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ width: 20, height: 20, background: 'linear-gradient(135deg, #4CAF50, #45a049)', borderRadius: 1 }} />
+            <Typography variant="caption">Completed</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ width: 20, height: 20, background: 'linear-gradient(135deg, #FF9800, #F57C00)', borderRadius: 1 }} />
+            <Typography variant="caption">Rest Day</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ width: 20, height: 20, background: 'rgba(255, 255, 255, 0.8)', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 1 }} />
+            <Typography variant="caption">Active Day</Typography>
+          </Box>
+        </Box>
+
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           {weeks.map((week, weekIndex) => (
             <Box key={weekIndex} sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-              {week.map((day) => {
-                const dailyPlan = dailyPlans.find(p => p.day === day);
+              {week.map((day, dayIndex) => {
+                if (day === null) {
+                  // Empty space for incomplete last week
+                  return (
+                    <Box
+                      key={`empty-${dayIndex}`}
+                      sx={{
+                        width: 60,
+                        height: 60,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        opacity: 0.3
+                      }}
+                    />
+                  );
+                }
+
+                const dayNumber = day as number;
+
+                const dailyPlan = dailyPlans.find(p => p.day === dayNumber);
                 const isCompleted = dailyPlan?.completed;
-                const isToday = day === 1; // For demo, day 1 is "today"
+                const isToday = dayNumber === 1; // For demo, day 1 is "today"
+                const isRestDay = dayNumber % 7 === 0; // Every 7th day is rest day
+                const weekNumber = Math.floor((dayNumber - 1) / 7) + 1;
+                const dayInWeek = ((dayNumber - 1) % 7) + 1;
+                
+                // Determine background color based on day type
+                let backgroundColor = 'rgba(255, 255, 255, 0.8)';
+                let borderColor = '1px solid rgba(0,0,0,0.1)';
+                
+                if (isCompleted) {
+                  backgroundColor = 'linear-gradient(135deg, #4CAF50, #45a049)';
+                  borderColor = '1px solid #4CAF50';
+                } else if (isToday) {
+                  backgroundColor = 'linear-gradient(135deg, #FFD166, #06D6A0)';
+                  borderColor = '2px solid #FFD166';
+                } else if (isRestDay) {
+                  backgroundColor = 'linear-gradient(135deg, #FF9800, #F57C00)';
+                  borderColor = '1px solid #FF9800';
+                }
+
+                const tooltipText = dailyPlan 
+                  ? `Day ${dayNumber} (Week ${weekNumber}, Day ${dayInWeek}): ${isRestDay ? 'Rest Day' : 'Active Day'} - ${dailyPlan.tips}`
+                  : `Day ${dayNumber} (Week ${weekNumber}, Day ${dayInWeek}): ${isRestDay ? 'Rest Day' : 'Active Day'}`;
                 
                 return (
                   <Tooltip 
-                    key={day} 
-                    title={dailyPlan ? `Day ${day}: ${dailyPlan.tips}` : `Day ${day}`}
+                    key={dayNumber} 
+                    title={tooltipText}
                     placement="top"
                   >
                     <Card
@@ -494,27 +691,28 @@ export default function FitnessPlannerPage() {
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: 'pointer',
-                        background: isCompleted 
-                          ? 'linear-gradient(135deg, #4CAF50, #45a049)'
-                          : isToday
-                          ? 'linear-gradient(135deg, #FFD166, #06D6A0)'
-                          : 'rgba(255, 255, 255, 0.8)',
-                        color: isCompleted || isToday ? 'white' : 'text.primary',
-                        border: isToday ? '2px solid #FFD166' : '1px solid rgba(0,0,0,0.1)',
+                        background: backgroundColor,
+                        color: isCompleted || isToday || isRestDay ? 'white' : 'text.primary',
+                        border: borderColor,
                         '&:hover': {
                           transform: 'scale(1.05)',
                           boxShadow: 2
                         },
                         transition: 'all 0.3s ease'
                       }}
-                      onClick={() => setSelectedDay(day)}
+                      onClick={() => setSelectedDay(dayNumber)}
                     >
                       <Box sx={{ textAlign: 'center' }}>
                         <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
-                          {day}
+                          {dayNumber}
                         </Typography>
                         {isCompleted && (
                           <Check sx={{ fontSize: 16, display: 'block', mx: 'auto', mt: 0.5 }} />
+                        )}
+                        {isRestDay && !isCompleted && (
+                          <Typography variant="caption" sx={{ fontSize: '0.6rem', display: 'block', mt: 0.5 }}>
+                            REST
+                          </Typography>
                         )}
                       </Box>
                     </Card>
@@ -523,6 +721,13 @@ export default function FitnessPlannerPage() {
               })}
             </Box>
           ))}
+        </Box>
+        
+        {/* Calendar Summary */}
+        <Box sx={{ mt: 3, p: 2, background: 'rgba(6, 214, 160, 0.1)', borderRadius: 2 }}>
+          <Typography variant="body2" sx={{ textAlign: 'center', color: '#06D6A0', fontWeight: 500 }}>
+            📊 90-Day Plan Summary: {Math.floor(totalDays / 7)} weeks • {Math.floor(totalDays / 7)} rest days • {totalDays - Math.floor(totalDays / 7)} active days
+          </Typography>
         </Box>
       </Box>
     );

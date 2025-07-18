@@ -115,6 +115,7 @@ Respond as Dr. Sarah would - with genuine care, empathy, and helpful insight. Ma
       const apiKey = API_CONFIG.GEMINI.API_KEY;
       if (!validateAPIKey(apiKey, 'Gemini')) {
         // Return success but no plan - will use local generation
+        console.log('🔄 No Gemini API key configured, will use local template generation');
         return {
           success: true,
           plan: null
@@ -176,12 +177,14 @@ Return ONLY valid JSON, no additional text.`;
       // Try to parse the JSON response
       try {
         const planData = JSON.parse(aiResponse.trim());
+        console.log('✅ Successfully parsed AI-generated fitness plan');
         return {
           success: true,
           plan: planData
         };
       } catch (parseError) {
-        console.warn('Failed to parse AI response as JSON, using local generation');
+        console.warn('⚠️ Failed to parse AI response as JSON, using local generation');
+        console.log('🔄 AI response was not valid JSON, falling back to templates');
         return {
           success: true,
           plan: null

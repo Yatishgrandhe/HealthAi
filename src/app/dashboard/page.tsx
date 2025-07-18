@@ -93,9 +93,14 @@ export default function DashboardPage() {
 
   const fetchHealthData = async (userId: string) => {
     try {
-      // Get data from localStorage using the correct keys
-      const localTherapistChats = localStorage.getItem('therapist-chats');
-      const localPostureReports = localStorage.getItem('postureProgressReports');
+      console.log('Fetching health data for user:', userId);
+      
+      // Get data from user-specific localStorage keys
+      const therapistStorageKey = `therapist-chats-${userId}`;
+      const postureStorageKey = `postureProgressReports-${userId}`;
+      
+      const localTherapistChats = localStorage.getItem(therapistStorageKey);
+      const localPostureReports = localStorage.getItem(postureStorageKey);
 
       let therapistSessions: any[] = [];
       let postureSessions: any[] = [];
@@ -106,8 +111,19 @@ export default function DashboardPage() {
       if (localTherapistChats) {
         try {
           const parsed = JSON.parse(localTherapistChats);
-          therapistSessions = Array.isArray(parsed) ? parsed : [];
-          console.log('Loaded therapist sessions from localStorage:', therapistSessions.length);
+          console.log('Raw therapist chat data:', parsed);
+          
+          // Handle different data structures
+          if (Array.isArray(parsed)) {
+            therapistSessions = parsed;
+          } else if (parsed && parsed.chats && Array.isArray(parsed.chats)) {
+            therapistSessions = parsed.chats;
+          } else if (parsed && typeof parsed === 'object') {
+            // Single session object
+            therapistSessions = [parsed];
+          }
+          
+          console.log('Processed therapist sessions:', therapistSessions.length);
         } catch (e) {
           console.warn('Error parsing local therapist chat data:', e);
         }
@@ -117,8 +133,19 @@ export default function DashboardPage() {
       if (localPostureReports) {
         try {
           const parsed = JSON.parse(localPostureReports);
-          postureSessions = Array.isArray(parsed) ? parsed : [];
-          console.log('Loaded posture sessions from localStorage:', postureSessions.length);
+          console.log('Raw posture reports data:', parsed);
+          
+          // Handle different data structures
+          if (Array.isArray(parsed)) {
+            postureSessions = parsed;
+          } else if (parsed && parsed.data && Array.isArray(parsed.data)) {
+            postureSessions = parsed.data;
+          } else if (parsed && typeof parsed === 'object') {
+            // Single session object
+            postureSessions = [parsed];
+          }
+          
+          console.log('Processed posture sessions:', postureSessions.length);
         } catch (e) {
           console.warn('Error parsing local posture check data:', e);
         }

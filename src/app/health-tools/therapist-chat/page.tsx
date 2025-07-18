@@ -379,7 +379,8 @@ export default function TherapistChatPage() {
         const updatedSessions = chatSessions.map(chat => 
           chat.id === updatedChat.id ? updatedChat : chat
         );
-        localStorage.setItem('therapist-chats', JSON.stringify(updatedSessions));
+        const storageKey = `therapist-chats-${user.id}`;
+        localStorage.setItem(storageKey, JSON.stringify(updatedSessions));
         setLastSavedMessage(message);
         console.log('Voice message saved immediately:', message);
         
@@ -425,7 +426,8 @@ export default function TherapistChatPage() {
     if (user) {
       try {
         console.log('Loading therapist chats for logged-in user...');
-        const savedChats = localStorage.getItem('therapist-chats');
+        const storageKey = `therapist-chats-${user.id}`;
+        const savedChats = localStorage.getItem(storageKey);
         console.log('Raw localStorage data:', savedChats ? 'exists' : 'null');
         if (savedChats) {
           const parsedChats = JSON.parse(savedChats).map((chat: ChatSession) => ({
@@ -536,7 +538,8 @@ export default function TherapistChatPage() {
     if (user && !userLoading && chatSessions.length > 0) {
       try {
         console.log('💾 Saving therapist chats to localStorage for logged-in user...');
-        localStorage.setItem('therapist-chats', JSON.stringify(chatSessions));
+        const storageKey = `therapist-chats-${user.id}`;
+        localStorage.setItem(storageKey, JSON.stringify(chatSessions));
         console.log('✅ Successfully saved', chatSessions.length, 'chat sessions to localStorage');
         console.log('📝 Saved chat titles:', chatSessions.map((chat: ChatSession) => chat.title));
       } catch (error) {
@@ -545,7 +548,8 @@ export default function TherapistChatPage() {
     } else if (user && !userLoading && chatSessions.length === 0) {
       // Clear localStorage if user is logged in but has no chats
       try {
-        localStorage.removeItem('therapist-chats');
+        const storageKey = `therapist-chats-${user.id}`;
+        localStorage.removeItem(storageKey);
         console.log('Cleared therapist chats from localStorage for logged-in user');
       } catch (error) {
         console.error('Failed to clear chats from localStorage:', error);
@@ -633,11 +637,12 @@ export default function TherapistChatPage() {
     if (user && !userLoading) {
       try {
         console.log('Deleting chat from localStorage for logged-in user...');
-        const savedChats = localStorage.getItem('therapist-chats');
+        const storageKey = `therapist-chats-${user.id}`;
+        const savedChats = localStorage.getItem(storageKey);
         if (savedChats) {
           const parsedChats = JSON.parse(savedChats);
           const filteredChats = parsedChats.filter((chat: ChatSession) => chat.id !== chatId);
-          localStorage.setItem('therapist-chats', JSON.stringify(filteredChats));
+          localStorage.setItem(storageKey, JSON.stringify(filteredChats));
           console.log('Successfully deleted chat from localStorage');
         }
       } catch (error) {
@@ -700,7 +705,8 @@ export default function TherapistChatPage() {
         const updatedSessions = chatSessions.map(chat => 
           chat.id === updatedChat.id ? updatedChat : chat
         );
-        localStorage.setItem('therapist-chats', JSON.stringify(updatedSessions));
+        const storageKey = `therapist-chats-${user.id}`;
+        localStorage.setItem(storageKey, JSON.stringify(updatedSessions));
         console.log('User message saved to localStorage immediately:', messageText);
         
         // Also try to save to database (but don't block on it)

@@ -106,6 +106,33 @@ const PostureHistory = () => {
       setLoading(true);
       setError(null);
 
+      // Debug: Check all localStorage keys
+      console.log('🔍 All localStorage keys:', Object.keys(localStorage));
+      
+      // Debug: Check what's in localStorage
+      let savedReports = localStorage.getItem('postureProgressReports');
+      console.log('🔍 Raw localStorage data:', savedReports);
+      
+      if (savedReports) {
+        try {
+          const parsed = JSON.parse(savedReports);
+          console.log('🔍 Parsed localStorage data:', parsed);
+          console.log('🔍 Number of reports:', parsed.length);
+          console.log('🔍 First report structure:', parsed[0]);
+        } catch (e) {
+          console.log('🔍 Failed to parse localStorage data:', e);
+        }
+      }
+
+      // Check for other possible keys
+      const possibleKeys = ['postureProgressReports', 'posture_history', 'posture_sessions', 'progress_reports'];
+      for (const key of possibleKeys) {
+        const data = localStorage.getItem(key);
+        if (data) {
+          console.log(`🔍 Found data in key "${key}":`, data.substring(0, 200) + '...');
+        }
+      }
+
       if (user && supabase) {
         // Load from database for logged-in users
         try {
@@ -163,8 +190,6 @@ const PostureHistory = () => {
         } catch (dbError) {
           console.error('Database load error:', dbError);
           // If database fails, try to load from localStorage as fallback
-          const savedReports = localStorage.getItem('postureProgressReports');
-          console.log('localStorage fallback data:', savedReports);
           if (savedReports) {
             console.log('Loading from localStorage as fallback');
             try {
@@ -216,8 +241,51 @@ const PostureHistory = () => {
         }
       } else {
         // Load from localStorage for guests or when supabase is not available
-        const savedReports = localStorage.getItem('postureProgressReports');
-        console.log('localStorage data:', savedReports);
+        
+        // Add test data if none exists (only for guest users)
+        if (!savedReports) {
+          console.log('🔍 No data found, adding test data...');
+          const testData = [
+            {
+              id: 'test-1',
+              timestamp: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+              score: 85,
+              status: 'good',
+              imageUrl: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=',
+              analysis: {
+                score: 85,
+                status: 'good',
+                recommendations: ['Keep up the good posture!', 'Consider taking breaks every hour'],
+                details: {
+                  head_position: 'Good',
+                  shoulder_alignment: 'Good',
+                  back_straightness: 'Good'
+                }
+              }
+            },
+            {
+              id: 'test-2',
+              timestamp: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
+              score: 65,
+              status: 'fair',
+              imageUrl: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=',
+              analysis: {
+                score: 65,
+                status: 'fair',
+                recommendations: ['Try to sit up straighter', 'Adjust your monitor height'],
+                details: {
+                  head_position: 'Fair',
+                  shoulder_alignment: 'Fair',
+                  back_straightness: 'Needs improvement'
+                }
+              }
+            }
+          ];
+          localStorage.setItem('postureProgressReports', JSON.stringify(testData));
+          console.log('🔍 Test data added to localStorage');
+          savedReports = JSON.stringify(testData);
+        }
+        
         if (savedReports) {
           console.log('Loading from localStorage for guest user');
           try {

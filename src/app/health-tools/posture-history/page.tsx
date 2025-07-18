@@ -69,13 +69,27 @@ const PostureHistory = () => {
   }, [user, userLoading]);
 
   useEffect(() => {
-    if (user !== undefined) {
+    if (!userLoading) {
       loadPostureHistory();
     }
-  }, [user]);
+  }, [user, userLoading]);
+
+  // Safety timeout to prevent infinite loading
+  useEffect(() => {
+    if (loading) {
+      const timeout = setTimeout(() => {
+        console.log('Loading timeout - forcing loading to false');
+        setLoading(false);
+        setError('Loading took too long. Please refresh the page.');
+      }, 15000); // 15 seconds timeout
+
+      return () => clearTimeout(timeout);
+    }
+  }, [loading]);
 
   const loadPostureHistory = async () => {
     try {
+      console.log('loadPostureHistory called with user:', user);
       setLoading(true);
       setError(null);
 
@@ -105,42 +119,96 @@ const PostureHistory = () => {
           console.error('Database load error:', dbError);
           // If database fails, try to load from localStorage as fallback
           const savedReports = localStorage.getItem('postureProgressReports');
+          console.log('localStorage fallback data:', savedReports);
           if (savedReports) {
             console.log('Loading from localStorage as fallback');
-            const parsedReports = JSON.parse(savedReports);
-            setSessions(parsedReports.map((report: any) => ({
-              id: report.id,
-              user_id: 'guest',
-              session_title: `${report.status.charAt(0).toUpperCase() + report.status.slice(1)} Posture Check`,
-              posture_score: report.score,
-              analysis_data: report.analysis,
-              image_urls: [report.imageUrl],
-              recommendations: report.analysis?.recommendations || [],
-              duration_seconds: 0,
-              created_at: report.timestamp
-            })));
+            try {
+              const parsedReports = JSON.parse(savedReports);
+              console.log('Parsed fallback reports:', parsedReports);
+              setSessions(parsedReports.map((report: any) => {
+                // Handle both old and new data formats
+                if (report.posture_score !== undefined) {
+                  // New format (from database or converted)
+                  return {
+                    id: report.id,
+                    user_id: report.user_id || 'guest',
+                    session_title: report.session_title || `${report.status?.charAt(0).toUpperCase() + report.status?.slice(1)} Posture Check`,
+                    posture_score: report.posture_score,
+                    analysis_data: report.analysis_data || report.analysis,
+                    image_urls: report.image_urls || [report.imageUrl],
+                    recommendations: report.recommendations || report.analysis?.recommendations || [],
+                    duration_seconds: report.duration_seconds || 0,
+                    created_at: report.created_at || report.timestamp
+                  };
+                } else {
+                  // Old format (from localStorage)
+                  return {
+                    id: report.id,
+                    user_id: 'guest',
+                    session_title: `${report.status?.charAt(0).toUpperCase() + report.status?.slice(1)} Posture Check`,
+                    posture_score: report.score,
+                    analysis_data: report.analysis,
+                    image_urls: [report.imageUrl],
+                    recommendations: report.analysis?.recommendations || [],
+                    duration_seconds: 0,
+                    created_at: report.timestamp
+                  };
+                }
+              }));
+            } catch (parseError) {
+              console.error('Error parsing fallback localStorage data:', parseError);
+              setSessions([]);
+            }
           } else {
+            console.log('No fallback localStorage data found');
             setSessions([]);
           }
         }
       } else {
         // Load from localStorage for guests or when supabase is not available
         const savedReports = localStorage.getItem('postureProgressReports');
+        console.log('localStorage data:', savedReports);
         if (savedReports) {
           console.log('Loading from localStorage for guest user');
-          const parsedReports = JSON.parse(savedReports);
-          setSessions(parsedReports.map((report: any) => ({
-            id: report.id,
-            user_id: 'guest',
-            session_title: `${report.status.charAt(0).toUpperCase() + report.status.slice(1)} Posture Check`,
-            posture_score: report.score,
-            analysis_data: report.analysis,
-            image_urls: [report.imageUrl],
-            recommendations: report.analysis?.recommendations || [],
-            duration_seconds: 0,
-            created_at: report.timestamp
-          })));
+                      try {
+              const parsedReports = JSON.parse(savedReports);
+              console.log('Parsed reports:', parsedReports);
+              setSessions(parsedReports.map((report: any) => {
+                // Handle both old and new data formats
+                if (report.posture_score !== undefined) {
+                  // New format (from database or converted)
+                  return {
+                    id: report.id,
+                    user_id: report.user_id || 'guest',
+                    session_title: report.session_title || `${report.status?.charAt(0).toUpperCase() + report.status?.slice(1)} Posture Check`,
+                    posture_score: report.posture_score,
+                    analysis_data: report.analysis_data || report.analysis,
+                    image_urls: report.image_urls || [report.imageUrl],
+                    recommendations: report.recommendations || report.analysis?.recommendations || [],
+                    duration_seconds: report.duration_seconds || 0,
+                    created_at: report.created_at || report.timestamp
+                  };
+                } else {
+                  // Old format (from localStorage)
+                  return {
+                    id: report.id,
+                    user_id: 'guest',
+                    session_title: `${report.status?.charAt(0).toUpperCase() + report.status?.slice(1)} Posture Check`,
+                    posture_score: report.score,
+                    analysis_data: report.analysis,
+                    image_urls: [report.imageUrl],
+                    recommendations: report.analysis?.recommendations || [],
+                    duration_seconds: 0,
+                    created_at: report.timestamp
+                  };
+                }
+              }));
+            } catch (parseError) {
+              console.error('Error parsing localStorage data:', parseError);
+              setSessions([]);
+            }
         } else {
+          console.log('No localStorage data found');
           setSessions([]);
         }
       }
@@ -148,6 +216,7 @@ const PostureHistory = () => {
       console.error('Error loading posture history:', err);
       setError('Failed to load posture history. Please try again.');
     } finally {
+      console.log('Setting loading to false');
       setLoading(false);
     }
   };
@@ -278,32 +347,81 @@ const PostureHistory = () => {
               </IconButton>
             </Tooltip>
             {process.env.NODE_ENV === 'development' && (
-              <Tooltip title="Add Test Data">
-                <IconButton
-                  onClick={() => {
-                    const testData = [
-                      {
-                        id: 'test-1',
-                        user_id: 'guest',
-                        session_title: 'Test Posture Check',
-                        posture_score: 85,
-                        analysis_data: { status: 'good', score: 85 },
-                        image_urls: ['data:image/jpeg;base64,test'],
-                        recommendations: ['Test recommendation'],
-                        duration_seconds: 30,
-                        created_at: new Date().toISOString()
+              <>
+                <Tooltip title="Add Test Data">
+                  <IconButton
+                    onClick={() => {
+                      const testData = [
+                        {
+                          id: 'test-1',
+                          user_id: 'guest',
+                          session_title: 'Test Posture Check',
+                          posture_score: 85,
+                          analysis_data: { status: 'good', score: 85 },
+                          image_urls: ['data:image/jpeg;base64,test'],
+                          recommendations: ['Test recommendation'],
+                          duration_seconds: 30,
+                          created_at: new Date().toISOString()
+                        }
+                      ];
+                      localStorage.setItem('postureProgressReports', JSON.stringify(testData));
+                      setSessions(testData);
+                      setSnackbarMessage('Test data added');
+                      setSnackbarOpen(true);
+                    }}
+                    sx={{ bgcolor: 'background.paper', boxShadow: 1 }}
+                  >
+                    <ErrorOutlineIcon />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Force Reload">
+                  <IconButton
+                    onClick={() => {
+                      console.log('Force reloading data...');
+                      setLoading(true);
+                      loadPostureHistory();
+                    }}
+                    sx={{ bgcolor: 'background.paper', boxShadow: 1 }}
+                  >
+                    <RefreshIcon />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Migrate Old Data">
+                  <IconButton
+                    onClick={() => {
+                      console.log('Migrating old data format...');
+                      const savedReports = localStorage.getItem('postureProgressReports');
+                      if (savedReports) {
+                        try {
+                          const parsedReports = JSON.parse(savedReports);
+                          const migratedReports = parsedReports.map((report: any) => ({
+                            id: report.id,
+                            user_id: 'guest',
+                            session_title: `${report.status?.charAt(0).toUpperCase() + report.status?.slice(1)} Posture Check`,
+                            posture_score: report.score,
+                            analysis_data: report.analysis,
+                            image_urls: [report.imageUrl],
+                            recommendations: report.analysis?.recommendations || [],
+                            duration_seconds: 0,
+                            created_at: report.timestamp
+                          }));
+                          localStorage.setItem('postureProgressReports', JSON.stringify(migratedReports));
+                          setSessions(migratedReports);
+                          setSnackbarMessage('Data migrated successfully');
+                          setSnackbarOpen(true);
+                        } catch (error) {
+                          console.error('Migration error:', error);
+                          setSnackbarMessage('Migration failed');
+                          setSnackbarOpen(true);
+                        }
                       }
-                    ];
-                    localStorage.setItem('postureProgressReports', JSON.stringify(testData));
-                    setSessions(testData);
-                    setSnackbarMessage('Test data added');
-                    setSnackbarOpen(true);
-                  }}
-                  sx={{ bgcolor: 'background.paper', boxShadow: 1 }}
-                >
-                  <ErrorOutlineIcon />
-                </IconButton>
-              </Tooltip>
+                    }}
+                    sx={{ bgcolor: 'background.paper', boxShadow: 1 }}
+                  >
+                    <ErrorOutlineIcon />
+                  </IconButton>
+                </Tooltip>
+              </>
             )}
           </Box>
         </Box>

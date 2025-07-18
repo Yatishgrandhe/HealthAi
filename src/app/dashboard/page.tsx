@@ -38,7 +38,6 @@ import {
   Chat as ChatIcon,
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
-import DataMigrationModal from "@/components/DataMigrationModal";
 import HealthDataService from "@/utils/healthDataService";
 
 interface HealthStats {
@@ -64,7 +63,6 @@ interface HealthActivity {
 export default function DashboardPage() {
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showMigrationModal, setShowMigrationModal] = useState(false);
   const [stats, setStats] = useState<HealthStats>({
     totalSessions: 0,
     postureChecks: 0,
@@ -89,14 +87,6 @@ export default function DashboardPage() {
       setUser(user);
       await fetchHealthData(user.id);
       setLoading(false);
-      
-      // Check if user should see migration modal (using correct localStorage keys)
-      const hasBrowserData = localStorage.getItem('therapist-chats') || 
-                            localStorage.getItem('postureProgressReports');
-      
-      if (hasBrowserData) {
-        setShowMigrationModal(true);
-      }
     };
     fetchUser();
   }, [router]);
@@ -659,19 +649,6 @@ export default function DashboardPage() {
           </Box>
         </motion.div>
       </Container>
-      
-      {/* Data Migration Modal */}
-      <DataMigrationModal
-        open={showMigrationModal}
-        onClose={() => setShowMigrationModal(false)}
-        onComplete={() => {
-          setShowMigrationModal(false);
-          // Refresh data after migration
-          if (user) {
-            fetchHealthData(user.id);
-          }
-        }}
-      />
     </Box>
   );
 } 

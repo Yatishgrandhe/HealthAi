@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Health AI - Reset Password</title>
+    <title>Health AI - Reauthentication</title>
     <style>
         * {
             margin: 0;
@@ -198,7 +198,7 @@
             color: #7B61FF;
         }
         
-        .password-reset-info {
+        .reauthentication-info {
             background: rgba(123, 97, 255, 0.08);
             border: 1px solid rgba(123, 97, 255, 0.2);
             border-radius: 8px;
@@ -207,8 +207,33 @@
             font-size: 14px;
         }
         
-        .password-reset-info strong {
+        .reauthentication-info strong {
             color: #7B61FF;
+        }
+        
+        .verification-code {
+            background: linear-gradient(135deg, #7B61FF, #E573B7);
+            color: white;
+            border-radius: 12px;
+            padding: 25px;
+            text-align: center;
+            margin: 25px 0;
+            box-shadow: 0 8px 32px rgba(123, 97, 255, 0.3);
+        }
+        
+        .verification-code-label {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            opacity: 0.9;
+        }
+        
+        .verification-code-value {
+            font-size: 32px;
+            font-weight: 800;
+            letter-spacing: 4px;
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
         
         .steps-list {
@@ -282,6 +307,11 @@
                 padding: 14px 28px;
                 font-size: 15px;
             }
+            
+            .verification-code-value {
+                font-size: 24px;
+                letter-spacing: 2px;
+            }
         }
     </style>
 </head>
@@ -298,50 +328,53 @@
         
         <!-- Content -->
         <div class="content">
-            <!-- Password Reset Section -->
+            <!-- Reauthentication Section -->
             <div class="section">
-                <h2 class="section-title">Reset Your Password</h2>
+                <h2 class="section-title">Confirm Reauthentication</h2>
                 <p class="section-content">
-                    We received a request to reset the password for your Health AI account. 
-                    Click the button below to securely reset your password and regain access to your health data.
+                    For your security, we need to verify your identity before proceeding with this action. 
+                    Please enter the verification code below to complete the reauthentication process.
                 </p>
                 
-                <div class="password-reset-info">
-                    <strong>🔐 Security:</strong> This link will expire in 1 hour for your protection. 
-                    If you didn't request this password reset, please ignore this email.
+                <div class="verification-code">
+                    <div class="verification-code-label">Enter this verification code:</div>
+                    <div class="verification-code-value">{{ .Token }}</div>
                 </div>
                 
-                <a href="{{ .ConfirmationURL }}" class="cta-button">Reset Password</a>
+                <div class="reauthentication-info">
+                    <strong>🔐 Security:</strong> This code will expire in 10 minutes for your protection. 
+                    If you didn't request this verification, please ignore this email.
+                </div>
             </div>
             
             <!-- Steps Section -->
             <div class="section">
-                <h2 class="section-title">What happens next?</h2>
+                <h2 class="section-title">How to complete reauthentication</h2>
                 <div class="steps-list">
                     <div class="step-item">
                         <div class="step-number">1</div>
-                        <div class="step-text">Click the "Reset Password" button above</div>
+                        <div class="step-text">Copy the verification code above</div>
                     </div>
                     <div class="step-item">
                         <div class="step-number">2</div>
-                        <div class="step-text">You'll be taken to a secure page to create your new password</div>
+                        <div class="step-text">Return to the Health AI application</div>
                     </div>
                     <div class="step-item">
                         <div class="step-number">3</div>
-                        <div class="step-text">Enter your new password and confirm it</div>
+                        <div class="step-text">Paste the code in the verification field</div>
                     </div>
                     <div class="step-item">
                         <div class="step-number">4</div>
-                        <div class="step-text">You'll be automatically logged in to your Health AI account</div>
+                        <div class="step-text">Click "Verify" to complete the process</div>
                     </div>
                 </div>
             </div>
             
             <!-- Security Note -->
             <div class="security-note">
-                <strong>🔒 Security Notice:</strong> This link is secure and will expire automatically. 
-                If you didn't request this password reset, please ignore this email or contact our support team immediately.
-                Never share this link with anyone.
+                <strong>🔒 Security Notice:</strong> This verification code is secure and will expire automatically. 
+                If you didn't request this reauthentication, please ignore this email or contact our support team immediately.
+                Never share this code with anyone.
             </div>
         </div>
         

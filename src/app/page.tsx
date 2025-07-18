@@ -49,7 +49,7 @@ const HeroBox = styled(Box)({
 
 const AnimatedText = [
   "AI-powered health tools for mental wellness and fitness.",
-  "Therapist chat, posture checker, and 90-day fitness planner.",
+  "Therapist chat, posture checker, and personalized health insights.",
   "Revolutionizing personal health with artificial intelligence.",
   "24/7 AI support for your mental and physical wellness.",
   "Health AI: Your personal wellness companion."

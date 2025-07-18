@@ -2,7 +2,6 @@ export interface PostureAnalysis {
   // Core Results
   score: number;
   status: "excellent" | "good" | "fair" | "poor";
-  confidence: number;
   
   // Detection Results
   personDetected: boolean;
@@ -164,7 +163,6 @@ export interface ScoreCalculation {
   penalties: PosturePenalty[];
   bonuses: PostureBonus[];
   finalScore: number;
-  confidence: number;
 }
 
 export interface PosturePenalty {

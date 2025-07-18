@@ -42,7 +42,6 @@ import HealthDataService from "@/utils/healthDataService";
 
 interface HealthStats {
   totalSessions: number;
-  fitnessWorkouts: number;
   postureChecks: number;
   healthScore: number;
   recentActivities: HealthActivity[];
@@ -66,7 +65,6 @@ export default function DashboardPage() {
   const [showMigrationModal, setShowMigrationModal] = useState(false);
   const [stats, setStats] = useState<HealthStats>({
     totalSessions: 0,
-    fitnessWorkouts: 0,
     postureChecks: 0,
     healthScore: 85,
     recentActivities: [],
@@ -104,24 +102,80 @@ export default function DashboardPage() {
   }, [router]);
 
   const fetchHealthData = async (userId: string) => {
-    if (!supabase) {
-      console.error('Supabase client not initialized');
-      return;
-    }
-    
     try {
-      // Fetch all health data using HealthDataService
-      const [
-        therapistSessions,
-        postureSessions,
-        savedRoutines,
-        healthProgress
-      ] = await Promise.all([
-        healthDataService.getTherapistChatSessions(),
-        healthDataService.getPostureCheckSessions(),
-        healthDataService.getSavedRoutines(),
-        healthDataService.getHealthProgress()
-      ]);
+      // First try to get data from localStorage for logged-in users
+      const localTherapistChat = localStorage.getItem('healthAI_therapistChat');
+      const localPostureCheck = localStorage.getItem('healthAI_postureCheck');
+      const localSavedRoutines = localStorage.getItem('healthAI_savedRoutines');
+      const localHealthProgress = localStorage.getItem('healthAI_healthProgress');
+
+      let therapistSessions: any[] = [];
+      let postureSessions: any[] = [];
+      let savedRoutines: any[] = [];
+      let healthProgress: any[] = [];
+
+      // Parse local data if available
+      if (localTherapistChat) {
+        try {
+          const parsed = JSON.parse(localTherapistChat);
+          therapistSessions = Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          console.warn('Error parsing local therapist chat data:', e);
+        }
+      }
+
+      if (localPostureCheck) {
+        try {
+          const parsed = JSON.parse(localPostureCheck);
+          postureSessions = Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          console.warn('Error parsing local posture check data:', e);
+        }
+      }
+
+      if (localSavedRoutines) {
+        try {
+          const parsed = JSON.parse(localSavedRoutines);
+          savedRoutines = Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          console.warn('Error parsing local saved routines data:', e);
+        }
+      }
+
+      if (localHealthProgress) {
+        try {
+          const parsed = JSON.parse(localHealthProgress);
+          healthProgress = Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          console.warn('Error parsing local health progress data:', e);
+        }
+      }
+
+      // If no local data, try to fetch from database
+      if (therapistSessions.length === 0 && postureSessions.length === 0 && savedRoutines.length === 0) {
+        if (supabase) {
+          try {
+            const [
+              dbTherapistSessions,
+              dbPostureSessions,
+              dbSavedRoutines,
+              dbHealthProgress
+            ] = await Promise.all([
+              healthDataService.getTherapistChatSessions(),
+              healthDataService.getPostureCheckSessions(),
+              healthDataService.getSavedRoutines(),
+              healthDataService.getHealthProgress()
+            ]);
+
+            therapistSessions = dbTherapistSessions || [];
+            postureSessions = dbPostureSessions || [];
+            savedRoutines = dbSavedRoutines || [];
+            healthProgress = dbHealthProgress || [];
+          } catch (dbError) {
+            console.warn('Error fetching from database, using local data only:', dbError);
+          }
+        }
+      }
 
       // Calculate stats
       const totalSessions = therapistSessions?.length || 0;
@@ -208,7 +262,6 @@ export default function DashboardPage() {
 
       setStats({
         totalSessions,
-        fitnessWorkouts: 0, // Removed fitness workouts
         postureChecks,
         healthScore: Math.round(healthScore),
         recentActivities: sortedActivities,
@@ -222,7 +275,6 @@ export default function DashboardPage() {
       // Set default stats if there's an error
       setStats({
         totalSessions: 0,
-        fitnessWorkouts: 0,
         postureChecks: 0,
         healthScore: 50,
         recentActivities: [
@@ -372,12 +424,12 @@ export default function DashboardPage() {
             />
 
             <StatCard
-              title="Fitness Plans"
-              value={stats.fitnessWorkouts}
-              icon={<DumbbellIcon />}
+              title="Saved Routines"
+              value={stats.savedRoutinesCount || 0}
+              icon={<BookmarkIcon />}
               color="#3399FF"
-              subtitle="Active plans"
-              progress={Math.min(100, (stats.fitnessWorkouts / 5) * 100)}
+              subtitle="Personal routines"
+              progress={Math.min(100, ((stats.savedRoutinesCount || 0) / 10) * 100)}
             />
 
             <StatCard
@@ -400,16 +452,7 @@ export default function DashboardPage() {
           </Box>
 
           {/* Additional Stats Row */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 3, mb: 6 }}>
-            <StatCard
-              title="Saved Routines"
-              value={stats.savedRoutinesCount || 0}
-              icon={<BookmarkIcon />}
-              color="#4CAF50"
-              subtitle="Personal routines"
-              progress={Math.min(100, ((stats.savedRoutinesCount || 0) / 10) * 100)}
-            />
-
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(2, 1fr)' }, gap: 3, mb: 6 }}>
             <StatCard
               title="Avg Posture Score"
               value={stats.averagePostureScore || 0}

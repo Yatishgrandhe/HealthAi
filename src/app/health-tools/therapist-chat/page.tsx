@@ -362,19 +362,24 @@ export default function TherapistChatPage() {
       )
     );
 
-    // Force immediate save to localStorage for voice messages
+    // Force immediate save to localStorage for voice messages (only for logged-in users)
     try {
-      const updatedSessions = chatSessions.map(chat => 
-        chat.id === updatedChat.id ? updatedChat : chat
-      );
-      localStorage.setItem('therapist-chats', JSON.stringify(updatedSessions));
-      setLastSavedMessage(message);
-      console.log('Voice message saved immediately:', message);
-      
-      // Clear the saved message indicator after 3 seconds
-      setTimeout(() => {
-        setLastSavedMessage("");
-      }, 3000);
+      if (user) {
+        const updatedSessions = chatSessions.map(chat => 
+          chat.id === updatedChat.id ? updatedChat : chat
+        );
+        localStorage.setItem('therapist-chats', JSON.stringify(updatedSessions));
+        setLastSavedMessage(message);
+        console.log('Voice message saved immediately:', message);
+        
+        // Clear the saved message indicator after 3 seconds
+        setTimeout(() => {
+          setLastSavedMessage("");
+        }, 3000);
+      } else {
+        // Guest users - no saving, just display the message
+        console.log('Guest user - voice message not saved');
+      }
     } catch (error) {
       console.error('Failed to save voice message:', error);
     }
@@ -387,56 +392,71 @@ export default function TherapistChatPage() {
   useEffect(() => {
     if (hasInitialized) return; // Prevent multiple initializations
     
-    const savedChats = localStorage.getItem('therapist-chats');
-    if (savedChats) {
-      const parsedChats = JSON.parse(savedChats).map((chat: ChatSession) => ({
-        ...chat,
-        createdAt: new Date(chat.createdAt),
-        updatedAt: new Date(chat.updatedAt),
-        messages: chat.messages.map((msg: Message) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp)
-        }))
-      }));
-      setChatSessions(parsedChats);
-      
-      // Clean up empty chats after loading
-      setTimeout(() => {
-        const emptyChats = parsedChats.filter((chat: ChatSession) =>
-          chat.messages.length === 0 || 
-          (chat.messages.length === 1 && chat.messages[0].sender === 'ai')
-        );
+    // Only load saved chats for logged-in users
+    if (user) {
+      const savedChats = localStorage.getItem('therapist-chats');
+      if (savedChats) {
+        const parsedChats = JSON.parse(savedChats).map((chat: ChatSession) => ({
+          ...chat,
+          createdAt: new Date(chat.createdAt),
+          updatedAt: new Date(chat.updatedAt),
+          messages: chat.messages.map((msg: Message) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }))
+        }));
+        setChatSessions(parsedChats);
         
-        emptyChats.forEach((chat: ChatSession) => {
-          deleteChat(chat.id);
-        });
-      }, 1000);
-    }
-    
-    // Only create a new chat if there are no existing chats
-    if (!savedChats || JSON.parse(savedChats).length === 0) {
+        // Clean up empty chats after loading
+        setTimeout(() => {
+          const emptyChats = parsedChats.filter((chat: ChatSession) =>
+            chat.messages.length === 0 || 
+            (chat.messages.length === 1 && chat.messages[0].sender === 'ai')
+          );
+          
+          emptyChats.forEach((chat: ChatSession) => {
+            deleteChat(chat.id);
+          });
+        }, 1000);
+      }
+      
+      // Only create a new chat if there are no existing chats
+      if (!savedChats || JSON.parse(savedChats).length === 0) {
+        const newChat: ChatSession = {
+          id: Date.now().toString(),
+          title: "New Chat",
+          messages: [],
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        
+        setChatSessions(prev => [newChat, ...prev]);
+        setCurrentChat(newChat);
+      } else {
+        // Set the first existing chat as current
+        const parsedChats = JSON.parse(savedChats).map((chat: ChatSession) => ({
+          ...chat,
+          createdAt: new Date(chat.createdAt),
+          updatedAt: new Date(chat.updatedAt),
+          messages: chat.messages.map((msg: Message) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }))
+        }));
+        setCurrentChat(parsedChats[0]);
+      }
+    } else {
+      // For guest users, create a new temporary chat that won't be saved
       const newChat: ChatSession = {
         id: Date.now().toString(),
-        title: "New Chat",
+        title: "Temporary Chat (Not Saved)",
         messages: [],
         createdAt: new Date(),
         updatedAt: new Date()
       };
       
-      setChatSessions(prev => [newChat, ...prev]);
+      setChatSessions([newChat]);
       setCurrentChat(newChat);
-    } else {
-      // Set the first existing chat as current
-      const parsedChats = JSON.parse(savedChats).map((chat: ChatSession) => ({
-        ...chat,
-        createdAt: new Date(chat.createdAt),
-        updatedAt: new Date(chat.updatedAt),
-        messages: chat.messages.map((msg: Message) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp)
-        }))
-      }));
-      setCurrentChat(parsedChats[0]);
     }
     
     setHasInitialized(true);
@@ -445,19 +465,20 @@ export default function TherapistChatPage() {
     setTimeout(() => {
       inputRef.current?.focus();
     }, 100);
-  }, [hasInitialized]);
+  }, [hasInitialized, user]);
 
   // Save chats to localStorage whenever they change - with error handling
   useEffect(() => {
-    try {
-      if (chatSessions.length > 0) {
+    // Only save chats for logged-in users
+    if (user && chatSessions.length > 0) {
+      try {
         localStorage.setItem('therapist-chats', JSON.stringify(chatSessions));
         console.log('Chats saved to localStorage:', chatSessions.length, 'sessions');
+      } catch (error) {
+        console.error('Failed to save chats to localStorage:', error);
       }
-    } catch (error) {
-      console.error('Failed to save chats to localStorage:', error);
     }
-  }, [chatSessions]);
+  }, [chatSessions, user]);
 
   // Scroll to bottom when new messages are added (but not during typing)
   useEffect(() => {
@@ -504,7 +525,7 @@ export default function TherapistChatPage() {
   const createNewChat = () => {
     const newChat: ChatSession = {
       id: Date.now().toString(),
-      title: "New Chat",
+      title: user ? "New Chat" : "Temporary Chat (Not Saved)",
       messages: [],
       createdAt: new Date(),
       updatedAt: new Date()
@@ -532,16 +553,18 @@ export default function TherapistChatPage() {
       setCurrentChat(chatSessions.find(chat => chat.id !== chatId) || null);
     }
     
-    // Remove from localStorage
-    try {
-      const savedChats = localStorage.getItem('therapist-chats');
-      if (savedChats) {
-        const parsedChats = JSON.parse(savedChats);
-        const filteredChats = parsedChats.filter((chat: ChatSession) => chat.id !== chatId);
-        localStorage.setItem('therapist-chats', JSON.stringify(filteredChats));
+    // Remove from localStorage (only for logged-in users)
+    if (user) {
+      try {
+        const savedChats = localStorage.getItem('therapist-chats');
+        if (savedChats) {
+          const parsedChats = JSON.parse(savedChats);
+          const filteredChats = parsedChats.filter((chat: ChatSession) => chat.id !== chatId);
+          localStorage.setItem('therapist-chats', JSON.stringify(filteredChats));
+        }
+      } catch (error) {
+        console.error('Failed to delete chat from localStorage:', error);
       }
-    } catch (error) {
-      console.error('Failed to delete chat from localStorage:', error);
     }
     
     setDeleteDialogOpen(false);
@@ -611,19 +634,16 @@ export default function TherapistChatPage() {
           );
           localStorage.setItem('therapist-chats', JSON.stringify(updatedSessions));
         }
+        setLastSavedMessage(messageText);
+        console.log('User message saved immediately:', messageText);
+        // Clear the saved message indicator after 3 seconds
+        setTimeout(() => {
+          setLastSavedMessage("");
+        }, 3000);
       } else {
-        // Save to localStorage for guests
-        const updatedSessions = chatSessions.map(chat => 
-          chat.id === updatedChat.id ? updatedChat : chat
-        );
-        localStorage.setItem('therapist-chats', JSON.stringify(updatedSessions));
+        // Guest users - no saving, just display the message
+        console.log('Guest user - message not saved');
       }
-      setLastSavedMessage(messageText);
-      console.log('User message saved immediately:', messageText);
-      // Clear the saved message indicator after 3 seconds
-      setTimeout(() => {
-        setLastSavedMessage("");
-      }, 3000);
     } catch (error) {
       console.error('Failed to save user message:', error);
     }
@@ -700,11 +720,11 @@ export default function TherapistChatPage() {
       {/* Notice for logged-out users */}
       {!user && (
         <Box sx={{ position: "absolute", top: -30, left: 0, right: 0, zIndex: 10, px: 2 }}>
-          <Alert severity="info" sx={{ fontSize: '12px', py: 0.5 }}>
+          <Alert severity="warning" sx={{ fontSize: '12px', py: 0.5 }}>
             <Typography variant="body2" sx={{ fontSize: '12px' }}>
-              <strong>Guest User:</strong> Chat sessions are not saved. 
+              <strong>⚠️ Guest User Notice:</strong> Chat sessions are NOT saved and will be lost when you leave this page. 
               <Link href="/register" style={{ color: '#1976d2', textDecoration: 'none', marginLeft: '4px' }}>
-                Sign up to save conversations!
+                Sign up to save your conversations permanently!
               </Link>
             </Typography>
           </Alert>

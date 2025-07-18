@@ -133,211 +133,120 @@ const PostureHistory = () => {
         }
       }
 
-      if (user && supabase) {
-        // Load from database for logged-in users
+      // Load from localStorage for all users (both logged-in and guest users)
+      console.log('Loading posture history from localStorage for all users');
+      
+      const savedReportsData = localStorage.getItem('postureProgressReports');
+      
+      if (savedReportsData) {
         try {
-          console.log('Loading posture history from database for user:', user.id);
+          const parsedReports = JSON.parse(savedReportsData);
+          console.log('Parsed localStorage reports:', parsedReports);
           
-          const { data, error } = await supabase
-            .from('posture_check_sessions')
-            .select(`
-              id,
-              user_id,
-              session_title,
-              posture_score,
-              analysis_data,
-              image_urls,
-              recommendations,
-              duration_seconds,
-              created_at
-            `)
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false });
-
-          if (error) {
-            console.error('Database error:', error);
-            // If table doesn't exist, show empty state
-            if (error.code === '42P01') { // Table doesn't exist
-              setSessions([]);
-              setError('Posture history feature is not yet set up. Please try again later.');
+          // Transform localStorage data to match the expected format
+          const transformedSessions = parsedReports.map((report: any) => {
+            // Handle both old and new data formats
+            if (report.posture_score !== undefined) {
+              // New format (from posture check page)
+              return {
+                id: report.id || Date.now().toString(),
+                user_id: user?.id || 'guest',
+                session_title: report.status ? `${report.status.charAt(0).toUpperCase() + report.status.slice(1)} Posture Check` : 'Posture Check',
+                posture_score: report.score || 0,
+                analysis_data: report.analysis || {},
+                image_urls: report.imageUrl ? [report.imageUrl] : [],
+                recommendations: report.analysis?.recommendations || [],
+                duration_seconds: 0,
+                created_at: report.timestamp || new Date().toISOString()
+              };
             } else {
-              throw error;
+              // Old format (from database)
+              return {
+                id: report.id || Date.now().toString(),
+                user_id: report.user_id || user?.id || 'guest',
+                session_title: report.session_title || 'Posture Check',
+                posture_score: report.posture_score || 0,
+                analysis_data: report.analysis_data || {},
+                image_urls: report.image_urls || [],
+                recommendations: report.recommendations || [],
+                duration_seconds: report.duration_seconds || 0,
+                created_at: report.created_at || new Date().toISOString()
+              };
             }
-          } else {
-            console.log('Loaded sessions from database:', data);
-            
-            // Transform database data to match the expected format
-            const transformedSessions = (data || []).map(session => ({
-              id: session.id,
-              user_id: session.user_id,
-              session_title: session.session_title || 'Posture Check',
-              posture_score: session.posture_score || 0,
-              analysis_data: session.analysis_data || {},
-              image_urls: session.image_urls || [],
-              recommendations: session.recommendations || {},
-              duration_seconds: session.duration_seconds || 0,
-              created_at: session.created_at
-            }));
-            
-            setSessions(transformedSessions);
-            
-            // Show success message if data was loaded
-            if (transformedSessions.length > 0) {
-              setSnackbarMessage(`Loaded ${transformedSessions.length} posture sessions`);
-              setSnackbarOpen(true);
-            }
+          });
+          
+          console.log('Transformed sessions from localStorage:', transformedSessions);
+          setSessions(transformedSessions);
+          
+          // Show success message if data was loaded
+          if (transformedSessions.length > 0) {
+            setSnackbarMessage(`Loaded ${transformedSessions.length} posture sessions from local storage`);
+            setSnackbarOpen(true);
           }
-        } catch (dbError) {
-          console.error('Database load error:', dbError);
-          // If database fails, try to load from localStorage as fallback
-          if (savedReports) {
-            console.log('Loading from localStorage as fallback');
-            try {
-              const parsedReports = JSON.parse(savedReports);
-              console.log('Parsed fallback reports:', parsedReports);
-              setSessions(parsedReports.map((report: any) => {
-                // Handle both old and new data formats
-                if (report.posture_score !== undefined) {
-                  // New format (from database or converted)
-                  return {
-                    id: report.id,
-                    user_id: report.user_id || 'guest',
-                    session_title: report.session_title || `${report.status?.charAt(0).toUpperCase() + report.status?.slice(1)} Posture Check`,
-                    posture_score: report.posture_score,
-                    analysis_data: report.analysis_data || report.analysis,
-                    image_urls: report.image_urls || [report.imageUrl],
-                    recommendations: report.recommendations || report.analysis?.recommendations || [],
-                    duration_seconds: report.duration_seconds || 0,
-                    created_at: report.created_at || report.timestamp
-                  };
-                } else {
-                  // Old format (from localStorage)
-                  return {
-                    id: report.id,
-                    user_id: 'guest',
-                    session_title: `${report.status?.charAt(0).toUpperCase() + report.status?.slice(1)} Posture Check`,
-                    posture_score: report.score,
-                    analysis_data: report.analysis,
-                    image_urls: [report.imageUrl],
-                    recommendations: report.analysis?.recommendations || [],
-                    duration_seconds: 0,
-                    created_at: report.timestamp
-                  };
-                }
-              }));
-              
-              setSnackbarMessage('Loaded data from local storage (database unavailable)');
-              setSnackbarOpen(true);
-            } catch (parseError) {
-              console.error('Error parsing fallback localStorage data:', parseError);
-              setSessions([]);
-              setError('Failed to load posture history data.');
-            }
-          } else {
-            console.log('No fallback localStorage data found');
-            setSessions([]);
-            setError('No posture history data found.');
-          }
+        } catch (parseError) {
+          console.error('Error parsing localStorage data:', parseError);
+          setError('Failed to load posture history from local storage');
+          setSessions([]);
         }
       } else {
-        // Load from localStorage for guests or when supabase is not available
+        // No data in localStorage
+        console.log('No posture data found in localStorage');
+        setSessions([]);
         
-        // Add test data if none exists (only for guest users)
-        if (!savedReports) {
-          console.log('🔍 No data found, adding test data...');
-          const testData = [
-            {
-              id: 'test-1',
-              timestamp: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-              score: 85,
-              status: 'good',
-              imageUrl: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=',
-              analysis: {
-                score: 85,
-                status: 'good',
-                recommendations: ['Keep up the good posture!', 'Consider taking breaks every hour'],
-                details: {
-                  head_position: 'Good',
-                  shoulder_alignment: 'Good',
-                  back_straightness: 'Good'
-                }
-              }
+        // Add some test data for demonstration if no data exists
+        const testData = [
+          {
+            id: 'test-1',
+            user_id: 'guest',
+            session_title: 'Good Posture Check',
+            posture_score: 75,
+            analysis_data: {
+              detailedAnalysis: {
+                headNeck: { score: 80, issues: ['Minor head tilt detected'] },
+                shoulders: { score: 75, issues: ['Slight shoulder asymmetry'] },
+                spine: { score: 85, issues: [] },
+                hips: { score: 70, issues: ['Minor hip tilt'] },
+                overall: { score: 75, issues: ['Overall good posture with minor improvements needed'] }
+              },
+              feedback: ['✅ Good overall posture', '⚠️ Minor improvements needed', '📊 Continue monitoring'],
+              recommendations: ['Practice shoulder blade squeezes', 'Improve head position awareness', 'Regular posture checks']
             },
-            {
-              id: 'test-2',
-              timestamp: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
-              score: 65,
-              status: 'fair',
-              imageUrl: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=',
-              analysis: {
-                score: 65,
-                status: 'fair',
-                recommendations: ['Try to sit up straighter', 'Adjust your monitor height'],
-                details: {
-                  head_position: 'Fair',
-                  shoulder_alignment: 'Fair',
-                  back_straightness: 'Needs improvement'
-                }
-              }
-            }
-          ];
-          localStorage.setItem('postureProgressReports', JSON.stringify(testData));
-          console.log('🔍 Test data added to localStorage');
-          savedReports = JSON.stringify(testData);
-        }
-        
-        if (savedReports) {
-          console.log('Loading from localStorage for guest user');
-          try {
-            const parsedReports = JSON.parse(savedReports);
-            console.log('Parsed reports:', parsedReports);
-            setSessions(parsedReports.map((report: any) => {
-              // Handle both old and new data formats
-              if (report.posture_score !== undefined) {
-                // New format (from database or converted)
-                return {
-                  id: report.id,
-                  user_id: report.user_id || 'guest',
-                  session_title: report.session_title || `${report.status?.charAt(0).toUpperCase() + report.status?.slice(1)} Posture Check`,
-                  posture_score: report.posture_score,
-                  analysis_data: report.analysis_data || report.analysis,
-                  image_urls: report.image_urls || [report.imageUrl],
-                  recommendations: report.recommendations || report.analysis?.recommendations || [],
-                  duration_seconds: report.duration_seconds || 0,
-                  created_at: report.created_at || report.timestamp
-                };
-              } else {
-                // Old format (from localStorage)
-                return {
-                  id: report.id,
-                  user_id: 'guest',
-                  session_title: `${report.status?.charAt(0).toUpperCase() + report.status?.slice(1)} Posture Check`,
-                  posture_score: report.score,
-                  analysis_data: report.analysis,
-                  image_urls: [report.imageUrl],
-                  recommendations: report.analysis?.recommendations || [],
-                  duration_seconds: 0,
-                  created_at: report.timestamp
-                };
-              }
-            }));
-            
-            setSnackbarMessage(`Loaded ${parsedReports.length} posture sessions from local storage`);
-            setSnackbarOpen(true);
-          } catch (parseError) {
-            console.error('Error parsing localStorage data:', parseError);
-            setSessions([]);
-            setError('Failed to load posture history data.');
+            image_urls: [],
+            recommendations: [],
+            duration_seconds: 120,
+            created_at: new Date(Date.now() - 86400000).toISOString() // 1 day ago
+          },
+          {
+            id: 'test-2',
+            user_id: 'guest',
+            session_title: 'Fair Posture Check',
+            posture_score: 65,
+            analysis_data: {
+              detailedAnalysis: {
+                headNeck: { score: 60, issues: ['Forward head posture detected'] },
+                shoulders: { score: 70, issues: ['Rounded shoulders'] },
+                spine: { score: 75, issues: ['Minor spinal curvature'] },
+                hips: { score: 65, issues: ['Anterior pelvic tilt'] },
+                overall: { score: 65, issues: ['Several areas need improvement'] }
+              },
+              feedback: ['⚠️ Several posture issues detected', '📊 Improvement plan needed', '💪 Focus on core exercises'],
+              recommendations: ['Practice chin tucks', 'Strengthen upper back muscles', 'Improve ergonomic setup']
+            },
+            image_urls: [],
+            recommendations: [],
+            duration_seconds: 90,
+            created_at: new Date(Date.now() - 172800000).toISOString() // 2 days ago
           }
-        } else {
-          console.log('No localStorage data found');
-          setSessions([]);
-          setError('No posture history data found. Try completing a posture check first.');
-        }
+        ];
+        
+        setSessions(testData);
+        setSnackbarMessage('Demo data loaded. Complete a posture check to see your real data!');
+        setSnackbarOpen(true);
       }
     } catch (error) {
       console.error('Error loading posture history:', error);
-      setError('Failed to load posture history. Please try again.');
+      setError('Failed to load posture history');
+      setSessions([]);
     } finally {
       setLoading(false);
     }
@@ -424,30 +333,19 @@ const PostureHistory = () => {
     if (!confirm('Are you sure you want to delete this session?')) return;
     
     try {
-      if (user && supabase) {
-        // Delete from database
-        const { error } = await supabase
-          .from('posture_check_sessions')
-          .delete()
-          .eq('id', sessionId)
-          .eq('user_id', user.id);
-        
-        if (error) throw error;
-        
-        // Remove from local state
-        setSessions(prev => prev.filter(s => s.id !== sessionId));
-        setSnackbarMessage('Session deleted successfully');
-        setSnackbarOpen(true);
-      } else {
-        // Delete from localStorage
-        const savedReports = JSON.parse(localStorage.getItem('postureProgressReports') || '[]');
-        const updatedReports = savedReports.filter((report: any) => report.id !== sessionId);
-        localStorage.setItem('postureProgressReports', JSON.stringify(updatedReports));
-        
-        setSessions(prev => prev.filter(s => s.id !== sessionId));
-        setSnackbarMessage('Session deleted successfully');
-        setSnackbarOpen(true);
-      }
+      // Delete from localStorage for all users
+      const savedReports = JSON.parse(localStorage.getItem('postureProgressReports') || '[]');
+      const updatedReports = savedReports.filter((report: any) => {
+        // Handle both old and new data formats
+        const reportId = report.id || report.timestamp || Date.now().toString();
+        return reportId !== sessionId;
+      });
+      localStorage.setItem('postureProgressReports', JSON.stringify(updatedReports));
+      
+      // Remove from local state
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+      setSnackbarMessage('Session deleted successfully from local storage');
+      setSnackbarOpen(true);
     } catch (error) {
       console.error('Error deleting session:', error);
       setSnackbarMessage('Failed to delete session');
@@ -569,9 +467,9 @@ const PostureHistory = () => {
         {!user && (
           <Alert severity="info" sx={{ mb: 3 }}>
             <Typography variant="body2">
-              <strong>Guest User Notice:</strong> As a guest, your posture checks are saved locally and cannot be viewed in the history page. 
+              <strong>Guest User Notice:</strong> Your posture checks are saved locally in your browser. 
               <Link href="/register" style={{ color: '#1976d2', textDecoration: 'none', marginLeft: '8px' }}>
-                Sign up to unlock all features!
+                Sign up to sync your data across devices!
               </Link>
             </Typography>
           </Alert>

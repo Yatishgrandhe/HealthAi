@@ -1853,11 +1853,6 @@ export default function PostureCheckPage() {
                         py: 1
                       }}
                     />
-                  {analysis.confidence && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                      Confidence: {Math.round(analysis.confidence * 100)}%
-                    </Typography>
-                  )}
                   </Box>
 
                   {/* Detailed Analysis */}

@@ -44,13 +44,6 @@ const stats: StatItem[] = [
     color: "#004499"
   },
   {
-    icon: <FitnessCenter sx={{ fontSize: 40 }} />,
-    value: 90,
-    suffix: "Days",
-    label: "Fitness Programs",
-    color: "#000000"
-  },
-  {
     icon: <TrendingUp sx={{ fontSize: 40 }} />,
     value: 95,
     suffix: "%",
@@ -63,6 +56,13 @@ const stats: StatItem[] = [
     suffix: "/7",
     label: "AI Support Available",
     color: "#1A1A1A"
+  },
+  {
+    icon: <FitnessCenter sx={{ fontSize: 40 }} />,
+    value: 100,
+    suffix: "%",
+    label: "Privacy Focused",
+    color: "#000000"
   }
 ];
 

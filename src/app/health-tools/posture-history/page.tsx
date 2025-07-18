@@ -118,7 +118,9 @@ const PostureHistory = () => {
         // Load from localStorage for logged-in users only
         console.log('Loading posture history from localStorage for logged-in user');
         
-        const savedReportsData = localStorage.getItem('postureProgressReports');
+        // Use user-specific storage key
+        const storageKey = `postureProgressReports-${user.id}`;
+        const savedReportsData = localStorage.getItem(storageKey);
         
         if (savedReportsData) {
           try {
@@ -272,13 +274,14 @@ const PostureHistory = () => {
     try {
       if (user) {
         // Delete from localStorage for logged-in users only
-        const savedReports = JSON.parse(localStorage.getItem('postureProgressReports') || '[]');
+        const storageKey = `postureProgressReports-${user.id}`;
+        const savedReports = JSON.parse(localStorage.getItem(storageKey) || '[]');
         const updatedReports = savedReports.filter((report: any) => {
           // Handle both old and new data formats
           const reportId = report.id || report.timestamp || Date.now().toString();
           return reportId !== sessionId;
         });
-        localStorage.setItem('postureProgressReports', JSON.stringify(updatedReports));
+        localStorage.setItem(storageKey, JSON.stringify(updatedReports));
         
         // Remove from local state
         setSessions(prev => prev.filter(s => s.id !== sessionId));
@@ -298,7 +301,8 @@ const PostureHistory = () => {
   const handleClearAllData = () => {
     if (user && confirm('Are you sure you want to clear all local data? This cannot be undone.')) {
       try {
-        localStorage.removeItem('postureProgressReports');
+        const storageKey = `postureProgressReports-${user.id}`;
+        localStorage.removeItem(storageKey);
         setSessions([]);
         setSnackbarMessage("All local data cleared");
         setSnackbarOpen(true);

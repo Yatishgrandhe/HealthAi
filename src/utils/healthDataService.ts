@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import imageUploadService from './imageUploadService';
 
 export interface HealthData {
   id?: string;
@@ -198,143 +199,148 @@ class HealthDataService {
       query = query.eq('data_key', dataKey);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
     return data;
   }
 
   // Browser data migration
   async migrateBrowserData(browserData: any) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    // Start migration tracking
-    const { data: migration, error: migrationError } = await supabase
-      .from('browser_data_migrations')
-      .insert({
-        user_id: user.id,
-        migration_type: 'browser_to_account',
-        migration_status: 'in_progress'
-      })
-      .select()
-      .single();
+    const migrationPromises = [];
 
-    if (migrationError) throw migrationError;
+    // Migrate therapist chat sessions
+    if (browserData.therapistChat && browserData.therapistChat.length > 0) {
+      for (const session of browserData.therapistChat) {
+        const migrationPromise = supabase!
+          .from('therapist_chat_sessions')
+          .upsert({
+            user_id: user.id,
+            session_title: session.session_title || 'Migrated Session',
+            messages: session.messages || [],
+            ai_model_used: session.ai_model_used || 'unknown',
+            session_duration: session.session_duration || 0,
+            mood_score: session.mood_score || 0,
+            tags: session.tags || [],
+            created_at: session.created_at || new Date().toISOString()
+          });
+        migrationPromises.push(migrationPromise);
+      }
+    }
+
+    // Migrate posture check sessions
+    if (browserData.postureCheck && browserData.postureCheck.length > 0) {
+      for (const session of browserData.postureCheck) {
+        const migrationPromise = supabase!
+          .from('posture_check_sessions')
+          .upsert({
+            user_id: user.id,
+            session_title: session.session_title || 'Migrated Posture Check',
+            posture_score: session.posture_score || 0,
+            analysis_data: session.analysis_data || {},
+            image_urls: session.image_urls || [],
+            recommendations: session.recommendations || {},
+            duration_seconds: session.duration_seconds || 0,
+            created_at: session.created_at || new Date().toISOString()
+          });
+        migrationPromises.push(migrationPromise);
+      }
+    }
+
+    // Migrate fitness planner data
+    if (browserData.fitnessPlanner && browserData.fitnessPlanner.length > 0) {
+      for (const plan of browserData.fitnessPlanner) {
+        const migrationPromise = supabase!
+          .from('fitness_plans')
+          .upsert({
+            user_id: user.id,
+            plan_name: plan.plan_name || 'Migrated Fitness Plan',
+            plan_type: plan.plan_type || 'general',
+            duration_days: plan.duration_days || 30,
+            difficulty_level: plan.difficulty_level || 'beginner',
+            exercises: plan.exercises || {},
+            nutrition_plan: plan.nutrition_plan || {},
+            goals: plan.goals || {},
+            is_active: plan.is_active || false,
+            created_at: plan.created_at || new Date().toISOString()
+          });
+        migrationPromises.push(migrationPromise);
+      }
+    }
+
+    // Migrate saved routines
+    if (browserData.savedRoutines && browserData.savedRoutines.length > 0) {
+      for (const routine of browserData.savedRoutines) {
+        const migrationPromise = supabase!
+          .from('saved_routines')
+          .upsert({
+            user_id: user.id,
+            routine_name: routine.routine_name || 'Migrated Routine',
+            routine_type: routine.routine_type || 'custom',
+            routine_data: routine.routine_data || {},
+            image_urls: routine.image_urls || [],
+            is_favorite: routine.is_favorite || false,
+            created_at: routine.created_at || new Date().toISOString()
+          });
+        migrationPromises.push(migrationPromise);
+      }
+    }
+
+    // Migrate health progress
+    if (browserData.healthProgress && browserData.healthProgress.length > 0) {
+      for (const progress of browserData.healthProgress) {
+        const migrationPromise = supabase!
+          .from('health_progress')
+          .upsert({
+            user_id: user.id,
+            metric_type: progress.metric_type || 'general',
+            metric_value: progress.metric_value || 0,
+            metric_unit: progress.metric_unit || '',
+            notes: progress.notes || '',
+            image_urls: progress.image_urls || [],
+            recorded_at: progress.recorded_at || new Date().toISOString()
+          });
+        migrationPromises.push(migrationPromise);
+      }
+    }
 
     try {
-      const migratedData = [];
-      
-      // Migrate therapist chat data
-      if (browserData.therapistChat) {
-        for (const session of browserData.therapistChat) {
-          const savedSession = await this.saveTherapistChatSession({
-            session_title: session.title || 'Migrated Session',
-            messages: session.messages || [],
-            ai_model_used: session.model || 'default',
-            session_duration: session.duration || 0,
-            mood_score: session.moodScore || null,
-            tags: session.tags || []
-          });
-          migratedData.push(savedSession);
-        }
-      }
-
-      // Migrate posture check data
-      if (browserData.postureCheck) {
-        for (const session of browserData.postureCheck) {
-          const savedSession = await this.savePostureCheckSession({
-            session_title: session.title || 'Migrated Posture Check',
-            posture_score: session.score || 0,
-            analysis_data: session.analysis || {},
-            image_urls: session.imageUrls || [],
-            recommendations: session.recommendations || {},
-            duration_seconds: session.duration || 0
-          });
-          migratedData.push(savedSession);
-        }
-      }
-
-      // Migrate fitness planner data
-      if (browserData.fitnessPlanner) {
-        for (const plan of browserData.fitnessPlanner) {
-          const savedPlan = await this.saveFitnessPlan({
-            plan_name: plan.name || 'Migrated Plan',
-            plan_type: plan.type || 'general',
-            duration_days: plan.duration || 90,
-            difficulty_level: plan.difficulty || 'beginner',
-            exercises: plan.exercises || {},
-            nutrition_plan: plan.nutrition || {},
-            goals: plan.goals || {},
-            is_active: plan.isActive !== false
-          });
-          migratedData.push(savedPlan);
-        }
-      }
-
-      // Migrate saved routines
-      if (browserData.savedRoutines) {
-        for (const routine of browserData.savedRoutines) {
-          const savedRoutine = await this.saveSavedRoutine({
-            routine_name: routine.name || 'Migrated Routine',
-            routine_type: routine.type || 'custom',
-            routine_data: routine.data || {},
-            image_urls: routine.imageUrls || [],
-            is_favorite: routine.isFavorite || false
-          });
-          migratedData.push(savedRoutine);
-        }
-      }
-
-      // Update migration status
-      await supabase
-        .from('browser_data_migrations')
-        .update({
-          migration_status: 'completed',
-          data_count: migratedData.length,
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', migration.id);
-
-      return {
-        success: true,
-        migratedCount: migratedData.length,
-        data: migratedData
-      };
-
+      await Promise.all(migrationPromises);
+      return { success: true, migratedCount: migrationPromises.length };
     } catch (error) {
-      // Update migration status to failed
-      await supabase
-        .from('browser_data_migrations')
-        .update({
-          migration_status: 'failed',
-          error_message: error instanceof Error ? error.message : 'Unknown error'
-        })
-        .eq('id', migration.id);
-
+      console.error('Error migrating browser data:', error);
       throw error;
     }
   }
 
-  // Check if user has browser data to migrate
+  // Check if browser data migration is needed
   async checkBrowserDataMigration() {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase
-      .from('browser_data_migrations')
-      .select('*')
+    const { data, error } = await supabase!
+      .from('user_health_data')
+      .select('data_key')
       .eq('user_id', user.id)
-      .eq('migration_type', 'browser_to_account')
-      .order('created_at', { ascending: false })
-      .limit(1);
+      .eq('data_type', 'browser_data')
+      .eq('data_key', 'migration_completed')
+      .single();
 
-    if (error) throw error;
-    return data[0] || null;
+    if (error && error.code !== 'PGRST116') {
+      throw error;
+    }
+
+    return !data; // Return true if migration is needed
   }
 
   // Therapist chat operations
   async saveTherapistChatSession(session: Omit<TherapistChatSession, 'id' | 'user_id' | 'created_at' | 'updated_at'>) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('therapist_chat_sessions')
       .insert({
         user_id: user.id,
@@ -348,9 +354,10 @@ class HealthDataService {
   }
 
   async getTherapistChatSessions() {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('therapist_chat_sessions')
       .select('*')
       .eq('user_id', user.id)
@@ -362,9 +369,10 @@ class HealthDataService {
 
   // Posture check operations
   async savePostureCheckSession(session: Omit<PostureCheckSession, 'id' | 'user_id' | 'created_at'>) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('posture_check_sessions')
       .insert({
         user_id: user.id,
@@ -378,9 +386,10 @@ class HealthDataService {
   }
 
   async getPostureCheckSessions() {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('posture_check_sessions')
       .select('*')
       .eq('user_id', user.id)
@@ -390,13 +399,12 @@ class HealthDataService {
     return data;
   }
 
-  // Enhanced fitness plan operations
+  // Fitness plan operations
   async saveFitnessPlan(plan: Omit<FitnessPlan, 'id' | 'user_id' | 'created_at' | 'updated_at'>) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    if (!supabase) throw new Error('Supabase client not initialized');
-    
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('fitness_plans')
       .insert({
         user_id: user.id,
@@ -410,9 +418,10 @@ class HealthDataService {
   }
 
   async getFitnessPlans() {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('fitness_plans')
       .select('*')
       .eq('user_id', user.id)
@@ -423,27 +432,27 @@ class HealthDataService {
   }
 
   async getActiveFitnessPlan() {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    if (!supabase) throw new Error('Supabase client not initialized');
-    
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('fitness_plans')
       .select('*')
       .eq('user_id', user.id)
       .eq('is_active', true)
       .single();
 
-    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows returned
+    if (error && error.code !== 'PGRST116') {
+      throw error;
+    }
     return data;
   }
 
   async updateFitnessPlan(planId: string, updates: Partial<FitnessPlan>) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    if (!supabase) throw new Error('Supabase client not initialized');
-    
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('fitness_plans')
       .update(updates)
       .eq('id', planId)
@@ -457,13 +466,12 @@ class HealthDataService {
 
   // Daily fitness plan operations
   async saveDailyFitnessPlan(dailyPlan: Omit<DailyFitnessPlan, 'id' | 'user_id' | 'created_at'>) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    if (!supabase) throw new Error('Supabase client not initialized');
-    
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('daily_fitness_plans')
-      .upsert({
+      .insert({
         user_id: user.id,
         ...dailyPlan
       })
@@ -475,11 +483,10 @@ class HealthDataService {
   }
 
   async getDailyFitnessPlans(fitnessPlanId?: string) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    if (!supabase) throw new Error('Supabase client not initialized');
-    
-    let query = supabase
+    let query = supabase!
       .from('daily_fitness_plans')
       .select('*')
       .eq('user_id', user.id);
@@ -494,9 +501,10 @@ class HealthDataService {
   }
 
   async getDailyFitnessPlan(dayNumber: number, fitnessPlanId?: string) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    let query = supabase
+    let query = supabase!
       .from('daily_fitness_plans')
       .select('*')
       .eq('user_id', user.id)
@@ -507,14 +515,17 @@ class HealthDataService {
     }
 
     const { data, error } = await query.single();
-    if (error && error.code !== 'PGRST116') throw error;
+    if (error && error.code !== 'PGRST116') {
+      throw error;
+    }
     return data;
   }
 
   async updateDailyFitnessPlan(dayNumber: number, updates: Partial<DailyFitnessPlan>, fitnessPlanId?: string) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    let query = supabase
+    let query = supabase!
       .from('daily_fitness_plans')
       .update(updates)
       .eq('user_id', user.id)
@@ -529,13 +540,14 @@ class HealthDataService {
     return data;
   }
 
-  // Fitness progress tracking
+  // Fitness progress operations
   async saveFitnessProgress(progress: Omit<FitnessProgress, 'id' | 'user_id' | 'recorded_at'>) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('fitness_progress')
-      .upsert({
+      .insert({
         user_id: user.id,
         ...progress
       })
@@ -547,11 +559,10 @@ class HealthDataService {
   }
 
   async getFitnessProgress(fitnessPlanId?: string) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    if (!supabase) throw new Error('Supabase client not initialized');
-    
-    let query = supabase
+    let query = supabase!
       .from('fitness_progress')
       .select('*')
       .eq('user_id', user.id);
@@ -560,28 +571,34 @@ class HealthDataService {
       query = query.eq('fitness_plan_id', fitnessPlanId);
     }
 
-    const { data, error } = await query.order('day_number', { ascending: true });
+    const { data, error } = await query.order('recorded_at', { ascending: false });
     if (error) throw error;
     return data;
   }
 
-  // Fitness plan with image storage
+  // Save fitness plan with images
   async saveFitnessPlanWithImages(plan: Omit<FitnessPlan, 'id' | 'user_id' | 'created_at' | 'updated_at'>, imageData?: string) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     let imageUrls: string[] = [];
 
     // Upload image if provided
     if (imageData) {
       try {
-        const imageUrl = await this.uploadImageToStorage(imageData, 'fitness', user.id);
-        imageUrls.push(imageUrl);
+        // Convert base64 to File object for upload
+        const base64Response = await fetch(imageData);
+        const blob = await base64Response.blob();
+        const file = new File([blob], 'fitness_plan_image.jpg', { type: 'image/jpeg' });
+        
+        const result = await imageUploadService.uploadImage(file, 'fitness', 'Fitness Plan Image');
+        imageUrls.push(result.url);
       } catch (error) {
         console.error('Failed to upload fitness plan image:', error);
       }
     }
 
     // Save fitness plan
-    const { data: fitnessPlan, error: planError } = await supabase
+    const { data: fitnessPlan, error: planError } = await supabase!
       .from('fitness_plans')
       .insert({
         user_id: user.id,
@@ -609,9 +626,10 @@ class HealthDataService {
 
   // Saved routines operations
   async saveSavedRoutine(routine: Omit<SavedRoutine, 'id' | 'user_id' | 'created_at' | 'updated_at'>) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('saved_routines')
       .insert({
         user_id: user.id,
@@ -625,9 +643,10 @@ class HealthDataService {
   }
 
   async getSavedRoutines() {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('saved_routines')
       .select('*')
       .eq('user_id', user.id)
@@ -638,9 +657,10 @@ class HealthDataService {
   }
 
   async updateSavedRoutine(routineId: string, updates: Partial<SavedRoutine>) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('saved_routines')
       .update(updates)
       .eq('id', routineId)
@@ -653,9 +673,10 @@ class HealthDataService {
   }
 
   async deleteSavedRoutine(routineId: string) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { error } = await supabase
+    const { error } = await supabase!
       .from('saved_routines')
       .delete()
       .eq('id', routineId)
@@ -667,9 +688,10 @@ class HealthDataService {
 
   // Health progress operations
   async saveHealthProgress(progress: Omit<HealthProgress, 'id' | 'user_id' | 'recorded_at'>) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('health_progress')
       .insert({
         user_id: user.id,
@@ -683,9 +705,10 @@ class HealthDataService {
   }
 
   async getHealthProgress(metricType?: string) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    let query = supabase
+    let query = supabase!
       .from('health_progress')
       .select('*')
       .eq('user_id', user.id);
@@ -701,9 +724,10 @@ class HealthDataService {
 
   // Image metadata operations
   async saveImageMetadata(metadata: Omit<ImageMetadata, 'id' | 'user_id' | 'created_at'>) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('image_metadata')
       .insert({
         user_id: user.id,
@@ -717,9 +741,10 @@ class HealthDataService {
   }
 
   async getImageMetadata(imageType?: string) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    let query = supabase
+    let query = supabase!
       .from('image_metadata')
       .select('*')
       .eq('user_id', user.id);
@@ -735,10 +760,11 @@ class HealthDataService {
 
   // Cross-account data sharing
   async shareDataWithUser(sharedWithEmail: string, dataType: string, permissionLevel: 'read' | 'write' | 'admin' = 'read') {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
     // Get the user to share with
-    const { data: sharedWithUser, error: userError } = await supabase
+    const { data: sharedWithUser, error: userError } = await supabase!
       .from('user_profiles')
       .select('id')
       .eq('email', sharedWithEmail)
@@ -748,7 +774,7 @@ class HealthDataService {
       throw new Error('User not found');
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('data_sharing_permissions')
       .upsert({
         user_id: user.id,
@@ -764,36 +790,38 @@ class HealthDataService {
   }
 
   async getSharedData() {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('data_sharing_permissions')
       .select(`
         *,
-        user_profiles!data_sharing_permissions_user_id_fkey (
+        shared_with_user:user_profiles!data_sharing_permissions_shared_with_user_id_fkey(
+          id,
           email,
           full_name
         )
       `)
-      .eq('shared_with_user_id', user.id)
-      .eq('is_active', true);
+      .eq('user_id', user.id);
 
     if (error) throw error;
     return data;
   }
 
-  // Analytics operations
+  // Health analytics operations
   async saveHealthAnalytics(analyticsType: string, analyticsData: any, insights?: any, recommendations?: any) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('health_analytics')
       .insert({
         user_id: user.id,
         analytics_type: analyticsType,
         analytics_data: analyticsData,
-        insights,
-        recommendations
+        insights: insights,
+        recommendations: recommendations
       })
       .select()
       .single();
@@ -803,9 +831,10 @@ class HealthDataService {
   }
 
   async getHealthAnalytics(analyticsType?: string) {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    let query = supabase
+    let query = supabase!
       .from('health_analytics')
       .select('*')
       .eq('user_id', user.id);
@@ -814,58 +843,76 @@ class HealthDataService {
       query = query.eq('analytics_type', analyticsType);
     }
 
-    const { data, error } = await query.order('generated_at', { ascending: false });
+    const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
     return data;
   }
 
-  // Enhanced dashboard summary with fitness data
+  // Dashboard summary
   async getDashboardSummary() {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
-    
+
     try {
-      // Get counts for different health activities
+      // Get counts for different data types
       const [
-        therapistSessions,
-        postureChecks,
-        fitnessPlans,
-        savedRoutines,
-        healthProgress
+        { count: therapistSessions },
+        { count: postureChecks },
+        { count: fitnessPlans },
+        { count: savedRoutines },
+        { count: healthProgress }
       ] = await Promise.all([
-        this.getTherapistChatSessions(),
-        this.getPostureCheckSessions(),
-        this.getFitnessPlans(),
-        this.getSavedRoutines(),
-        this.getHealthProgress()
+        supabase!.from('therapist_chat_sessions').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+        supabase!.from('posture_check_sessions').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+        supabase!.from('fitness_plans').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+        supabase!.from('saved_routines').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+        supabase!.from('health_progress').select('*', { count: 'exact', head: true }).eq('user_id', user.id)
       ]);
 
-      // Calculate health score based on various metrics
+      // Get detailed data for calculations
+      const [
+        { data: postureCheckData },
+        { data: healthProgressData },
+        { data: fitnessPlansData }
+      ] = await Promise.all([
+        supabase!.from('posture_check_sessions').select('posture_score').eq('user_id', user.id),
+        supabase!.from('health_progress').select('*').eq('user_id', user.id).order('recorded_at', { ascending: false }),
+        supabase!.from('fitness_plans').select('*').eq('user_id', user.id)
+      ]);
+
+      // Calculate metrics
+      const averagePostureScore = this.calculateAveragePostureScore(postureCheckData || []);
+      const progressStreak = this.calculateProgressStreak(healthProgressData || []);
+      const fitnessProgress = this.calculateFitnessProgress(fitnessPlansData || []);
+
+      // Calculate overall health score
       const healthScore = this.calculateHealthScore({
-        therapistSessions: therapistSessions.length,
-        postureChecks: postureChecks.length,
-        fitnessPlans: fitnessPlans.length,
-        savedRoutines: savedRoutines.length,
-        healthProgress: healthProgress.length
+        therapistSessions: therapistSessions || 0,
+        postureChecks: postureChecks || 0,
+        fitnessPlans: fitnessPlans || 0,
+        savedRoutines: savedRoutines || 0,
+        healthProgress: healthProgress || 0
       });
 
       // Get recent activities
       const recentActivities = await this.getRecentActivities();
 
       return {
-        totalTherapySessions: therapistSessions.length,
-        totalPostureChecks: postureChecks.length,
-        totalFitnessPlans: fitnessPlans.length,
-        totalSavedRoutines: savedRoutines.length,
+        totalTherapistSessions: therapistSessions || 0,
+        totalPostureChecks: postureChecks || 0,
+        totalFitnessPlans: fitnessPlans || 0,
+        totalSavedRoutines: savedRoutines || 0,
         healthScore,
         recentActivities,
-        averagePostureScore: this.calculateAveragePostureScore(postureChecks),
-        progressStreak: this.calculateProgressStreak(healthProgress),
-        fitnessProgress: this.calculateFitnessProgress(fitnessPlans)
+        averagePostureScore,
+        progressStreak,
+        fitnessProgress
       };
+
     } catch (error) {
       console.error('Error getting dashboard summary:', error);
       return {
-        totalTherapySessions: 0,
+        totalTherapistSessions: 0,
         totalPostureChecks: 0,
         totalFitnessPlans: 0,
         totalSavedRoutines: 0,
@@ -899,7 +946,9 @@ class HealthDataService {
     for (const [metric, value] of Object.entries(metrics)) {
       const weight = weights[metric as keyof typeof weights];
       const maxValue = maxValues[metric as keyof typeof maxValues];
-      score += (Math.min(value, maxValue) / maxValue) * weight * 100;
+      if (weight && maxValue && typeof value === 'number') {
+        score += (Math.min(value, maxValue) / maxValue) * weight * 100;
+      }
     }
 
     return Math.round(score);
@@ -947,12 +996,13 @@ class HealthDataService {
   }
 
   private async getRecentActivities() {
+    this.checkSupabase();
     const user = await this.getCurrentUser();
     const activities = [];
 
     try {
       // Get recent therapist sessions
-      const { data: recentSessions } = await supabase
+      const { data: recentSessions } = await supabase!
         .from('therapist_chat_sessions')
         .select('session_title, created_at')
         .eq('user_id', user.id)
@@ -969,7 +1019,7 @@ class HealthDataService {
       }
 
       // Get recent posture checks
-      const { data: recentPosture } = await supabase
+      const { data: recentPosture } = await supabase!
         .from('posture_check_sessions')
         .select('session_title, created_at, posture_score')
         .eq('user_id', user.id)
@@ -987,7 +1037,7 @@ class HealthDataService {
       }
 
       // Get recent fitness activities
-      const { data: recentFitness } = await supabase
+      const { data: recentFitness } = await supabase!
         .from('fitness_plans')
         .select('plan_name, created_at, is_active')
         .eq('user_id', user.id)

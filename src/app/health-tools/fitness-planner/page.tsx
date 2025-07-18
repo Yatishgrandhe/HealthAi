@@ -552,23 +552,34 @@ export default function FitnessPlannerPage() {
           is_active: true
         };
 
-                 const savedPlan = await healthDataService.saveFitnessPlanWithImages(
-           fitnessPlanData,
-           saveImage && uploadedImage ? uploadedImage : undefined
-         );
+        console.log('💾 Saving fitness plan to database:', fitnessPlanData);
+        
+        const savedPlan = await healthDataService.saveFitnessPlanWithImages(
+          fitnessPlanData,
+          saveImage && uploadedImage ? uploadedImage : undefined
+        );
+
+        console.log('✅ Fitness plan saved:', savedPlan);
 
         // Save daily plans
+        console.log('💾 Saving daily plans:', dailyPlans.length, 'days');
         for (const dailyPlan of dailyPlans) {
-          await healthDataService.saveDailyFitnessPlan({
-            fitness_plan_id: savedPlan.id,
-            day_number: dailyPlan.day,
-            meals: dailyPlan.meals,
-            exercises: dailyPlan.exercises,
-            tips: dailyPlan.tips,
-            progress_notes: dailyPlan.progress_notes
-          });
+          try {
+            await healthDataService.saveDailyFitnessPlan({
+              fitness_plan_id: savedPlan.id,
+              day_number: dailyPlan.day,
+              meals: dailyPlan.meals,
+              exercises: dailyPlan.exercises,
+              tips: dailyPlan.tips,
+              progress_notes: dailyPlan.progress_notes
+            });
+          } catch (dailyPlanError) {
+            console.error('❌ Error saving daily plan for day', dailyPlan.day, ':', dailyPlanError);
+            // Continue with other days even if one fails
+          }
         }
 
+        console.log('✅ All daily plans saved successfully');
         alert("Plan saved to your account successfully!");
       } else {
         // Save to localStorage
@@ -579,11 +590,25 @@ export default function FitnessPlannerPage() {
           savedAt: new Date().toISOString()
         };
         localStorage.setItem('fitnessPlan', JSON.stringify(planData));
+        console.log('💾 Plan saved to localStorage');
         alert("Plan saved locally!");
       }
     } catch (error) {
-      console.error('Error saving plan:', error);
-      alert("Failed to save plan. Please try again.");
+      console.error('❌ Error saving plan:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = "Failed to save plan. Please try again.";
+      if (error instanceof Error) {
+        if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = "Network error. Please check your connection and try again.";
+        } else if (error.message.includes('permission') || error.message.includes('unauthorized')) {
+          errorMessage = "Permission denied. Please log in again.";
+        } else if (error.message.includes('storage')) {
+          errorMessage = "Storage error. Please try again or contact support.";
+        }
+      }
+      
+      alert(errorMessage);
     } finally {
       setIsSaving(false);
       setSaveDialogOpen(false);
@@ -1353,21 +1378,37 @@ export default function FitnessPlannerPage() {
                             {/* Calendar and Save buttons - only for logged-in users */}
                             {user && (
                               <>
-                                <Button
-                                  variant="outlined"
-                                  startIcon={<CalendarToday />}
-                                  onClick={() => setShowCalendar(!showCalendar)}
-                                  sx={{
-                                    borderColor: "#06D6A0",
-                                    color: "#06D6A0",
-                                    "&:hover": {
-                                      borderColor: "#00C853",
-                                      background: "rgba(6, 214, 160, 0.05)",
-                                    },
-                                  }}
-                                >
-                                  {showCalendar ? "Hide Calendar" : "Show Calendar"}
-                                </Button>
+                                                            <Button
+                              variant="outlined"
+                              startIcon={<CalendarToday />}
+                              onClick={() => setShowCalendar(!showCalendar)}
+                              sx={{
+                                borderColor: "#06D6A0",
+                                color: "#06D6A0",
+                                "&:hover": {
+                                  borderColor: "#00C853",
+                                  background: "rgba(6, 214, 160, 0.05)",
+                                },
+                              }}
+                            >
+                              {showCalendar ? "Hide Calendar" : "Show Calendar"}
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              component={Link}
+                              href="/health-tools/saved-routines"
+                              startIcon={<Save />}
+                              sx={{
+                                borderColor: "#7B61FF",
+                                color: "#7B61FF",
+                                "&:hover": {
+                                  borderColor: "#6A4C93",
+                                  background: "rgba(123, 97, 255, 0.05)",
+                                },
+                              }}
+                            >
+                              Saved Routines
+                            </Button>
                                 <Button
                                   variant="outlined"
                                   startIcon={<Save />}
@@ -1600,7 +1641,7 @@ export default function FitnessPlannerPage() {
                               textTransform: "none"
                             }}
                           >
-                            Start My Journey
+                            {user ? "View Saved Routines" : "Start My Journey"}
                           </Button>
                         </Box>
                       </Box>

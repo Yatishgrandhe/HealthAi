@@ -5,10 +5,10 @@ import {
   Box, 
   Container, 
   Typography, 
+  Card, 
+  CardContent, 
   Button, 
-  Paper, 
-  Card,
-  CardContent,
+  Grid,
   Chip,
   Alert,
   CircularProgress,
@@ -16,196 +16,233 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Grid,
-  Divider,
+  IconButton,
+  Menu,
+  MenuItem,
   List,
   ListItem,
   ListItemText,
   ListItemIcon,
-  IconButton,
-  LinearProgress
+  Divider,
+  Badge,
+  Tooltip
 } from "@mui/material";
 import { 
   FitnessCenter, 
-  PlayArrow, 
-  Edit, 
-  Delete, 
-  Save, 
-  Timer,
-  TrendingUp,
-  Psychology,
-  CameraAlt,
-  CheckCircle,
-  Warning,
-  Info,
-  ArrowBack,
+  Restaurant, 
+  DirectionsRun, 
   CalendarToday,
-  Schedule
+  MoreVert,
+  Delete,
+  Edit,
+  PlayArrow,
+  Save,
+  Download,
+  Share,
+  Favorite,
+  FavoriteBorder,
+  AccessTime,
+  TrendingUp,
+  CheckCircle,
+  ArrowBack,
+  Add,
+  Refresh
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useUser } from "@/utils/supabaseClient";
-import { useRouter } from "next/navigation";
 import HealthDataService from "@/utils/healthDataService";
 import BackButton from "@/components/BackButton";
 
 interface SavedRoutine {
   id: string;
   routine_name: string;
-  routine_type: "workout" | "meditation" | "stretching" | "custom";
+  routine_type: 'workout' | 'meditation' | 'stretching' | 'custom';
   routine_data: any;
-  image_urls: string[] | null;
-  is_favorite: boolean;
+  image_urls?: string[];
+  is_favorite?: boolean;
   created_at: string;
   updated_at: string;
 }
 
-function SavedRoutinesPageInner() {
+interface FitnessPlan {
+  id: string;
+  plan_name: string;
+  plan_type: string;
+  duration_days: number;
+  difficulty_level: string;
+  exercises: any;
+  nutrition_plan: any;
+  goals: any;
+  is_active: boolean;
+  created_at: string;
+}
+
+export default function SavedRoutinesPage() {
   const [routines, setRoutines] = useState<SavedRoutine[]>([]);
-  const [selectedRoutine, setSelectedRoutine] = useState<SavedRoutine | null>(null);
-  const [openDialog, setOpenDialog] = useState(false);
+  const [fitnessPlans, setFitnessPlans] = useState<FitnessPlan[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [selectedRoutine, setSelectedRoutine] = useState<SavedRoutine | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<FitnessPlan | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{ type: 'routine' | 'plan', id: string, name: string } | null>(null);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [selectedItem, setSelectedItem] = useState<{ type: 'routine' | 'plan', item: any } | null>(null);
 
   const { user, loading: userLoading } = useUser();
-  const router = useRouter();
   const healthDataService = new HealthDataService();
 
-  // Redirect if not logged in
   useEffect(() => {
-    if (!userLoading && !user) {
-      router.push('/login');
+    if (user && !userLoading) {
+      loadSavedData();
     }
-  }, [user, userLoading, router]);
+  }, [user, userLoading]);
 
-  // Load saved routines from database
-  useEffect(() => {
-    const loadSavedRoutines = async () => {
-      if (!user) return;
-      
-      try {
-        setLoading(true);
-        const routines = await healthDataService.getSavedRoutines();
-        setRoutines(routines || []);
-      } catch (err) {
-        console.error('Error loading saved routines:', err);
-        setError('Failed to load routines');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (user) {
-      loadSavedRoutines();
-    }
-  }, [user]);
-
-  const handleDeleteRoutine = async (id: string) => {
-    if (!user) return;
-    
+  const loadSavedData = async () => {
     try {
-      await healthDataService.deleteSavedRoutine(id);
-      setRoutines(prev => prev.filter(routine => routine.id !== id));
-    } catch (err) {
-      console.error('Error deleting routine:', err);
-      setError('Failed to delete routine');
+      setLoading(true);
+      
+      // Load saved routines
+      const savedRoutines = await healthDataService.getSavedRoutines();
+      setRoutines(savedRoutines);
+      
+      // Load fitness plans
+      const plans = await healthDataService.getFitnessPlans();
+      setFitnessPlans(plans);
+      
+    } catch (error) {
+      console.error('Error loading saved data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleToggleFavorite = async (id: string) => {
-    if (!user) return;
+  const handleDelete = async () => {
+    if (!itemToDelete) return;
     
     try {
-      const routine = routines.find(r => r.id === id);
+      if (itemToDelete.type === 'routine') {
+        await healthDataService.deleteSavedRoutine(itemToDelete.id);
+        setRoutines(prev => prev.filter(r => r.id !== itemToDelete.id));
+      } else {
+        // For fitness plans, we'll just mark as inactive
+        await healthDataService.updateFitnessPlan(itemToDelete.id, { is_active: false });
+        setFitnessPlans(prev => prev.filter(p => p.id !== itemToDelete.id));
+      }
+      
+      setDeleteDialogOpen(false);
+      setItemToDelete(null);
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      alert('Failed to delete. Please try again.');
+    }
+  };
+
+  const handleToggleFavorite = async (routineId: string) => {
+    try {
+      const routine = routines.find(r => r.id === routineId);
       if (!routine) return;
       
-      await healthDataService.updateSavedRoutine(id, {
+      const updatedRoutine = await healthDataService.updateSavedRoutine(routineId, {
         is_favorite: !routine.is_favorite
       });
       
-      setRoutines(prev => prev.map(routine => 
-        routine.id === id ? { ...routine, is_favorite: !routine.is_favorite } : routine
+      setRoutines(prev => prev.map(r => 
+        r.id === routineId ? { ...r, is_favorite: updatedRoutine.is_favorite } : r
       ));
-    } catch (err) {
-      console.error('Error updating routine:', err);
-      setError('Failed to update routine');
+    } catch (error) {
+      console.error('Error updating favorite status:', error);
     }
   };
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case "workout": return "#FFD166";
-      case "meditation": return "#06D6A0";
-      case "stretching": return "#7B61FF";
-      case "custom": return "#E573B7";
-      default: return "#9E9E9E";
-    }
+  const handleExport = (item: any, type: 'routine' | 'plan') => {
+    const data = JSON.stringify(item, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${type}_${item.routine_name || item.plan_name}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
-  const getTypeIcon = (type: string) => {
+  const getRoutineTypeIcon = (type: string) => {
     switch (type) {
-      case "workout": return <FitnessCenter />;
-      case "meditation": return <Psychology />;
-      case "stretching": return <CameraAlt />;
-      case "custom": return <Schedule />;
+      case 'workout': return <FitnessCenter />;
+      case 'meditation': return <TrendingUp />;
+      case 'stretching': return <DirectionsRun />;
       default: return <FitnessCenter />;
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 1) return "Yesterday";
-    if (diffDays < 7) return `${diffDays} days ago`;
-    return date.toLocaleDateString();
+  const getRoutineTypeColor = (type: string) => {
+    switch (type) {
+      case 'workout': return '#FFD166';
+      case 'meditation': return '#06D6A0';
+      case 'stretching': return '#7B61FF';
+      default: return '#FFD166';
+    }
   };
 
-  // Show loading state
-  if (userLoading || loading) {
+  if (userLoading) {
     return (
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        minHeight: '50vh' 
-      }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
         <CircularProgress />
       </Box>
     );
   }
 
-  // Show error state
-  if (error) {
+  if (!user) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-        <Button 
-          variant="contained" 
-          onClick={() => window.location.reload()}
-        >
-          Retry
-        </Button>
+      <Box sx={{ minHeight: "100vh", background: "#f8f9ff" }}>
+        <BackButton href="/health-tools" label="Back to Health Tools" />
+        <Container maxWidth="lg" sx={{ py: 4 }}>
+          <Box sx={{ textAlign: "center", py: 8 }}>
+            <FitnessCenter sx={{ fontSize: 64, color: "#FFD166", mb: 3 }} />
+            <Typography variant="h4" sx={{ fontWeight: 600, mb: 2 }}>
+              Saved Routines
+            </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+              Please log in to view and manage your saved fitness routines and plans.
+            </Typography>
+            <Button
+              variant="contained"
+              component={Link}
+              href="/login"
+              sx={{
+                background: "linear-gradient(135deg, #FFD166, #06D6A0)",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #FFC107, #00C853)",
+                },
+                px: 4,
+                py: 1.5,
+                borderRadius: 3,
+                fontSize: "1.1rem",
+                fontWeight: 600,
+                textTransform: "none"
+              }}
+            >
+              Log In
+            </Button>
+          </Box>
+        </Container>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ minHeight: user ? "calc(100vh - 120px)" : "100vh", background: "#f8f9ff" }}>
-      {/* Back Button for logged-out users */}
-      {!user && (
-        <Box sx={{ mb: 2 }}>
-          <BackButton href="/health-tools" label="Back to Health Tools" />
-        </Box>
-      )}
+    <Box sx={{ minHeight: "100vh", background: "#f8f9ff" }}>
+      {/* Back Button */}
+      <Box sx={{ mb: 2 }}>
+        <BackButton href="/health-tools" label="Back to Health Tools" />
+      </Box>
+
       {/* Status Bar */}
       <Box
         sx={{
-          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+          background: "linear-gradient(135deg, #FFD166, #06D6A0)",
           py: 2,
           mb: 3
         }}
@@ -214,16 +251,16 @@ function SavedRoutinesPageInner() {
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <Box sx={{ display: "flex", alignItems: "center" }}>
               <img 
-              src="/health-ai-logo.png" 
-              alt="Health AI Logo" 
-              width={32} 
-              height={32} 
-              style={{
-                borderRadius: '50%',
-                background: 'transparent',
-                display: 'block'
-              }}
-            />
+                src="/health-ai-logo.png" 
+                alt="Health AI Logo" 
+                width={32} 
+                height={32} 
+                style={{
+                  borderRadius: '50%',
+                  background: 'transparent',
+                  display: 'block'
+                }}
+              />
               <Box sx={{ ml: 2 }}>
                 <Typography
                   variant="h6"
@@ -235,8 +272,8 @@ function SavedRoutinesPageInner() {
                     gap: 1
                   }}
                 >
-                  <FitnessCenter sx={{ fontSize: 20 }} />
-                  Saved Routines
+                  <Save sx={{ fontSize: 20 }} />
+                  Saved Routines & Plans
                 </Typography>
                 <Typography
                   variant="body2"
@@ -245,341 +282,520 @@ function SavedRoutinesPageInner() {
                     fontSize: "0.75rem"
                   }}
                 >
-                  Manage your fitness and wellness plans
+                  Manage your fitness routines and workout plans
                 </Typography>
               </Box>
             </Box>
-            <Chip
-              label={`${routines.length} Routines`}
-              size="small"
-              sx={{
-                background: "rgba(255, 255, 255, 0.2)",
-                color: "white",
-                fontWeight: 500
-              }}
-            />
+            <Box sx={{ display: "flex", gap: 1 }}>
+              <Button
+                variant="outlined"
+                startIcon={<Refresh />}
+                onClick={loadSavedData}
+                disabled={loading}
+                sx={{
+                  borderColor: "rgba(255, 255, 255, 0.3)",
+                  color: "white",
+                  "&:hover": {
+                    borderColor: "white",
+                    background: "rgba(255, 255, 255, 0.1)",
+                  },
+                }}
+              >
+                Refresh
+              </Button>
+              <Chip
+                label={`${routines.length + fitnessPlans.length} Total`}
+                size="small"
+                sx={{
+                  background: "rgba(255, 255, 255, 0.2)",
+                  color: "white",
+                  fontWeight: 500
+                }}
+              />
+            </Box>
           </Box>
         </Container>
       </Box>
 
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        {/* Header Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 4 }}>
-            <Box>
-              <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-                Your Routines
-              </Typography>
-              <Typography variant="body1" color="text.secondary">
-                Track your progress and manage your saved fitness plans
-              </Typography>
-            </Box>
-            <Button
-              component={Link}
-              href="/health-tools/fitness-planner"
-              variant="contained"
-              startIcon={<FitnessCenter />}
-              sx={{
-                background: "linear-gradient(135deg, #E573B7, #7B61FF)",
-                "&:hover": {
-                  background: "linear-gradient(135deg, #D563A7, #6B51EF)",
-                },
-                px: 3,
-                py: 1.5,
-                borderRadius: 3,
-                fontWeight: 600,
-                textTransform: "none"
-              }}
-            >
-              Create New Plan
-            </Button>
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+            <CircularProgress size={60} sx={{ color: "#FFD166" }} />
           </Box>
-        </motion.div>
-
-        {/* Empty State */}
-        {routines.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
-            <Paper
-              sx={{
-                p: 6,
-                textAlign: "center",
-                background: "rgba(255, 255, 255, 0.95)",
-                backdropFilter: "blur(20px)",
-                border: "1px solid rgba(255, 255, 255, 0.2)",
-                borderRadius: 3
-              }}
-            >
-              <FitnessCenter sx={{ fontSize: 64, color: "#7B61FF", mb: 2 }} />
-              <Typography variant="h5" sx={{ fontWeight: 600, mb: 2 }}>
-                No Saved Routines Yet
+        ) : (
+          <Box>
+            {/* Saved Routines Section */}
+            <Box sx={{ mb: 6 }}>
+              <Typography variant="h5" sx={{ fontWeight: 600, mb: 3, display: "flex", alignItems: "center", gap: 1 }}>
+                <FitnessCenter sx={{ color: "#FFD166" }} />
+                Saved Routines
+                <Badge badgeContent={routines.length} color="primary" sx={{ ml: 1 }} />
               </Typography>
-              <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-                Start your fitness journey by creating your first routine
-              </Typography>
-              <Button
-                component={Link}
-                href="/health-tools/fitness-planner"
-                variant="contained"
-                startIcon={<FitnessCenter />}
-                sx={{
-                  background: "linear-gradient(135deg, #E573B7, #7B61FF)",
-                  "&:hover": {
-                    background: "linear-gradient(135deg, #D563A7, #6B51EF)",
-                  },
-                  px: 4,
-                  py: 1.5,
-                  borderRadius: 3,
-                  fontWeight: 600,
-                  textTransform: "none"
-                }}
-              >
-                Create Your First Routine
-              </Button>
-            </Paper>
-          </motion.div>
-        )}
 
-        {/* Routines Grid */}
-        {routines.length > 0 && (
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-            {routines.map((routine, index) => (
-              <Box key={routine.id} sx={{ width: { xs: '100%', md: '50%', lg: '33.333%' }, mb: 3 }}>
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
-                >
-                  <Card
+              {routines.length === 0 ? (
+                <Card sx={{ p: 4, textAlign: "center", background: "rgba(255, 255, 255, 0.8)" }}>
+                  <Typography variant="h6" sx={{ mb: 2, color: "text.secondary" }}>
+                    No saved routines yet
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                    Create and save your favorite workout routines to access them anytime.
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    component={Link}
+                    href="/health-tools/fitness-planner"
+                    startIcon={<Add />}
                     sx={{
-                      borderRadius: 3,
-                      height: "100%",
-                      background: "rgba(255, 255, 255, 0.95)",
-                      backdropFilter: "blur(20px)",
-                      border: "1px solid rgba(255, 255, 255, 0.2)",
-                      transition: "all 0.3s ease",
+                      borderColor: "#FFD166",
+                      color: "#FFD166",
                       "&:hover": {
-                        transform: "translateY(-4px)",
-                        boxShadow: "0 12px 40px rgba(0, 0, 0, 0.15)",
-                      }
+                        borderColor: "#FFC107",
+                        background: "rgba(255, 209, 102, 0.05)",
+                      },
                     }}
                   >
-                    <CardContent sx={{ p: 3 }}>
-                      {/* Header */}
-                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 2 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <Box
-                            sx={{
-                              background: getTypeColor(routine.routine_type),
-                              borderRadius: "50%",
-                              width: 40,
-                              height: 40,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              color: "white"
-                            }}
-                          >
-                            {getTypeIcon(routine.routine_type)}
-                          </Box>
-                          <Box>
-                            <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>
-                              {routine.routine_name}
-                            </Typography>
+                    Create New Routine
+                  </Button>
+                </Card>
+              ) : (
+                <Grid container spacing={3}>
+                  {routines.map((routine) => (
+                    <Grid item xs={12} sm={6} md={4} key={routine.id}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5 }}
+                      >
+                        <Card 
+                          sx={{ 
+                            height: "100%",
+                            cursor: "pointer",
+                            "&:hover": {
+                              transform: "translateY(-4px)",
+                              boxShadow: 4
+                            },
+                            transition: "all 0.3s ease"
+                          }}
+                          onClick={() => setSelectedRoutine(routine)}
+                        >
+                          <CardContent>
+                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 2 }}>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                <Box sx={{ 
+                                  color: getRoutineTypeColor(routine.routine_type),
+                                  display: "flex",
+                                  alignItems: "center"
+                                }}>
+                                  {getRoutineTypeIcon(routine.routine_type)}
+                                </Box>
+                                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                                  {routine.routine_name}
+                                </Typography>
+                              </Box>
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedItem({ type: 'routine', item: routine });
+                                  setAnchorEl(e.currentTarget);
+                                }}
+                              >
+                                <MoreVert />
+                              </IconButton>
+                            </Box>
+
                             <Chip
                               label={routine.routine_type}
                               size="small"
                               sx={{
-                                background: getTypeColor(routine.routine_type),
-                                color: "white",
+                                background: `${getRoutineTypeColor(routine.routine_type)}20`,
+                                color: getRoutineTypeColor(routine.routine_type),
                                 fontWeight: 500,
-                                textTransform: "capitalize"
+                                mb: 2
                               }}
                             />
-                          </Box>
-                        </Box>
-                        <Box sx={{ display: "flex", gap: 1 }}>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleToggleFavorite(routine.id)}
-                            sx={{
-                              color: routine.is_favorite ? "#FFD700" : "#9E9E9E",
-                              "&:hover": {
-                                color: routine.is_favorite ? "#FFC700" : "#FFD700"
-                              }
-                            }}
-                          >
-                            <CheckCircle />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDeleteRoutine(routine.id)}
-                            sx={{
-                              color: "#9E9E9E",
-                              "&:hover": {
-                                color: "#F44336"
-                              }
-                            }}
-                          >
-                            <Delete />
-                          </IconButton>
-                        </Box>
-                      </Box>
 
-                      {/* Routine Data Preview */}
-                      {routine.routine_data && (
-                        <Box sx={{ mb: 2 }}>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                            Routine Details:
-                          </Typography>
-                          <Typography variant="body2" sx={{ 
-                            background: "#f5f5f5", 
-                            p: 1, 
-                            borderRadius: 1,
-                            fontFamily: "monospace",
-                            fontSize: "0.75rem"
-                          }}>
-                            {JSON.stringify(routine.routine_data, null, 2).substring(0, 100)}...
-                          </Typography>
-                        </Box>
-                      )}
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                              <AccessTime sx={{ fontSize: 16, color: "text.secondary" }} />
+                              <Typography variant="caption" color="text.secondary">
+                                {new Date(routine.created_at).toLocaleDateString()}
+                              </Typography>
+                            </Box>
 
-                      {/* Images */}
-                      {routine.image_urls && routine.image_urls.length > 0 && (
-                        <Box sx={{ mb: 2 }}>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                            Images ({routine.image_urls.length}):
-                          </Typography>
-                          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                            {routine.image_urls.slice(0, 3).map((url, idx) => (
-                              <Box
-                                key={idx}
-                                component="img"
-                                src={url}
-                                alt={`Routine ${idx + 1}`}
-                                sx={{
-                                  width: 60,
-                                  height: 60,
-                                  borderRadius: 1,
-                                  objectFit: "cover"
+                            <Box sx={{ display: "flex", gap: 1 }}>
+                              <Button
+                                size="small"
+                                startIcon={<PlayArrow />}
+                                variant="outlined"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Handle start routine
                                 }}
-                              />
-                            ))}
-                            {routine.image_urls.length > 3 && (
-                              <Box
                                 sx={{
-                                  width: 60,
-                                  height: 60,
-                                  borderRadius: 1,
-                                  background: "#f0f0f0",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  color: "#666"
+                                  borderColor: getRoutineTypeColor(routine.routine_type),
+                                  color: getRoutineTypeColor(routine.routine_type),
+                                  "&:hover": {
+                                    borderColor: getRoutineTypeColor(routine.routine_type),
+                                    background: `${getRoutineTypeColor(routine.routine_type)}10`,
+                                  },
                                 }}
                               >
-                                +{routine.image_urls.length - 3}
-                              </Box>
-                            )}
-                          </Box>
-                        </Box>
-                      )}
+                                Start
+                              </Button>
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleFavorite(routine.id);
+                                }}
+                                sx={{ color: routine.is_favorite ? "#FFD166" : "text.secondary" }}
+                              >
+                                {routine.is_favorite ? <Favorite /> : <FavoriteBorder />}
+                              </IconButton>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    </Grid>
+                  ))}
+                </Grid>
+              )}
+            </Box>
 
-                      {/* Footer */}
-                      <Box sx={{ 
-                        display: "flex", 
-                        justifyContent: "space-between", 
-                        alignItems: "center",
-                        pt: 2,
-                        borderTop: "1px solid #f0f0f0"
-                      }}>
-                        <Typography variant="caption" color="text.secondary">
-                          Created {formatDate(routine.created_at)}
-                        </Typography>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          startIcon={<PlayArrow />}
-                          sx={{
-                            borderColor: getTypeColor(routine.routine_type),
-                            color: getTypeColor(routine.routine_type),
+            {/* Fitness Plans Section */}
+            <Box sx={{ mb: 6 }}>
+              <Typography variant="h5" sx={{ fontWeight: 600, mb: 3, display: "flex", alignItems: "center", gap: 1 }}>
+                <CalendarToday sx={{ color: "#06D6A0" }} />
+                Fitness Plans
+                <Badge badgeContent={fitnessPlans.length} color="primary" sx={{ ml: 1 }} />
+              </Typography>
+
+              {fitnessPlans.length === 0 ? (
+                <Card sx={{ p: 4, textAlign: "center", background: "rgba(255, 255, 255, 0.8)" }}>
+                  <Typography variant="h6" sx={{ mb: 2, color: "text.secondary" }}>
+                    No fitness plans yet
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                    Generate a personalized fitness plan to get started on your journey.
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    component={Link}
+                    href="/health-tools/fitness-planner"
+                    startIcon={<Add />}
+                    sx={{
+                      borderColor: "#06D6A0",
+                      color: "#06D6A0",
+                      "&:hover": {
+                        borderColor: "#00C853",
+                        background: "rgba(6, 214, 160, 0.05)",
+                      },
+                    }}
+                  >
+                    Create Fitness Plan
+                  </Button>
+                </Card>
+              ) : (
+                <Grid container spacing={3}>
+                  {fitnessPlans.map((plan) => (
+                    <Grid item xs={12} sm={6} md={4} key={plan.id}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.1 }}
+                      >
+                        <Card 
+                          sx={{ 
+                            height: "100%",
+                            cursor: "pointer",
                             "&:hover": {
-                              background: getTypeColor(routine.routine_type),
-                              color: "white"
-                            }
+                              transform: "translateY(-4px)",
+                              boxShadow: 4
+                            },
+                            transition: "all 0.3s ease"
                           }}
+                          onClick={() => setSelectedPlan(plan)}
                         >
-                          Start
-                        </Button>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              </Box>
-            ))}
+                          <CardContent>
+                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 2 }}>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                <CalendarToday sx={{ color: "#06D6A0" }} />
+                                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                                  {plan.plan_name}
+                                </Typography>
+                              </Box>
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedItem({ type: 'plan', item: plan });
+                                  setAnchorEl(e.currentTarget);
+                                }}
+                              >
+                                <MoreVert />
+                              </IconButton>
+                            </Box>
+
+                            <Box sx={{ display: "flex", gap: 1, mb: 2, flexWrap: "wrap" }}>
+                              <Chip
+                                label={`${plan.duration_days} Days`}
+                                size="small"
+                                sx={{
+                                  background: "linear-gradient(135deg, #FFD166, #06D6A0)",
+                                  color: "white",
+                                  fontWeight: 500
+                                }}
+                              />
+                              <Chip
+                                label={plan.difficulty_level}
+                                size="small"
+                                sx={{
+                                  background: "rgba(6, 214, 160, 0.1)",
+                                  color: "#06D6A0",
+                                  fontWeight: 500
+                                }}
+                              />
+                              {plan.is_active && (
+                                <Chip
+                                  label="Active"
+                                  size="small"
+                                  icon={<CheckCircle />}
+                                  sx={{
+                                    background: "rgba(76, 175, 80, 0.1)",
+                                    color: "#4CAF50",
+                                    fontWeight: 500
+                                  }}
+                                />
+                              )}
+                            </Box>
+
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                              <AccessTime sx={{ fontSize: 16, color: "text.secondary" }} />
+                              <Typography variant="caption" color="text.secondary">
+                                {new Date(plan.created_at).toLocaleDateString()}
+                              </Typography>
+                            </Box>
+
+                            <Box sx={{ display: "flex", gap: 1 }}>
+                              <Button
+                                size="small"
+                                startIcon={<PlayArrow />}
+                                variant="outlined"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Handle start plan
+                                }}
+                                sx={{
+                                  borderColor: "#06D6A0",
+                                  color: "#06D6A0",
+                                  "&:hover": {
+                                    borderColor: "#00C853",
+                                    background: "rgba(6, 214, 160, 0.05)",
+                                  },
+                                }}
+                              >
+                                Start Plan
+                              </Button>
+                              <Button
+                                size="small"
+                                startIcon={<CalendarToday />}
+                                variant="outlined"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Handle view calendar
+                                }}
+                                sx={{
+                                  borderColor: "#FFD166",
+                                  color: "#FFD166",
+                                  "&:hover": {
+                                    borderColor: "#FFC107",
+                                    background: "rgba(255, 209, 102, 0.05)",
+                                  },
+                                }}
+                              >
+                                Calendar
+                              </Button>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    </Grid>
+                  ))}
+                </Grid>
+              )}
+            </Box>
           </Box>
         )}
-
-        {/* Routine Details Dialog */}
-        <Dialog
-          open={openDialog}
-          onClose={() => setOpenDialog(false)}
-          maxWidth="md"
-          fullWidth
-        >
-          <DialogTitle>
-            {selectedRoutine?.routine_name}
-          </DialogTitle>
-          <DialogContent>
-            {selectedRoutine && (
-              <Box>
-                <Typography variant="body1" sx={{ mb: 2 }}>
-                  <strong>Type:</strong> {selectedRoutine.routine_type}
-                </Typography>
-                <Typography variant="body1" sx={{ mb: 2 }}>
-                  <strong>Created:</strong> {formatDate(selectedRoutine.created_at)}
-                </Typography>
-                <Typography variant="body1" sx={{ mb: 2 }}>
-                  <strong>Updated:</strong> {formatDate(selectedRoutine.updated_at)}
-                </Typography>
-                {selectedRoutine.routine_data && (
-                  <Box>
-                    <Typography variant="body1" sx={{ mb: 1 }}>
-                      <strong>Routine Data:</strong>
-                    </Typography>
-                    <Paper
-                      sx={{
-                        p: 2,
-                        background: "#f5f5f5",
-                        fontFamily: "monospace",
-                        fontSize: "0.75rem",
-                        maxHeight: 300,
-                        overflow: "auto"
-                      }}
-                    >
-                      <pre>{JSON.stringify(selectedRoutine.routine_data, null, 2)}</pre>
-                    </Paper>
-                  </Box>
-                )}
-              </Box>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenDialog(false)}>Close</Button>
-          </DialogActions>
-        </Dialog>
       </Container>
+
+      {/* Action Menu */}
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={() => setAnchorEl(null)}
+      >
+        <MenuItem onClick={() => {
+          if (selectedItem) {
+            handleExport(selectedItem.item, selectedItem.type);
+          }
+          setAnchorEl(null);
+        }}>
+          <ListItemIcon>
+            <Download fontSize="small" />
+          </ListItemIcon>
+          Export
+        </MenuItem>
+        <MenuItem onClick={() => {
+          setAnchorEl(null);
+        }}>
+          <ListItemIcon>
+            <Share fontSize="small" />
+          </ListItemIcon>
+          Share
+        </MenuItem>
+        <Divider />
+        <MenuItem onClick={() => {
+          if (selectedItem) {
+            setItemToDelete({
+              type: selectedItem.type,
+              id: selectedItem.item.id,
+              name: selectedItem.item.routine_name || selectedItem.item.plan_name
+            });
+            setDeleteDialogOpen(true);
+          }
+          setAnchorEl(null);
+        }} sx={{ color: 'error.main' }}>
+          <ListItemIcon>
+            <Delete fontSize="small" sx={{ color: 'error.main' }} />
+          </ListItemIcon>
+          Delete
+        </MenuItem>
+      </Menu>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>Delete {itemToDelete?.type === 'routine' ? 'Routine' : 'Plan'}</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete "{itemToDelete?.name}"? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleDelete} color="error" variant="contained">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Routine Detail Dialog */}
+      <Dialog 
+        open={Boolean(selectedRoutine)} 
+        onClose={() => setSelectedRoutine(null)}
+        maxWidth="md"
+        fullWidth
+      >
+        {selectedRoutine && (
+          <>
+            <DialogTitle>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                {getRoutineTypeIcon(selectedRoutine.routine_type)}
+                {selectedRoutine.routine_name}
+              </Box>
+            </DialogTitle>
+            <DialogContent>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                {JSON.stringify(selectedRoutine.routine_data, null, 2)}
+              </Typography>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setSelectedRoutine(null)}>Close</Button>
+              <Button 
+                variant="contained"
+                startIcon={<PlayArrow />}
+                sx={{
+                  background: "linear-gradient(135deg, #FFD166, #06D6A0)",
+                  "&:hover": {
+                    background: "linear-gradient(135deg, #FFC107, #00C853)",
+                  }
+                }}
+              >
+                Start Routine
+              </Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
+
+      {/* Plan Detail Dialog */}
+      <Dialog 
+        open={Boolean(selectedPlan)} 
+        onClose={() => setSelectedPlan(null)}
+        maxWidth="md"
+        fullWidth
+      >
+        {selectedPlan && (
+          <>
+            <DialogTitle>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <CalendarToday sx={{ color: "#06D6A0" }} />
+                {selectedPlan.plan_name}
+              </Box>
+            </DialogTitle>
+            <DialogContent>
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="h6" sx={{ mb: 1 }}>Plan Details</Typography>
+                <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
+                  <Chip label={`${selectedPlan.duration_days} Days`} />
+                  <Chip label={selectedPlan.difficulty_level} />
+                  <Chip label={selectedPlan.plan_type} />
+                </Box>
+                <Typography variant="body2" color="text.secondary">
+                  Created: {new Date(selectedPlan.created_at).toLocaleDateString()}
+                </Typography>
+              </Box>
+              
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="h6" sx={{ mb: 1 }}>Goals</Typography>
+                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                  {selectedPlan.goals?.map((goal: string, index: number) => (
+                    <Chip key={index} label={goal} size="small" />
+                  ))}
+                </Box>
+              </Box>
+
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="h6" sx={{ mb: 1 }}>Exercises</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {JSON.stringify(selectedPlan.exercises, null, 2)}
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="h6" sx={{ mb: 1 }}>Nutrition Plan</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {JSON.stringify(selectedPlan.nutrition_plan, null, 2)}
+                </Typography>
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setSelectedPlan(null)}>Close</Button>
+              <Button 
+                variant="contained"
+                startIcon={<PlayArrow />}
+                sx={{
+                  background: "linear-gradient(135deg, #FFD166, #06D6A0)",
+                  "&:hover": {
+                    background: "linear-gradient(135deg, #FFC107, #00C853)",
+                  }
+                }}
+              >
+                Start Plan
+              </Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
     </Box>
   );
-}
-
-export default function SavedRoutinesPage() {
-  return <SavedRoutinesPageInner />;
 } 

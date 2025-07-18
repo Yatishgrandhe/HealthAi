@@ -70,7 +70,8 @@ import {
   CloudDone,
   PhotoCamera,
   Visibility,
-  VisibilityOff
+  VisibilityOff,
+  Download
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -586,10 +587,10 @@ export default function FitnessPlannerPage() {
 
   return (
     <Box sx={{ minHeight: user ? "calc(100vh - 120px)" : "100vh", background: "#f8f9ff" }}>
-      {/* Back Button for logged-in users */}
-      {user && (
+      {/* Back Button for logged-out users */}
+      {!user && (
         <Box sx={{ mb: 2 }}>
-          <BackButton href="/dashboard" label="Back to Dashboard" />
+          <BackButton href="/health-tools" label="Back to Health Tools" />
         </Box>
       )}
       {/* Status Bar */}
@@ -1009,45 +1010,93 @@ export default function FitnessPlannerPage() {
                 {/* Step 4: Plan Display */}
                 {activeStep === 3 && plan && (
                   <Box>
+                    {/* Notice for logged-out users */}
+                    {!user && (
+                      <Alert severity="info" sx={{ mb: 3 }}>
+                        <Typography variant="body2">
+                          <strong>Guest User Notice:</strong> As a guest, you can export your plan but cannot save it to your account or view it in the calendar. 
+                          <Link href="/register" style={{ color: '#1976d2', textDecoration: 'none', marginLeft: '8px' }}>
+                            Sign up to unlock all features!
+                          </Link>
+                        </Typography>
+                      </Alert>
+                    )}
+                    
                     <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
                       <Typography variant="h5" sx={{ fontWeight: 600 }}>
                         Your 90-Day Plan
                       </Typography>
                       <Box sx={{ display: "flex", gap: 2 }}>
-                        <Button
-                          variant="outlined"
-                          startIcon={<CalendarToday />}
-                          onClick={() => setShowCalendar(!showCalendar)}
-                          sx={{
-                            borderColor: "#06D6A0",
-                            color: "#06D6A0",
-                            "&:hover": {
-                              borderColor: "#00C853",
-                              background: "rgba(6, 214, 160, 0.05)",
-                            },
-                          }}
-                        >
-                          {showCalendar ? "Hide Calendar" : "Show Calendar"}
-                        </Button>
-                      <Button
-                        variant="outlined"
-                        startIcon={<Save />}
-                          onClick={() => setSaveDialogOpen(true)}
-                        sx={{
-                          borderColor: "#FFD166",
-                          color: "#FFD166",
-                          "&:hover": {
-                            borderColor: "#FFC107",
-                            background: "rgba(255, 209, 102, 0.05)",
-                          },
-                        }}
-                      >
-                        Save Plan
-                      </Button>
+                        {/* Calendar and Save buttons - only for logged-in users */}
+                        {user && (
+                          <>
+                            <Button
+                              variant="outlined"
+                              startIcon={<CalendarToday />}
+                              onClick={() => setShowCalendar(!showCalendar)}
+                              sx={{
+                                borderColor: "#06D6A0",
+                                color: "#06D6A0",
+                                "&:hover": {
+                                  borderColor: "#00C853",
+                                  background: "rgba(6, 214, 160, 0.05)",
+                                },
+                              }}
+                            >
+                              {showCalendar ? "Hide Calendar" : "Show Calendar"}
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              startIcon={<Save />}
+                              onClick={() => setSaveDialogOpen(true)}
+                              sx={{
+                                borderColor: "#FFD166",
+                                color: "#FFD166",
+                                "&:hover": {
+                                  borderColor: "#FFC107",
+                                  background: "rgba(255, 209, 102, 0.05)",
+                                },
+                              }}
+                            >
+                              Save Plan
+                            </Button>
+                          </>
+                        )}
+                        {/* Export button for logged-out users */}
+                        {!user && (
+                          <Button
+                            variant="outlined"
+                            startIcon={<Download />}
+                            onClick={() => {
+                              // Export plan as JSON
+                              const planData = JSON.stringify(plan, null, 2);
+                              const blob = new Blob([planData], { type: 'application/json' });
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = '90-day-fitness-plan.json';
+                              document.body.appendChild(a);
+                              a.click();
+                              document.body.removeChild(a);
+                              URL.revokeObjectURL(url);
+                            }}
+                            sx={{
+                              borderColor: "#7B61FF",
+                              color: "#7B61FF",
+                              "&:hover": {
+                                borderColor: "#6A4C93",
+                                background: "rgba(123, 97, 255, 0.05)",
+                              },
+                            }}
+                          >
+                            Export Plan
+                          </Button>
+                        )}
                       </Box>
                     </Box>
 
-                    {showCalendar && renderCalendar()}
+                    {/* Calendar - only for logged-in users */}
+                    {user && showCalendar && renderCalendar()}
 
                     <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 3 }}>
                       <Box sx={{ width: { xs: "100%", md: "50%" } }}>

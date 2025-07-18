@@ -681,10 +681,24 @@ export default function TherapistChatPage() {
       position: "relative",
       mt: user ? 2 : 0
     }}>
-      {/* Back Button for logged-in users */}
-      {user && (
+      {/* Back Button for logged-out users */}
+      {!user && (
         <Box sx={{ position: "absolute", top: -60, left: 0, zIndex: 10 }}>
-          <BackButton href="/dashboard" label="Back to Dashboard" />
+          <BackButton href="/health-tools" label="Back to Health Tools" />
+        </Box>
+      )}
+      
+      {/* Notice for logged-out users */}
+      {!user && (
+        <Box sx={{ position: "absolute", top: -30, left: 0, right: 0, zIndex: 10, px: 2 }}>
+          <Alert severity="info" sx={{ fontSize: '12px', py: 0.5 }}>
+            <Typography variant="body2" sx={{ fontSize: '12px' }}>
+              <strong>Guest User:</strong> Chat sessions are not saved. 
+              <Link href="/register" style={{ color: '#1976d2', textDecoration: 'none', marginLeft: '4px' }}>
+                Sign up to save conversations!
+              </Link>
+            </Typography>
+          </Alert>
         </Box>
       )}
       {/* Sidebar - Chat History */}

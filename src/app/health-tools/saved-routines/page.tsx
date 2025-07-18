@@ -196,10 +196,10 @@ function SavedRoutinesPageInner() {
 
   return (
     <Box sx={{ minHeight: user ? "calc(100vh - 120px)" : "100vh", background: "#f8f9ff" }}>
-      {/* Back Button for logged-in users */}
-      {user && (
+      {/* Back Button for logged-out users */}
+      {!user && (
         <Box sx={{ mb: 2 }}>
-          <BackButton href="/dashboard" label="Back to Dashboard" />
+          <BackButton href="/health-tools" label="Back to Health Tools" />
         </Box>
       )}
       {/* Status Bar */}

@@ -7,7 +7,7 @@ interface BackButtonProps {
   label?: string;
 }
 
-export default function BackButton({ href = "/dashboard", label = "Back to Dashboard" }: BackButtonProps) {
+export default function BackButton({ href = "/health-tools", label = "Back to Health Tools" }: BackButtonProps) {
   const router = useRouter();
 
   const handleBack = () => {

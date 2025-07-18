@@ -729,10 +729,10 @@ export default function PostureCheckPage() {
         "100%": { opacity: 1 }
       }
     }}>
-      {/* Back Button for logged-in users */}
-      {user && (
+      {/* Back Button for logged-out users */}
+      {!user && (
         <Box sx={{ mb: 2 }}>
-          <BackButton href="/dashboard" label="Back to Dashboard" />
+          <BackButton href="/health-tools" label="Back to Health Tools" />
         </Box>
       )}
       {/* Status Bar */}
@@ -783,24 +783,27 @@ export default function PostureCheckPage() {
               </Box>
             </Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-              <Button
-                component={Link}
-                href="/health-tools/posture-history"
-                variant="outlined"
-                size="small"
-                startIcon={<History />}
-                sx={{
-                  borderColor: "rgba(255, 255, 255, 0.3)",
-                  color: "white",
-                  fontWeight: 500,
-                  '&:hover': {
-                    borderColor: "rgba(255, 255, 255, 0.5)",
-                    backgroundColor: "rgba(255, 255, 255, 0.1)"
-                  }
-                }}
-              >
-                View History
-              </Button>
+              {/* View History button - only for logged-in users */}
+              {user && (
+                <Button
+                  component={Link}
+                  href="/health-tools/posture-history"
+                  variant="outlined"
+                  size="small"
+                  startIcon={<History />}
+                  sx={{
+                    borderColor: "rgba(255, 255, 255, 0.3)",
+                    color: "white",
+                    fontWeight: 500,
+                    '&:hover': {
+                      borderColor: "rgba(255, 255, 255, 0.5)",
+                      backgroundColor: "rgba(255, 255, 255, 0.1)"
+                    }
+                  }}
+                >
+                  View History
+                </Button>
+              )}
               <Chip
                 label={isCameraOn ? "Camera Active" : "Camera Off"}
                 size="small"
@@ -912,6 +915,18 @@ export default function PostureCheckPage() {
       </Box>
 
       <Container maxWidth="xl" sx={{ py: 4 }}>
+        {/* Notice for logged-out users */}
+        {!user && (
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <Typography variant="body2">
+              <strong>Guest User Notice:</strong> As a guest, your posture checks are saved locally and cannot be viewed in the history page. 
+              <Link href="/register" style={{ color: '#1976d2', textDecoration: 'none', marginLeft: '8px' }}>
+                Sign up to unlock all features!
+              </Link>
+            </Typography>
+          </Alert>
+        )}
+        
         {/* Progress Reports Section */}
         {progressReports.length > 0 && (
           <Box sx={{ mb: 4 }}>

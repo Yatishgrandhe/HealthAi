@@ -51,8 +51,18 @@ class ImageUploadService {
   ): Promise<ImageUploadResult> {
     this.checkSupabase();
     
-    // Generate a unique file path
-    const filePath = `${imageType}/${Date.now()}_${file.name}`;
+    // Get current user
+    const { data: { user }, error: userError } = await supabase!.auth.getUser();
+    if (userError || !user) {
+      throw new Error('User not authenticated');
+    }
+    
+    // Generate a unique file path with user ID and timestamp
+    const timestamp = Date.now();
+    const fileExtension = file.name.split('.').pop() || 'jpg';
+    const fileName = `${imageType}-${user.id}-${timestamp}.${fileExtension}`;
+    const filePath = `${imageType}/${fileName}`;
+    
     // Upload to Supabase Storage
     const { data: storageData, error: storageError } = await supabase!.storage
       .from('user-images')
@@ -60,20 +70,31 @@ class ImageUploadService {
         cacheControl: '3600',
         upsert: false
       });
-    if (storageError) throw storageError;
+    
+    if (storageError) {
+      console.error('Storage upload error:', storageError);
+      throw new Error(`Failed to upload image: ${storageError.message}`);
+    }
+    
     // Get public URL
     const { data: publicUrlData } = supabase!.storage
       .from('user-images')
       .getPublicUrl(filePath);
+    
     const publicUrl = publicUrlData?.publicUrl;
-    if (!publicUrl) throw new Error('Failed to get public URL for uploaded image');
+    if (!publicUrl) {
+      throw new Error('Failed to get public URL for uploaded image');
+    }
+    
     // Get image dimensions
     const dimensions = await this.getImageDimensions(file);
+    
     // Create metadata
     const metadata: ImageMetadata = {
+      user_id: user.id,
       image_url: publicUrl,
       image_type: imageType,
-      file_name: file.name,
+      file_name: fileName,
       file_size: file.size,
       mime_type: file.type,
       width: dimensions.width,
@@ -81,13 +102,19 @@ class ImageUploadService {
       alt_text: altText || file.name,
       tags: tags || []
     };
+    
     // Save metadata to database
     const { data, error } = await supabase!
       .from('image_metadata')
       .insert(metadata)
       .select()
       .single();
-    if (error) throw error;
+    
+    if (error) {
+      console.warn('Failed to save image metadata to database:', error);
+      // Continue even if metadata save fails
+    }
+    
     return {
       url: publicUrl,
       metadata: {
@@ -100,7 +127,96 @@ class ImageUploadService {
     };
   }
 
-  // Upload image and return URL
+  // Upload base64 image to Supabase Storage
+  async uploadBase64ImageToStorage(
+    base64Image: string,
+    imageType: 'posture' | 'fitness' | 'progress' | 'routine' | 'profile',
+    fileName?: string,
+    altText?: string,
+    tags?: string[]
+  ): Promise<ImageUploadResult> {
+    this.checkSupabase();
+    
+    // Get current user
+    const { data: { user }, error: userError } = await supabase!.auth.getUser();
+    if (userError || !user) {
+      throw new Error('User not authenticated');
+    }
+    
+    // Convert base64 to blob
+    const base64Data = base64Image.replace(/^data:image\/[a-z]+;base64,/, '');
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'image/jpeg' });
+
+    // Generate unique filename
+    const timestamp = Date.now();
+    const finalFileName = fileName || `${imageType}-${user.id}-${timestamp}.jpg`;
+    const filePath = `${imageType}/${finalFileName}`;
+
+    // Upload to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase!.storage
+      .from('user-images')
+      .upload(filePath, blob, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error('Error uploading image to Supabase Storage:', uploadError);
+      throw new Error(`Failed to upload image: ${uploadError.message}`);
+    }
+
+    // Get public URL
+    const { data: publicUrlData } = supabase!.storage
+      .from('user-images')
+      .getPublicUrl(filePath);
+
+    const publicUrl = publicUrlData?.publicUrl;
+    if (!publicUrl) {
+      throw new Error('Failed to get public URL for uploaded image');
+    }
+
+    // Save image metadata
+    try {
+      const metadata: ImageMetadata = {
+        user_id: user.id,
+        image_url: publicUrl,
+        image_type: imageType,
+        file_name: finalFileName,
+        file_size: blob.size,
+        mime_type: 'image/jpeg',
+        alt_text: altText || 'Uploaded image',
+        tags: tags || []
+      };
+
+      await supabase!
+        .from('image_metadata')
+        .insert(metadata)
+        .select()
+        .single();
+    } catch (metadataError) {
+      console.warn('Failed to save image metadata:', metadataError);
+      // Continue even if metadata save fails
+    }
+
+    return {
+      url: publicUrl,
+      metadata: {
+        fileName: finalFileName,
+        fileSize: blob.size,
+        mimeType: 'image/jpeg',
+        width: undefined,
+        height: undefined
+      }
+    };
+  }
+
+  // Upload image and return URL (legacy method - now uses Supabase Storage)
   async uploadImage(
     file: File, 
     imageType: 'posture' | 'fitness' | 'progress' | 'routine' | 'profile',
@@ -118,36 +234,45 @@ class ImageUploadService {
         throw new Error('File size must be less than 5MB');
       }
 
-      // Get image dimensions
-      const dimensions = await this.getImageDimensions(file);
+      // Try to upload to Supabase Storage first
+      if (supabase) {
+        try {
+          return await this.uploadImageToStorage(file, imageType, altText, tags);
+        } catch (storageError) {
+          console.warn('Supabase Storage upload failed, falling back to data URL:', storageError);
+        }
+      }
 
-      // Convert to data URL (in production, upload to cloud storage)
+      // Fallback to data URL if Supabase is not available or upload fails
+      const dimensions = await this.getImageDimensions(file);
       const dataUrl = await this.fileToDataURL(file);
 
       // Only try to save metadata if supabase is available
       if (supabase) {
         try {
-          // Create metadata
-          const metadata: ImageMetadata = {
-            image_url: dataUrl,
-            image_type: imageType,
-            file_name: file.name,
-            file_size: file.size,
-            mime_type: file.type,
-            width: dimensions.width,
-            height: dimensions.height,
-            alt_text: altText || file.name,
-            tags: tags || []
-          };
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            // Create metadata
+            const metadata: ImageMetadata = {
+              user_id: user.id,
+              image_url: dataUrl,
+              image_type: imageType,
+              file_name: file.name,
+              file_size: file.size,
+              mime_type: file.type,
+              width: dimensions.width,
+              height: dimensions.height,
+              alt_text: altText || file.name,
+              tags: tags || []
+            };
 
-          // Save metadata to database
-          const { data, error } = await supabase
-            .from('image_metadata')
-            .insert(metadata)
-            .select()
-            .single();
-
-          if (error) throw error;
+            // Save metadata to database
+            await supabase
+              .from('image_metadata')
+              .insert(metadata)
+              .select()
+              .single();
+          }
         } catch (dbError) {
           console.warn('Failed to save image metadata to database:', dbError);
           // Continue without saving metadata

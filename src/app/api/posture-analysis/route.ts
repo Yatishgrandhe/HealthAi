@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { API_CONFIG } from '@/utils/apiConfig';
+import { supabase } from '@/utils/supabaseClient';
+import imageUploadService from '@/utils/imageUploadService';
 import {
   PostureAnalysis,
   PersonDetectionResult,
@@ -39,11 +41,125 @@ export async function GET() {
   });
 }
 
+// Helper function to get current user (returns null if not authenticated)
+async function getCurrentUser() {
+  if (!supabase) {
+    return null;
+  }
+  
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) {
+      return null;
+    }
+    return user;
+  } catch (error) {
+    console.warn('Error getting current user:', error);
+    return null;
+  }
+}
+
+// Helper function to save posture analysis to database
+async function savePostureAnalysisToDatabase(
+  analysis: PostureAnalysis, 
+  imageUrl?: string,
+  sessionTitle?: string
+) {
+  try {
+    if (!supabase) {
+      console.warn('Supabase not available - skipping database save');
+      return null;
+    }
+
+    const user = await getCurrentUser();
+    if (!user) {
+      console.warn('User not authenticated - skipping database save');
+      return null;
+    }
+    
+    const postureSession = {
+      user_id: user.id,
+      session_title: sessionTitle || `Posture Check - ${new Date().toLocaleDateString()}`,
+      posture_score: analysis.score,
+      analysis_data: {
+        status: analysis.status,
+        confidence: analysis.confidence,
+        personDetected: analysis.personDetected,
+        faceDetected: analysis.faceDetected,
+        detectionMethods: analysis.detectionMethods,
+        detailedAnalysis: analysis.detailedAnalysis,
+        feedback: analysis.feedback,
+        recommendations: analysis.recommendations,
+        analysisMetadata: analysis.analysisMetadata,
+        categorizedFeedback: analysis.categorizedFeedback,
+        prioritizedRecommendations: analysis.prioritizedRecommendations
+      },
+      image_urls: imageUrl ? [imageUrl] : [],
+      recommendations: {
+        immediate: analysis.prioritizedRecommendations?.immediate || [],
+        shortTerm: analysis.prioritizedRecommendations?.shortTerm || [],
+        longTerm: analysis.prioritizedRecommendations?.longTerm || [],
+        exercises: analysis.prioritizedRecommendations?.exercises || [],
+        lifestyle: analysis.prioritizedRecommendations?.lifestyle || []
+      },
+      duration_seconds: analysis.analysisMetadata.processingTime ? Math.round(analysis.analysisMetadata.processingTime / 1000) : 0
+    };
+
+    const { data, error } = await supabase
+      .from('posture_check_sessions')
+      .insert(postureSession)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error saving posture analysis to database:', error);
+      return null;
+    }
+
+    console.log('Posture analysis saved to database successfully');
+    return data;
+  } catch (error) {
+    console.error('Error in savePostureAnalysisToDatabase:', error);
+    return null;
+  }
+}
+
+// Helper function to upload image to Supabase Storage
+async function uploadImageToSupabase(base64Image: string): Promise<string | null> {
+  try {
+    if (!supabase) {
+      console.warn('Supabase not available - skipping image upload');
+      return null;
+    }
+
+    const user = await getCurrentUser();
+    if (!user) {
+      console.warn('User not authenticated - skipping image upload');
+      return null;
+    }
+    
+    // Use the enhanced image upload service
+    const uploadResult = await imageUploadService.uploadBase64ImageToStorage(
+      base64Image,
+      'posture',
+      `posture-${user.id}-${Date.now()}.jpg`,
+      'Posture analysis image',
+      ['posture', 'analysis']
+    );
+    
+    console.log('Image uploaded to Supabase Storage successfully');
+    return uploadResult.url;
+  } catch (error) {
+    console.error('Error uploading image to Supabase Storage:', error);
+    return null;
+  }
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
   
   try {
-    const { image } = await request.json();
+    const { image, saveToDatabase = false, sessionTitle } = await request.json();
 
     if (!image) {
       return NextResponse.json(
@@ -188,9 +304,36 @@ export async function POST(request: NextRequest) {
     // Enhanced posture analysis
     const analysis = performEnhancedPostureAnalysis(visionData, startTime);
 
+    // Handle Supabase integration if requested
+    let imageUrl: string | null = null;
+    let savedSession: any = null;
+
+    if (saveToDatabase) {
+      try {
+        // Upload image to Supabase Storage if user is authenticated
+        imageUrl = await uploadImageToSupabase(image);
+        
+        // Save posture analysis to database
+        savedSession = await savePostureAnalysisToDatabase(analysis, imageUrl || undefined, sessionTitle);
+        
+        if (savedSession) {
+          console.log('Posture analysis saved successfully with ID:', savedSession.id);
+        }
+      } catch (dbError) {
+        console.warn('Database operations failed, but analysis completed:', dbError);
+        // Continue with analysis response even if database operations fail
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      analysis
+      analysis,
+      // Include database information if saved
+      ...(savedSession && {
+        saved: true,
+        sessionId: savedSession.id,
+        imageUrl: imageUrl
+      })
     });
 
   } catch (error: any) {

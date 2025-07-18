@@ -47,16 +47,6 @@ const healthTools = [
     color: "linear-gradient(135deg, #7B61FF, #4CAF50)",
     path: "/health-tools/posture-check",
     comingSoon: false
-  },
-  {
-    id: "fitness-planner",
-    title: "90-Day Fitness Planner",
-    description: "Personalized workout and nutrition plans based on your body analysis",
-    icon: <FitnessCenter sx={{ fontSize: 40, color: "#FFD166" }} />,
-    features: ["Body Analysis", "Meal Plans", "Workout Routines"],
-    color: "linear-gradient(135deg, #FFD166, #06D6A0)",
-    path: "/health-tools/fitness-planner",
-    comingSoon: false
   }
 ];
 

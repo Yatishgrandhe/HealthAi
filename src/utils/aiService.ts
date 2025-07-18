@@ -104,170 +104,6 @@ Respond as Dr. Sarah would - with genuine care, empathy, and helpful insight. Ma
     }
   }
 
-  // Gemini API for complete 90-day fitness plan generation (fast)
-  async generateCompleteFitnessPlan(userData: {
-    dietaryPreference: string;
-    fitnessGoals: string[];
-    fitnessLevel: string;
-    totalDays: number;
-  }): Promise<{ success: boolean; plan?: any; error?: string }> {
-    try {
-      const apiKey = API_CONFIG.GEMINI.API_KEY;
-      if (!validateAPIKey(apiKey, 'Gemini')) {
-        // Return success but no plan - will use local generation
-        console.log('🔄 No Gemini API key configured, will use local template generation');
-        return {
-          success: true,
-          plan: null
-        };
-      }
-
-      // Enhanced prompt for comprehensive fitness planning
-      const prompt = `Generate a comprehensive 90-day fitness plan in JSON format. 
-
-User Profile: ${userData.dietaryPreference} diet, goals: ${userData.fitnessGoals.join(', ')}, fitness level: ${userData.fitnessLevel}
-
-Requirements:
-- Generate exactly 90 daily plans as JSON array
-- Each day object: {day, meals: {breakfast, lunch, dinner, snacks}, exercises: {cardio, strength, flexibility}, tips}
-- Rest days every 7th day with light meals and gentle stretching
-- Progressive difficulty over 90 days
-- Realistic, achievable workouts and meals
-- Keep descriptions concise but specific
-- Return ONLY valid JSON array, no comments, no extra text, no markdown formatting
-- Do not include any explanatory text or comments in the response
-- Ensure the response is pure JSON that can be parsed directly
-- Make this a real, personalized plan, not a sample or template`;
-
-      console.log('🚀 Starting AI generation with timeout...');
-      
-      // Create a timeout promise - 4 minutes as requested
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('AI generation timeout - using local templates')), 240000); // 4 minutes
-      });
-
-      // Create the fetch promise
-      const fetchPromise = fetch(`${API_CONFIG.GEMINI.BASE_URL}/${API_CONFIG.GEMINI.DEFAULT_MODEL}:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: prompt }]
-            }
-          ],
-          generationConfig: {
-            maxOutputTokens: 8000, // Increased for comprehensive plans
-            temperature: 0.7,
-          }
-        })
-      });
-
-      // Race between timeout and fetch
-      const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new APIError(
-          errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`,
-          response.status,
-          'Gemini Fitness Plan'
-        );
-      }
-
-      const data: GeminiResponse = await response.json();
-      let aiResponse = data.candidates[0]?.content?.parts[0]?.text;
-
-      if (!aiResponse) {
-        throw new APIError('No response received from AI model', 500, 'Gemini Fitness Plan');
-      }
-
-      console.log('📝 Raw AI response received:', aiResponse.substring(0, 200) + '...');
-
-      // Clean the response to extract JSON from markdown if present
-      let cleanedResponse = aiResponse.trim();
-      
-      // Remove markdown code blocks if present
-      if (cleanedResponse.startsWith('```json')) {
-        cleanedResponse = cleanedResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-      } else if (cleanedResponse.startsWith('```')) {
-        cleanedResponse = cleanedResponse.replace(/^```\s*/, '').replace(/\s*```$/, '');
-      }
-      
-      // Remove any comments or invalid characters that might break JSON parsing
-      cleanedResponse = cleanedResponse
-        .replace(/\/\/.*$/gm, '') // Remove single-line comments
-        .replace(/\/\*[\s\S]*?\*\//g, '') // Remove multi-line comments
-        .replace(/,\s*}/g, '}') // Remove trailing commas
-        .replace(/,\s*]/g, ']') // Remove trailing commas in arrays
-        .trim();
-      
-      // Try to parse the JSON response
-      try {
-        const planData = JSON.parse(cleanedResponse);
-        console.log('✅ Successfully parsed AI-generated fitness plan with', planData.length, 'days');
-        return {
-          success: true,
-          plan: planData
-        };
-      } catch (parseError) {
-        console.warn('⚠️ Failed to parse AI response as JSON:', parseError);
-        console.log('🔄 AI response was not valid JSON, falling back to templates');
-        console.log('📝 Response preview:', aiResponse.substring(0, 300));
-        
-        // Try to extract partial JSON if possible
-        try {
-          // Look for array start and try to parse partial data
-          const arrayStart = cleanedResponse.indexOf('[');
-          if (arrayStart !== -1) {
-            // Find the last complete object in the array
-            let bracketCount = 0;
-            let lastValidIndex = arrayStart;
-            
-            for (let i = arrayStart; i < cleanedResponse.length; i++) {
-              if (cleanedResponse[i] === '{') bracketCount++;
-              if (cleanedResponse[i] === '}') bracketCount--;
-              
-              if (bracketCount === 0 && cleanedResponse[i] === '}') {
-                lastValidIndex = i;
-              }
-            }
-            
-            const partialJson = cleanedResponse.substring(arrayStart, lastValidIndex + 1);
-            const partialData = JSON.parse(partialJson);
-            
-            if (partialData.length > 0) {
-              console.log('✅ Successfully parsed partial AI response with', partialData.length, 'days');
-              return {
-                success: true,
-                plan: partialData
-              };
-            }
-          }
-        } catch (partialParseError) {
-          console.log('⚠️ Could not parse partial JSON either');
-        }
-        
-        return {
-          success: true,
-          plan: null
-        };
-      }
-
-    } catch (error) {
-      const formattedError = formatError(error, 'Gemini Fitness Plan');
-      console.error('Complete fitness plan generation error:', formattedError);
-      
-      return {
-        success: false,
-        error: formattedError.message
-      };
-    }
-  }
-
   // Gemini API for nutrition planning
   async generateNutritionPlan(userData: {
     dietaryPreference: string;
@@ -283,23 +119,13 @@ Requirements:
         return {
           success: true,
           plan: {
-            nutritionPlan: `Here's a personalized 90-day nutrition plan for you:
+            nutritionPlan: `Here's a personalized nutrition plan for you:
 
-**Week 1-4: Foundation Phase**
+**Weekly Meal Structure**
 - Breakfast: Oatmeal with berries and nuts, Greek yogurt with honey
 - Lunch: Quinoa salad with vegetables, Grilled chicken with brown rice
 - Dinner: Salmon with steamed vegetables, Vegetarian pasta with tomato sauce
 - Snacks: Fresh fruits, nuts, and seeds
-
-**Week 5-8: Building Phase**
-- Increase protein intake for muscle building
-- Add more complex carbohydrates for energy
-- Include healthy fats for hormone production
-
-**Week 9-12: Optimization Phase**
-- Fine-tune macronutrient ratios based on your progress
-- Adjust portion sizes as needed
-- Continue with healthy eating habits
 
 **Nutritional Guidelines:**
 - Daily calorie target: 2000-2500 calories (adjust based on activity)
@@ -316,7 +142,7 @@ Requirements:
         };
       }
 
-      const prompt = `Create a comprehensive 90-day nutrition and meal planning strategy for a person with the following profile:
+      const prompt = `Create a comprehensive nutrition and meal planning strategy for a person with the following profile:
 
 Dietary Preference: ${userData.dietaryPreference}
 Fitness Goals: ${userData.fitnessGoals.join(', ')}
@@ -326,7 +152,7 @@ Food Preferences: ${userData.preferences?.join(', ') || 'None'}
 
 Please provide a detailed nutrition plan including:
 
-1. **Weekly Meal Structure** (4 weeks, repeat for 90 days):
+1. **Weekly Meal Structure**:
    - Breakfast options (7 different meals)
    - Lunch options (7 different meals) 
    - Dinner options (7 different meals)
@@ -409,162 +235,8 @@ Format the response as a structured JSON object with clear sections for easy par
       };
 
     } catch (error) {
-      const formattedError = formatError(error, 'OpenRouter Nutrition');
-      console.error('Nutrition planning error:', formattedError);
-      
-      return {
-        success: false,
-        error: formattedError.message
-      };
-    }
-  }
-
-  // Gemini API for fitness planning - daily meals and exercises
-  async generateDailyFitnessPlan(userData: {
-    dietaryPreference: string;
-    fitnessGoals: string[];
-    fitnessLevel: string;
-    currentDay: number;
-    totalDays: number;
-    restrictions?: string[];
-    preferences?: string[];
-    previousMeals?: { breakfast: string[]; lunch: string[]; dinner: string[] };
-  }): Promise<{ success: boolean; plan?: any; error?: string }> {
-    try {
-      const apiKey = API_CONFIG.GEMINI.API_KEY;
-      if (!validateAPIKey(apiKey, 'Gemini')) {
-        // Return a demo daily plan instead of an error
-        return {
-          success: true,
-          plan: {
-            day: userData.currentDay,
-            meals: {
-              breakfast: "Oatmeal with berries and nuts",
-              lunch: "Quinoa salad with grilled vegetables",
-              dinner: "Salmon with steamed broccoli",
-              snacks: ["Apple with almond butter", "Greek yogurt"]
-            },
-            exercises: {
-              cardio: "30 minutes brisk walking",
-              strength: "Push-ups and squats (3 sets each)",
-              flexibility: "10 minutes stretching routine"
-            },
-            tips: "Stay hydrated and get adequate rest for optimal results.",
-            generatedAt: new Date().toISOString()
-          }
-        };
-      }
-
-      const previousBreakfasts = userData.previousMeals?.breakfast?.join('; ') || 'None';
-      const previousLunches = userData.previousMeals?.lunch?.join('; ') || 'None';
-      const previousDinners = userData.previousMeals?.dinner?.join('; ') || 'None';
-
-      const prompt = `Generate a personalized daily fitness plan for Day ${userData.currentDay} of a ${userData.totalDays}-day program.
-
-User Profile:
-- Dietary Preference: ${userData.dietaryPreference}
-- Fitness Goals: ${userData.fitnessGoals.join(', ')}
-- Fitness Level: ${userData.fitnessLevel}
-- Dietary Restrictions: ${userData.restrictions?.join(', ') || 'None'}
-- Food Preferences: ${userData.preferences?.join(', ') || 'None'}
-
-IMPORTANT:
-- Research using Google and provide unique, evidence-based meals and exercises for this day.
-- Do NOT repeat any meals from previous days. Here are previous breakfasts: ${previousBreakfasts}. Previous lunches: ${previousLunches}. Previous dinners: ${previousDinners}.
-- If you must repeat, explain why (e.g., seasonal, nutritional, or cultural reason).
-- Cite rationale for meal and exercise choices if possible.
-- Meals and exercises should be based on the latest health and nutrition research.
-
-Please provide a structured daily plan including:
-
-1. **Meals for Day ${userData.currentDay}**:
-   - Breakfast (specific meal with ingredients)
-   - Lunch (specific meal with ingredients)
-   - Dinner (specific meal with ingredients)
-   - 2 healthy snacks
-
-2. **Exercises for Day ${userData.currentDay}**:
-   - Cardio exercise (specific duration and type)
-   - Strength training (specific exercises and sets)
-   - Flexibility/stretching routine
-
-3. **Daily Tips**: One motivational or educational tip
-
-4. **Progress Notes**: Brief note about what to expect on this day
-
-Format the response as a structured JSON object with clear sections for easy parsing.`;
-
-      const response = await fetch(`${API_CONFIG.GEMINI.BASE_URL}/${API_CONFIG.GEMINI.DEFAULT_MODEL}:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: API_CONFIG.HEALTH_AI.NUTRITION.SYSTEM_PROMPT + '\n\n' + prompt }]
-            }
-          ],
-          generationConfig: {
-            maxOutputTokens: API_CONFIG.HEALTH_AI.NUTRITION.MAX_TOKENS,
-            temperature: API_CONFIG.HEALTH_AI.NUTRITION.TEMPERATURE,
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new APIError(
-          errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`,
-          response.status,
-          'Gemini Fitness'
-        );
-      }
-
-      const data: GeminiResponse = await response.json();
-      const aiResponse = data.candidates[0]?.content?.parts[0]?.text;
-
-      if (!aiResponse) {
-        throw new APIError('No response received from AI model', 500, 'Gemini Fitness');
-      }
-
-      // Try to parse JSON response, fallback to text if parsing fails
-      let planData;
-      try {
-        // Extract JSON from the response (AI might wrap it in markdown)
-        const jsonMatch = aiResponse.match(/```json\s*([\s\S]*?)\s*```/) || 
-                         aiResponse.match(/\{[\s\S]*\}/);
-        const jsonString = jsonMatch ? jsonMatch[1] || jsonMatch[0] : aiResponse;
-        planData = JSON.parse(jsonString);
-      } catch (parseError) {
-        // If JSON parsing fails, create a structured response from the text
-        planData = {
-          day: userData.currentDay,
-          meals: {
-            breakfast: "Oatmeal with berries and nuts",
-            lunch: "Quinoa salad with grilled vegetables", 
-            dinner: "Salmon with steamed broccoli",
-            snacks: ["Apple with almond butter", "Greek yogurt"]
-          },
-          exercises: {
-            cardio: "30 minutes brisk walking",
-            strength: "Push-ups and squats (3 sets each)",
-            flexibility: "10 minutes stretching routine"
-          },
-          tips: "Stay hydrated and get adequate rest for optimal results.",
-          generatedAt: new Date().toISOString()
-        };
-      }
-
-      return {
-        success: true,
-        plan: planData
-      };
-
-    } catch (error) {
-      const formattedError = formatError(error, 'Gemini Fitness');
-      console.error('Daily fitness planning error:', formattedError);
+      const formattedError = formatError(error, 'Gemini Nutrition');
+      console.error('Nutrition plan generation error:', formattedError);
       
       return {
         success: false,

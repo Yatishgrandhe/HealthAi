@@ -93,7 +93,6 @@ export default function DashboardPage() {
       // Check if user should see migration modal
       const hasBrowserData = localStorage.getItem('healthAI_therapistChat') || 
                             localStorage.getItem('healthAI_postureCheck') || 
-                            localStorage.getItem('healthAI_fitnessPlanner') || 
                             localStorage.getItem('healthAI_savedRoutines') || 
                             localStorage.getItem('healthAI_healthProgress');
       
@@ -115,37 +114,33 @@ export default function DashboardPage() {
       const [
         therapistSessions,
         postureSessions,
-        fitnessPlans,
         savedRoutines,
         healthProgress
       ] = await Promise.all([
         healthDataService.getTherapistChatSessions(),
         healthDataService.getPostureCheckSessions(),
-        healthDataService.getFitnessPlans(),
         healthDataService.getSavedRoutines(),
         healthDataService.getHealthProgress()
       ]);
 
       // Calculate stats
       const totalSessions = therapistSessions?.length || 0;
-      const fitnessWorkouts = fitnessPlans?.length || 0;
       const postureChecks = postureSessions?.length || 0;
       const savedRoutinesCount = savedRoutines?.length || 0;
 
       // Calculate health score based on actual data
       const baseScore = 50;
       const sessionScore = totalSessions * 3;
-      const workoutScore = fitnessWorkouts * 4;
-      const postureScore = postureSessions?.reduce((acc, session) => acc + (session.posture_score || 0), 0) / Math.max(postureSessions?.length || 1, 1);
+      const postureScore = postureSessions?.reduce((acc: number, session: any) => acc + (session.posture_score || 0), 0) / Math.max(postureSessions?.length || 1, 1);
       const routineScore = savedRoutinesCount * 2;
       
-      const healthScore = Math.min(100, Math.max(0, baseScore + sessionScore + workoutScore + (postureScore * 0.1) + routineScore));
+      const healthScore = Math.min(100, Math.max(0, baseScore + sessionScore + (postureScore * 0.1) + routineScore));
 
       // Create recent activities from actual data
       const recentActivities: HealthActivity[] = [];
 
       // Add therapist sessions
-      therapistSessions?.slice(0, 3).forEach(session => {
+      therapistSessions?.slice(0, 3).forEach((session: any) => {
         recentActivities.push({
           id: session.id || 'unknown',
           type: 'therapy',
@@ -157,7 +152,7 @@ export default function DashboardPage() {
       });
 
       // Add posture checks
-      postureSessions?.slice(0, 2).forEach(session => {
+      postureSessions?.slice(0, 2).forEach((session: any) => {
         recentActivities.push({
           id: session.id || 'unknown',
           type: 'posture',
@@ -168,20 +163,8 @@ export default function DashboardPage() {
         });
       });
 
-      // Add fitness plans
-      fitnessPlans?.slice(0, 2).forEach(plan => {
-        recentActivities.push({
-          id: plan.id || 'unknown',
-          type: 'fitness',
-          title: plan.plan_name || 'Fitness Plan',
-          date: plan.created_at || new Date().toISOString(),
-          status: plan.is_active ? 'active' : 'completed',
-          duration: plan.duration_days ? `${plan.duration_days} days` : undefined
-        });
-      });
-
       // Add saved routines
-      savedRoutines?.slice(0, 1).forEach(routine => {
+      savedRoutines?.slice(0, 2).forEach((routine: any) => {
         recentActivities.push({
           id: routine.id || 'unknown',
           type: 'routine',
@@ -204,19 +187,19 @@ export default function DashboardPage() {
             type: 'welcome',
             title: 'Welcome to Health AI!',
             date: new Date().toISOString(),
-            status: 'completed'
+            status: 'active'
           },
           {
             id: 'get-started',
-            type: 'suggestion',
-            title: 'Try your first posture check',
+            type: 'tip',
+            title: 'Try our Posture Check tool',
             date: new Date(Date.now() - 86400000).toISOString(),
             status: 'pending'
           },
           {
-            id: 'therapy-suggestion',
-            type: 'suggestion',
-            title: 'Start a therapy session',
+            id: 'therapy',
+            type: 'tip',
+            title: 'Start a conversation with our AI therapist',
             date: new Date(Date.now() - 172800000).toISOString(),
             status: 'pending'
           }
@@ -225,16 +208,33 @@ export default function DashboardPage() {
 
       setStats({
         totalSessions,
-        fitnessWorkouts,
+        fitnessWorkouts: 0, // Removed fitness workouts
         postureChecks,
         healthScore: Math.round(healthScore),
         recentActivities: sortedActivities,
         savedRoutinesCount,
-        averagePostureScore: postureSessions?.reduce((acc, session) => acc + (session.posture_score || 0), 0) / Math.max(postureSessions?.length || 1, 1),
-        progressStreak: 0, // Default value for now
+        averagePostureScore: postureSessions?.length ? Math.round(postureScore) : undefined,
+        progressStreak: healthProgress?.length || 0
       });
+
     } catch (error) {
       console.error('Error fetching health data:', error);
+      // Set default stats if there's an error
+      setStats({
+        totalSessions: 0,
+        fitnessWorkouts: 0,
+        postureChecks: 0,
+        healthScore: 50,
+        recentActivities: [
+          {
+            id: 'welcome',
+            type: 'welcome',
+            title: 'Welcome to Health AI!',
+            date: new Date().toISOString(),
+            status: 'active'
+          }
+        ]
+      });
     }
   };
 

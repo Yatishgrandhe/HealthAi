@@ -536,7 +536,7 @@ export default function PostureCheckPage() {
     return canvas.toDataURL('image/jpeg', 0.95);
   };
 
-  const analyzePostureWithAI = async (imageData: string): Promise<PostureAnalysis> => {
+  const analyzePostureWithAI = async (imageData: string): Promise<PostureAnalysis & { saved?: boolean; sessionId?: string; imageUrl?: string }> => {
     try {
       const response = await fetch('/api/posture-analysis', {
         method: 'POST',
@@ -545,6 +545,8 @@ export default function PostureCheckPage() {
         },
         body: JSON.stringify({
           image: imageData.split(',')[1], // Remove data:image/jpeg;base64, prefix
+          saveToDatabase: !!user, // Save to database if user is authenticated
+          sessionTitle: `Posture Check - ${new Date().toLocaleDateString()}`
         }),
       });
 
@@ -558,7 +560,12 @@ export default function PostureCheckPage() {
         throw new Error(result.error || 'Analysis failed');
       }
 
-      return result.analysis;
+      return {
+        ...result.analysis,
+        saved: result.saved,
+        sessionId: result.sessionId,
+        imageUrl: result.imageUrl
+      };
     } catch (error) {
       console.error('AI analysis error:', error);
       throw error;
@@ -622,7 +629,14 @@ export default function PostureCheckPage() {
       setAnalysis(analysisWithImage);
       setShowImageOptions(true);
       
-      setSnackbarMessage("Posture analysis completed! Choose what to do with the captured image.");
+      // Show appropriate message based on whether data was saved to database
+      if (user && aiAnalysis.saved) {
+        setSnackbarMessage("Posture analysis completed and saved to your history!");
+      } else if (user && !aiAnalysis.saved) {
+        setSnackbarMessage("Posture analysis completed! (Note: Could not save to database)");
+      } else {
+        setSnackbarMessage("Posture analysis completed! Log in to save your progress.");
+      }
       setSnackbarOpen(true);
       
     } catch (error: any) {
@@ -678,37 +692,19 @@ export default function PostureCheckPage() {
 
     try {
       if (user) {
-        // Convert data URL to File
-        const res = await fetch(capturedImage);
-        const blob = await res.blob();
-        const file = new File([blob], `posture_${Date.now()}.jpg`, { type: blob.type });
-        
-        let imageUrl = '';
-        
-        try {
-          // Try to upload to Supabase Storage first
-          const uploadResult = await imageUploadService.uploadImageToStorage(file, 'posture', 'Posture Check Image');
-          imageUrl = uploadResult.url;
-        } catch (uploadError) {
-          console.warn('Failed to upload to storage, using data URL:', uploadError);
-          // Fallback to data URL if storage upload fails
-          imageUrl = `data:image/jpeg;base64,${capturedImage.split(',')[1]}`;
-        }
-        
-        // Save to Supabase with proper error handling
+        // Use the enhanced health data service for saving
         const sessionData = {
           session_title: `${analysis.status.charAt(0).toUpperCase() + analysis.status.slice(1)} Posture Check`,
           posture_score: analysis.score,
           analysis_data: analysis,
-          image_urls: [imageUrl],
           recommendations: analysis.recommendations || [],
           duration_seconds: Math.floor((Date.now() - (analysis.timestamp ? new Date(analysis.timestamp).getTime() : Date.now())) / 1000)
         };
         
         try {
-          console.log('Saving posture session to database:', sessionData);
-          await healthDataService.savePostureCheckSession(sessionData);
-          console.log('Successfully saved to database');
+          console.log('Saving posture session with image to database...');
+          await healthDataService.savePostureCheckSessionWithImages(sessionData, capturedImage);
+          console.log('Successfully saved to database with image');
           
           // Reload progress reports from database
           const sessions = await healthDataService.getPostureCheckSessions();
@@ -724,6 +720,9 @@ export default function PostureCheckPage() {
             imageUrl: session.image_urls?.[0] || '',
             analysis: session.analysis_data || {}
           })));
+          
+          setSnackbarMessage("Progress report saved successfully with image!");
+          setSnackbarOpen(true);
         } catch (dbError) {
           console.error('Database save error:', dbError);
           // If database save fails, fall back to localStorage
@@ -759,11 +758,11 @@ export default function PostureCheckPage() {
         const updatedReports = [...existingReports, progressReport];
         localStorage.setItem('postureProgressReports', JSON.stringify(updatedReports));
         setProgressReports(updatedReports);
+        setSnackbarMessage("Progress report saved locally!");
+        setSnackbarOpen(true);
       }
       setShowImageOptions(false);
       setCapturedImage(null);
-      setSnackbarMessage("Progress report saved successfully!");
-      setSnackbarOpen(true);
     } catch (error) {
       console.error('Error saving progress report:', error);
       

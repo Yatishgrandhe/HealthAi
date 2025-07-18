@@ -4,7 +4,7 @@ import imageUploadService from './imageUploadService';
 export interface HealthData {
   id?: string;
   user_id?: string;
-  data_type: 'therapist_chat' | 'posture_check' | 'fitness_planner' | 'saved_routines' | 'browser_data';
+  data_type: 'therapist_chat' | 'posture_check' | 'saved_routines' | 'browser_data';
   data_key: string;
   data_value: any;
   image_urls?: string[];
@@ -36,60 +36,6 @@ export interface PostureCheckSession {
   recommendations?: any;
   duration_seconds?: number;
   created_at?: string;
-}
-
-export interface FitnessPlan {
-  id?: string;
-  user_id?: string;
-  plan_name: string;
-  plan_type: 'strength' | 'cardio' | 'flexibility' | 'weight_loss' | 'muscle_gain' | 'general';
-  duration_days?: number;
-  difficulty_level: 'beginner' | 'intermediate' | 'advanced';
-  exercises: any;
-  nutrition_plan?: any;
-  goals?: any;
-  is_active?: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface DailyFitnessPlan {
-  id?: string;
-  user_id?: string;
-  fitness_plan_id?: string;
-  day_number: number;
-  meals: {
-    breakfast: string;
-    lunch: string;
-    dinner: string;
-    snacks: string[];
-  };
-  exercises: {
-    cardio: string;
-    strength: string;
-    flexibility: string;
-  };
-  tips?: string;
-  progress_notes?: string;
-  completed?: boolean;
-  completed_at?: string;
-  image_urls?: string[];
-  notes?: string;
-  created_at?: string;
-}
-
-export interface FitnessProgress {
-  id?: string;
-  user_id?: string;
-  fitness_plan_id?: string;
-  day_number: number;
-  completed_workouts: number;
-  completed_meals: number;
-  mood_score?: number;
-  energy_level?: number;
-  notes?: string;
-  image_urls?: string[];
-  recorded_at?: string;
 }
 
 export interface SavedRoutine {
@@ -213,7 +159,7 @@ class HealthDataService {
 
     // Migrate therapist chat sessions
     if (browserData.therapistChat && browserData.therapistChat.length > 0) {
-      for (const session of browserData.therapistChat) {
+        for (const session of browserData.therapistChat) {
         const migrationPromise = supabase!
           .from('therapist_chat_sessions')
           .upsert({
@@ -232,7 +178,7 @@ class HealthDataService {
 
     // Migrate posture check sessions
     if (browserData.postureCheck && browserData.postureCheck.length > 0) {
-      for (const session of browserData.postureCheck) {
+        for (const session of browserData.postureCheck) {
         const migrationPromise = supabase!
           .from('posture_check_sessions')
           .upsert({
@@ -246,33 +192,12 @@ class HealthDataService {
             created_at: session.created_at || new Date().toISOString()
           });
         migrationPromises.push(migrationPromise);
+        }
       }
-    }
 
-    // Migrate fitness planner data
-    if (browserData.fitnessPlanner && browserData.fitnessPlanner.length > 0) {
-      for (const plan of browserData.fitnessPlanner) {
-        const migrationPromise = supabase!
-          .from('fitness_plans')
-          .upsert({
-            user_id: user.id,
-            plan_name: plan.plan_name || 'Migrated Fitness Plan',
-            plan_type: plan.plan_type || 'general',
-            duration_days: plan.duration_days || 30,
-            difficulty_level: plan.difficulty_level || 'beginner',
-            exercises: plan.exercises || {},
-            nutrition_plan: plan.nutrition_plan || {},
-            goals: plan.goals || {},
-            is_active: plan.is_active || false,
-            created_at: plan.created_at || new Date().toISOString()
-          });
-        migrationPromises.push(migrationPromise);
-      }
-    }
-
-    // Migrate saved routines
+      // Migrate saved routines
     if (browserData.savedRoutines && browserData.savedRoutines.length > 0) {
-      for (const routine of browserData.savedRoutines) {
+        for (const routine of browserData.savedRoutines) {
         const migrationPromise = supabase!
           .from('saved_routines')
           .upsert({
@@ -368,216 +293,155 @@ class HealthDataService {
   }
 
   // Posture check operations
-  async savePostureCheckSession(session: Omit<PostureCheckSession, 'id' | 'user_id' | 'created_at'>) {
+  async savePostureCheckSession(sessionData: Omit<PostureCheckSession, 'id' | 'user_id' | 'created_at'>) {
     this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase!
-      .from('posture_check_sessions')
-      .insert({
-        user_id: user.id,
-        ...session
-      })
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase!
+        .from('posture_check_sessions')
+        .insert({
+          user_id: user.id,
+          ...sessionData
+        })
+        .select()
+        .single();
 
-    if (error) throw error;
-    return data;
+      if (error) {
+        console.error('Error saving posture session:', error);
+        throw error;
+      }
+      
+      console.log('Posture session saved successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('Failed to save posture session:', error);
+      throw error;
+    }
   }
 
   async getPostureCheckSessions() {
     this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase!
-      .from('posture_check_sessions')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase!
+        .from('posture_check_sessions')
+        .select(`
+          id,
+          user_id,
+          session_title,
+          posture_score,
+          analysis_data,
+          image_urls,
+          recommendations,
+          duration_seconds,
+          created_at
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    return data;
-  }
-
-  // Fitness plan operations
-  async saveFitnessPlan(plan: Omit<FitnessPlan, 'id' | 'user_id' | 'created_at' | 'updated_at'>) {
-    this.checkSupabase();
-    const user = await this.getCurrentUser();
-    
-    const { data, error } = await supabase!
-      .from('fitness_plans')
-      .insert({
-        user_id: user.id,
-        ...plan
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  }
-
-  async getFitnessPlans() {
-    this.checkSupabase();
-    const user = await this.getCurrentUser();
-    
-    const { data, error } = await supabase!
-      .from('fitness_plans')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return data;
-  }
-
-  async getActiveFitnessPlan() {
-    this.checkSupabase();
-    const user = await this.getCurrentUser();
-    
-    const { data, error } = await supabase!
-      .from('fitness_plans')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .single();
-
-    if (error && error.code !== 'PGRST116') {
+      if (error) {
+        console.error('Error fetching posture sessions:', error);
+        throw error;
+      }
+      
+      return data || [];
+    } catch (error) {
+      console.error('Failed to fetch posture sessions:', error);
       throw error;
     }
-    return data;
   }
 
-  async updateFitnessPlan(planId: string, updates: Partial<FitnessPlan>) {
+  async getPostureCheckSession(sessionId: string) {
     this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    const { data, error } = await supabase!
-      .from('fitness_plans')
-      .update(updates)
-      .eq('id', planId)
-      .eq('user_id', user.id)
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase!
+        .from('posture_check_sessions')
+        .select(`
+          id,
+          user_id,
+          session_title,
+          posture_score,
+          analysis_data,
+          image_urls,
+          recommendations,
+          duration_seconds,
+          created_at
+        `)
+        .eq('id', sessionId)
+        .eq('user_id', user.id)
+        .single();
 
-    if (error) throw error;
-    return data;
-  }
-
-  // Daily fitness plan operations
-  async saveDailyFitnessPlan(dailyPlan: Omit<DailyFitnessPlan, 'id' | 'user_id' | 'created_at'>) {
-    this.checkSupabase();
-    const user = await this.getCurrentUser();
-    
-    const { data, error } = await supabase!
-      .from('daily_fitness_plans')
-      .insert({
-        user_id: user.id,
-        ...dailyPlan
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  }
-
-  async getDailyFitnessPlans(fitnessPlanId?: string) {
-    this.checkSupabase();
-    const user = await this.getCurrentUser();
-    
-    let query = supabase!
-      .from('daily_fitness_plans')
-      .select('*')
-      .eq('user_id', user.id);
-
-    if (fitnessPlanId) {
-      query = query.eq('fitness_plan_id', fitnessPlanId);
-    }
-
-    const { data, error } = await query.order('day_number', { ascending: true });
-    if (error) throw error;
-    return data;
-  }
-
-  async getDailyFitnessPlan(dayNumber: number, fitnessPlanId?: string) {
-    this.checkSupabase();
-    const user = await this.getCurrentUser();
-    
-    let query = supabase!
-      .from('daily_fitness_plans')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('day_number', dayNumber);
-
-    if (fitnessPlanId) {
-      query = query.eq('fitness_plan_id', fitnessPlanId);
-    }
-
-    const { data, error } = await query.single();
-    if (error && error.code !== 'PGRST116') {
+      if (error) {
+        console.error('Error fetching posture session:', error);
+        throw error;
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Failed to fetch posture session:', error);
       throw error;
     }
-    return data;
   }
 
-  async updateDailyFitnessPlan(dayNumber: number, updates: Partial<DailyFitnessPlan>, fitnessPlanId?: string) {
+  async deletePostureCheckSession(sessionId: string) {
     this.checkSupabase();
     const user = await this.getCurrentUser();
     
-    let query = supabase!
-      .from('daily_fitness_plans')
-      .update(updates)
-      .eq('user_id', user.id)
-      .eq('day_number', dayNumber);
+    try {
+      // First get the session to check if it has images to delete
+      const session = await this.getPostureCheckSession(sessionId);
+      
+      // Delete the session
+      const { error } = await supabase!
+        .from('posture_check_sessions')
+        .delete()
+        .eq('id', sessionId)
+        .eq('user_id', user.id);
 
-    if (fitnessPlanId) {
-      query = query.eq('fitness_plan_id', fitnessPlanId);
+      if (error) {
+        console.error('Error deleting posture session:', error);
+        throw error;
+      }
+      
+      // If session had images, try to delete them from storage
+      if (session && session.image_urls && session.image_urls.length > 0) {
+        try {
+          for (const imageUrl of session.image_urls) {
+            // Extract file path from URL
+            const urlParts = imageUrl.split('/');
+            const fileName = urlParts[urlParts.length - 1];
+            const filePath = `posture/${fileName}`;
+            
+            // Delete from storage
+            await supabase!.storage
+              .from('user-images')
+              .remove([filePath]);
+              
+            console.log('Deleted image from storage:', filePath);
+          }
+        } catch (storageError) {
+          console.warn('Failed to delete images from storage:', storageError);
+          // Continue even if image deletion fails
+        }
+      }
+      
+      console.log('Posture session deleted successfully');
+      return true;
+    } catch (error) {
+      console.error('Failed to delete posture session:', error);
+      throw error;
     }
-
-    const { data, error } = await query.select().single();
-    if (error) throw error;
-    return data;
   }
 
-  // Fitness progress operations
-  async saveFitnessProgress(progress: Omit<FitnessProgress, 'id' | 'user_id' | 'recorded_at'>) {
-    this.checkSupabase();
-    const user = await this.getCurrentUser();
-    
-    const { data, error } = await supabase!
-      .from('fitness_progress')
-      .insert({
-        user_id: user.id,
-        ...progress
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  }
-
-  async getFitnessProgress(fitnessPlanId?: string) {
-    this.checkSupabase();
-    const user = await this.getCurrentUser();
-    
-    let query = supabase!
-      .from('fitness_progress')
-      .select('*')
-      .eq('user_id', user.id);
-
-    if (fitnessPlanId) {
-      query = query.eq('fitness_plan_id', fitnessPlanId);
-    }
-
-    const { data, error } = await query.order('recorded_at', { ascending: false });
-    if (error) throw error;
-    return data;
-  }
-
-  // Save fitness plan with images
-  async saveFitnessPlanWithImages(plan: Omit<FitnessPlan, 'id' | 'user_id' | 'created_at' | 'updated_at'>, imageData?: string) {
+  // Save posture session with images
+  async savePostureCheckSessionWithImages(
+    sessionData: Omit<PostureCheckSession, 'id' | 'user_id' | 'created_at'>,
+    imageData?: string
+  ) {
     this.checkSupabase();
     const user = await this.getCurrentUser();
     let imageUrls: string[] = [];
@@ -585,43 +449,39 @@ class HealthDataService {
     // Upload image if provided
     if (imageData) {
       try {
-        // Convert base64 to File object for upload
-        const base64Response = await fetch(imageData);
-        const blob = await base64Response.blob();
-        const file = new File([blob], 'fitness_plan_image.jpg', { type: 'image/jpeg' });
-        
-        const result = await imageUploadService.uploadImage(file, 'fitness', 'Fitness Plan Image');
-        imageUrls.push(result.url);
+        // Use the enhanced image upload service
+        const uploadResult = await imageUploadService.uploadBase64ImageToStorage(
+          imageData,
+          'posture',
+          `posture-${user.id}-${Date.now()}.jpg`,
+          'Posture Check Image',
+          ['posture', 'analysis']
+        );
+        imageUrls.push(uploadResult.url);
       } catch (error) {
-        console.error('Failed to upload fitness plan image:', error);
+        console.error('Failed to upload posture image:', error);
+        // Continue without image if upload fails
       }
     }
 
-    // Save fitness plan
-    const { data: fitnessPlan, error: planError } = await supabase!
-      .from('fitness_plans')
+    // Save posture session
+    const { data: postureSession, error: sessionError } = await supabase!
+      .from('posture_check_sessions')
       .insert({
         user_id: user.id,
-        ...plan
+        ...sessionData,
+        image_urls: imageUrls
       })
       .select()
       .single();
 
-    if (planError) throw planError;
-
-    // Save image metadata if images were uploaded
-    if (imageUrls.length > 0) {
-      for (const imageUrl of imageUrls) {
-        await this.saveImageMetadata({
-          image_url: imageUrl,
-          image_type: 'fitness',
-          file_name: `fitness_plan_${fitnessPlan.id}`,
-          tags: ['fitness_plan', plan.plan_type]
-        });
-      }
+    if (sessionError) {
+      console.error('Error saving posture session:', sessionError);
+      throw sessionError;
     }
 
-    return fitnessPlan;
+    console.log('Posture session with images saved successfully:', postureSession);
+    return postureSession;
   }
 
   // Saved routines operations
@@ -858,13 +718,11 @@ class HealthDataService {
       const [
         { count: therapistSessions },
         { count: postureChecks },
-        { count: fitnessPlans },
         { count: savedRoutines },
         { count: healthProgress }
       ] = await Promise.all([
         supabase!.from('therapist_chat_sessions').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
         supabase!.from('posture_check_sessions').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
-        supabase!.from('fitness_plans').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
         supabase!.from('saved_routines').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
         supabase!.from('health_progress').select('*', { count: 'exact', head: true }).eq('user_id', user.id)
       ]);
@@ -872,24 +730,21 @@ class HealthDataService {
       // Get detailed data for calculations
       const [
         { data: postureCheckData },
-        { data: healthProgressData },
-        { data: fitnessPlansData }
+        { data: healthProgressData }
       ] = await Promise.all([
         supabase!.from('posture_check_sessions').select('posture_score').eq('user_id', user.id),
-        supabase!.from('health_progress').select('*').eq('user_id', user.id).order('recorded_at', { ascending: false }),
-        supabase!.from('fitness_plans').select('*').eq('user_id', user.id)
+        supabase!.from('health_progress').select('*').eq('user_id', user.id).order('recorded_at', { ascending: false })
       ]);
 
       // Calculate metrics
       const averagePostureScore = this.calculateAveragePostureScore(postureCheckData || []);
       const progressStreak = this.calculateProgressStreak(healthProgressData || []);
-      const fitnessProgress = this.calculateFitnessProgress(fitnessPlansData || []);
+      const fitnessProgress = this.calculateFitnessProgress(healthProgressData || []);
 
       // Calculate overall health score
       const healthScore = this.calculateHealthScore({
         therapistSessions: therapistSessions || 0,
         postureChecks: postureChecks || 0,
-        fitnessPlans: fitnessPlans || 0,
         savedRoutines: savedRoutines || 0,
         healthProgress: healthProgress || 0
       });
@@ -900,7 +755,6 @@ class HealthDataService {
       return {
         totalTherapistSessions: therapistSessions || 0,
         totalPostureChecks: postureChecks || 0,
-        totalFitnessPlans: fitnessPlans || 0,
         totalSavedRoutines: savedRoutines || 0,
         healthScore,
         recentActivities,
@@ -914,7 +768,6 @@ class HealthDataService {
       return {
         totalTherapistSessions: 0,
         totalPostureChecks: 0,
-        totalFitnessPlans: 0,
         totalSavedRoutines: 0,
         healthScore: 0,
         recentActivities: [],
@@ -929,7 +782,6 @@ class HealthDataService {
     const weights = {
       therapistSessions: 0.2,
       postureChecks: 0.25,
-      fitnessPlans: 0.25,
       savedRoutines: 0.15,
       healthProgress: 0.15
     };
@@ -937,7 +789,6 @@ class HealthDataService {
     const maxValues = {
       therapistSessions: 10,
       postureChecks: 20,
-      fitnessPlans: 5,
       savedRoutines: 15,
       healthProgress: 30
     };
@@ -985,14 +836,12 @@ class HealthDataService {
     return streak;
   }
 
-  private calculateFitnessProgress(fitnessPlans: any[]): number {
-    if (fitnessPlans.length === 0) return 0;
+  private calculateFitnessProgress(healthProgress: any[]): number {
+    if (healthProgress.length === 0) return 0;
     
-    const activePlans = fitnessPlans.filter(plan => plan.is_active);
-    if (activePlans.length === 0) return 0;
-    
-    // Calculate average completion rate (simplified)
-    return Math.round((activePlans.length / fitnessPlans.length) * 100);
+    // Calculate average mood score (simplified)
+    const totalMoodScore = healthProgress.reduce((sum, progress) => sum + (progress.metric_value || 0), 0);
+    return Math.round(totalMoodScore / healthProgress.length);
   }
 
   private async getRecentActivities() {
@@ -1036,21 +885,21 @@ class HealthDataService {
         })));
       }
 
-      // Get recent fitness activities
-      const { data: recentFitness } = await supabase!
-        .from('fitness_plans')
-        .select('plan_name, created_at, is_active')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
+      // Get recent health progress
+      const { data: recentHealthProgress } = await supabase!
+        .from('health_progress')
+        .select('metric_type, metric_value, recorded_at')
+      .eq('user_id', user.id)
+        .order('recorded_at', { ascending: false })
         .limit(3);
 
-      if (recentFitness) {
-        activities.push(...recentFitness.map(plan => ({
-          type: 'fitness',
-          title: plan.plan_name,
-          date: plan.created_at,
-          status: plan.is_active ? 'Active' : 'Completed',
-          icon: 'FitnessCenter'
+      if (recentHealthProgress) {
+        activities.push(...recentHealthProgress.map(progress => ({
+          type: 'health',
+          title: `${progress.metric_type} Progress`,
+          date: progress.recorded_at,
+          score: progress.metric_value,
+          icon: 'HealthAndSafety'
         })));
       }
 
@@ -1073,7 +922,6 @@ class HealthDataService {
       const data = {
         therapistChat: JSON.parse(localStorage.getItem('healthAI_therapistChat') || '[]'),
         postureCheck: JSON.parse(localStorage.getItem('healthAI_postureCheck') || '[]'),
-        fitnessPlanner: JSON.parse(localStorage.getItem('healthAI_fitnessPlanner') || '[]'),
         savedRoutines: JSON.parse(localStorage.getItem('healthAI_savedRoutines') || '[]'),
         healthProgress: JSON.parse(localStorage.getItem('healthAI_healthProgress') || '[]')
       };
@@ -1101,7 +949,6 @@ class HealthDataService {
     try {
       localStorage.removeItem('healthAI_therapistChat');
       localStorage.removeItem('healthAI_postureCheck');
-      localStorage.removeItem('healthAI_fitnessPlanner');
       localStorage.removeItem('healthAI_savedRoutines');
       localStorage.removeItem('healthAI_healthProgress');
     } catch (error) {

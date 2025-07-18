@@ -417,12 +417,14 @@ export default function PostureCheckPage() {
             created_at: session.created_at || new Date().toISOString()
           }));
           
-          localStorage.setItem('postureProgressReports', JSON.stringify(localStorageData));
+          const storageKey = `postureProgressReports-${user.id}`;
+          localStorage.setItem(storageKey, JSON.stringify(localStorageData));
         } catch (dbError) {
           console.error('Database load error:', dbError);
           // If database fails, try to load from localStorage as fallback
           console.log('Falling back to localStorage due to database error');
-          const savedReports = localStorage.getItem('postureProgressReports');
+          const storageKey = `postureProgressReports-${user.id}`;
+          const savedReports = localStorage.getItem(storageKey);
           if (savedReports) {
             console.log('Loading from localStorage as fallback');
             const parsedReports = JSON.parse(savedReports);
@@ -744,9 +746,10 @@ export default function PostureCheckPage() {
           console.log('Successfully saved to database with image');
           
           // Also save to localStorage for consistency and offline access
-      const existingReports = JSON.parse(localStorage.getItem('postureProgressReports') || '[]');
+          const storageKey = `postureProgressReports-${user.id}`;
+          const existingReports = JSON.parse(localStorage.getItem(storageKey) || '[]');
           const updatedReports = [localStorageData, ...existingReports];
-      localStorage.setItem('postureProgressReports', JSON.stringify(updatedReports));
+          localStorage.setItem(storageKey, JSON.stringify(updatedReports));
       
           // Update progress reports display
           setProgressReports(updatedReports.map(report => ({
@@ -767,9 +770,10 @@ export default function PostureCheckPage() {
           console.error('Database save error:', dbError);
           // If database save fails, save to localStorage only
           console.log('Falling back to localStorage due to database error');
-          const existingReports = JSON.parse(localStorage.getItem('postureProgressReports') || '[]');
+          const storageKey = `postureProgressReports-${user.id}`;
+          const existingReports = JSON.parse(localStorage.getItem(storageKey) || '[]');
           const updatedReports = [localStorageData, ...existingReports];
-          localStorage.setItem('postureProgressReports', JSON.stringify(updatedReports));
+          localStorage.setItem(storageKey, JSON.stringify(updatedReports));
           setProgressReports(updatedReports.map(report => ({
             id: report.id,
             timestamp: report.created_at,

@@ -92,6 +92,11 @@ export default function PostureCheckPage() {
   const { user, loading: userLoading } = useUser();
   const healthDataService = new HealthDataService();
 
+  // Debug logging
+  useEffect(() => {
+    console.log('User state changed:', { user, userLoading });
+  }, [user, userLoading]);
+
   // Check if browser supports getUserMedia
   const isBrowserSupported = () => {
     return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
@@ -174,10 +179,12 @@ export default function PostureCheckPage() {
     }
   }, []);
 
-  // Load progress reports on component mount
+  // Load progress reports on component mount and when user changes
   useEffect(() => {
-    loadProgressReports();
-  }, []);
+    if (!userLoading) {
+      loadProgressReports();
+    }
+  }, [user, userLoading]);
 
   // Add keyboard shortcuts for zoom
   useEffect(() => {
@@ -628,10 +635,13 @@ export default function PostureCheckPage() {
         };
         
         try {
+          console.log('Saving posture session to database:', sessionData);
           await healthDataService.savePostureCheckSession(sessionData);
+          console.log('Successfully saved to database');
           
           // Reload progress reports from database
           const sessions = await healthDataService.getPostureCheckSessions();
+          console.log('Loaded sessions from database:', sessions);
           setProgressReports(sessions.map(session => ({
             id: session.id || '',
             timestamp: session.created_at || new Date().toISOString(),
@@ -646,7 +656,22 @@ export default function PostureCheckPage() {
         } catch (dbError) {
           console.error('Database save error:', dbError);
           // If database save fails, fall back to localStorage
-          throw new Error('Database connection failed. Saving locally instead.');
+          console.log('Falling back to localStorage due to database error');
+          const imageUrl = `data:image/jpeg;base64,${capturedImage.split(',')[1]}`;
+          const progressReport = {
+            id: Date.now().toString(),
+            timestamp: analysis.timestamp || new Date().toISOString(),
+            score: analysis.score,
+            status: analysis.status,
+            imageUrl: imageUrl,
+            analysis: analysis
+          };
+          const existingReports = JSON.parse(localStorage.getItem('postureProgressReports') || '[]');
+          const updatedReports = [...existingReports, progressReport];
+          localStorage.setItem('postureProgressReports', JSON.stringify(updatedReports));
+          setProgressReports(updatedReports);
+          setSnackbarMessage("Database connection failed. Data saved locally.");
+          setSnackbarOpen(true);
         }
       } else {
         // Save to localStorage for guests or when supabase is not available
@@ -701,10 +726,13 @@ export default function PostureCheckPage() {
 
   const loadProgressReports = async () => {
     try {
+      console.log('Loading progress reports, user:', user);
       if (user) {
         // Load from database for logged-in users
         try {
+          console.log('Attempting to load from database...');
           const sessions = await healthDataService.getPostureCheckSessions();
+          console.log('Sessions loaded from database:', sessions);
           setProgressReports(sessions.map(session => ({
             id: session.id || '',
             timestamp: session.created_at || new Date().toISOString(),
@@ -719,16 +747,22 @@ export default function PostureCheckPage() {
         } catch (dbError) {
           console.error('Database load error:', dbError);
           // If database fails, try to load from localStorage as fallback
+          console.log('Falling back to localStorage due to database error');
           const savedReports = localStorage.getItem('postureProgressReports');
           if (savedReports) {
+            console.log('Loading from localStorage as fallback');
             setProgressReports(JSON.parse(savedReports));
           }
         }
       } else {
         // Load from localStorage for guests or when supabase is not available
+        console.log('Loading from localStorage for guest user');
         const savedReports = localStorage.getItem('postureProgressReports');
         if (savedReports) {
+          console.log('Found saved reports in localStorage');
           setProgressReports(JSON.parse(savedReports));
+        } else {
+          console.log('No saved reports found in localStorage');
         }
       }
     } catch (error) {
@@ -776,6 +810,16 @@ export default function PostureCheckPage() {
           <BackButton href="/health-tools" label="Back to Health Tools" />
         </Box>
       )}
+      {/* Debug Info */}
+      {process.env.NODE_ENV === 'development' && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <strong>Debug Info:</strong> User: {user ? user.email : 'Not logged in'}, 
+          Loading: {userLoading ? 'Yes' : 'No'}, 
+          Progress Reports: {progressReports.length}, 
+          API Status: {apiStatus}
+        </Alert>
+      )}
+
       {/* Status Bar */}
       <Box
         sx={{

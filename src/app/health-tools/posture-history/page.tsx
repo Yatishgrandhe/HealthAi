@@ -21,7 +21,8 @@ import {
   Stack,
   Badge,
   Tooltip,
-  Fab
+  Fab,
+  Snackbar
 } from '@mui/material';
 import {
   Visibility as VisibilityIcon,
@@ -52,16 +53,25 @@ interface PostureSession {
 }
 
 const PostureHistory = () => {
-  const { user } = useUser();
+  const { user, loading: userLoading } = useUser();
   const [sessions, setSessions] = useState<PostureSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<PostureSession | null>(null);
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+
+  // Debug logging
+  useEffect(() => {
+    console.log('PostureHistory - User state changed:', { user, userLoading });
+  }, [user, userLoading]);
 
   useEffect(() => {
-    loadPostureHistory();
+    if (user !== undefined) {
+      loadPostureHistory();
+    }
   }, [user]);
 
   const loadPostureHistory = async () => {
@@ -71,28 +81,53 @@ const PostureHistory = () => {
 
       if (user && supabase) {
         // Load from database for logged-in users
-        const { data, error } = await supabase
-          .from('posture_check_sessions')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
+        try {
+          const { data, error } = await supabase
+            .from('posture_check_sessions')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false });
 
-        if (error) {
-          console.error('Database error:', error);
-          // If table doesn't exist, show empty state
-          if (error.code === '42P01') { // Table doesn't exist
-            setSessions([]);
-            setError('Posture history feature is not yet set up. Please try again later.');
+          if (error) {
+            console.error('Database error:', error);
+            // If table doesn't exist, show empty state
+            if (error.code === '42P01') { // Table doesn't exist
+              setSessions([]);
+              setError('Posture history feature is not yet set up. Please try again later.');
+            } else {
+              throw error;
+            }
           } else {
-            throw error;
+            console.log('Loaded sessions from database:', data);
+            setSessions(data || []);
           }
-        } else {
-          setSessions(data || []);
+        } catch (dbError) {
+          console.error('Database load error:', dbError);
+          // If database fails, try to load from localStorage as fallback
+          const savedReports = localStorage.getItem('postureProgressReports');
+          if (savedReports) {
+            console.log('Loading from localStorage as fallback');
+            const parsedReports = JSON.parse(savedReports);
+            setSessions(parsedReports.map((report: any) => ({
+              id: report.id,
+              user_id: 'guest',
+              session_title: `${report.status.charAt(0).toUpperCase() + report.status.slice(1)} Posture Check`,
+              posture_score: report.score,
+              analysis_data: report.analysis,
+              image_urls: [report.imageUrl],
+              recommendations: report.analysis?.recommendations || [],
+              duration_seconds: 0,
+              created_at: report.timestamp
+            })));
+          } else {
+            setSessions([]);
+          }
         }
       } else {
         // Load from localStorage for guests or when supabase is not available
         const savedReports = localStorage.getItem('postureProgressReports');
         if (savedReports) {
+          console.log('Loading from localStorage for guest user');
           const parsedReports = JSON.parse(savedReports);
           setSessions(parsedReports.map((report: any) => ({
             id: report.id,
@@ -232,21 +267,61 @@ const PostureHistory = () => {
               </Typography>
             </Box>
           </Box>
-          <Tooltip title="Refresh">
-            <IconButton
-              onClick={handleRefresh}
-              disabled={refreshing}
-              sx={{ bgcolor: 'background.paper', boxShadow: 1 }}
-            >
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
+          <Box display="flex" gap={1}>
+            <Tooltip title="Refresh">
+              <IconButton
+                onClick={handleRefresh}
+                disabled={refreshing}
+                sx={{ bgcolor: 'background.paper', boxShadow: 1 }}
+              >
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+            {process.env.NODE_ENV === 'development' && (
+              <Tooltip title="Add Test Data">
+                <IconButton
+                  onClick={() => {
+                    const testData = [
+                      {
+                        id: 'test-1',
+                        user_id: 'guest',
+                        session_title: 'Test Posture Check',
+                        posture_score: 85,
+                        analysis_data: { status: 'good', score: 85 },
+                        image_urls: ['data:image/jpeg;base64,test'],
+                        recommendations: ['Test recommendation'],
+                        duration_seconds: 30,
+                        created_at: new Date().toISOString()
+                      }
+                    ];
+                    localStorage.setItem('postureProgressReports', JSON.stringify(testData));
+                    setSessions(testData);
+                    setSnackbarMessage('Test data added');
+                    setSnackbarOpen(true);
+                  }}
+                  sx={{ bgcolor: 'background.paper', boxShadow: 1 }}
+                >
+                  <ErrorOutlineIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
         </Box>
 
         {/* Guest User Notice */}
         {!user && (
           <Alert severity="info" sx={{ mb: 3 }}>
             <strong>Guest User Notice:</strong> As a guest, your posture checks are saved locally and cannot be viewed in the history page.
+          </Alert>
+        )}
+
+        {/* Debug Info */}
+        {process.env.NODE_ENV === 'development' && (
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <strong>Debug Info:</strong> User: {user ? user.email : 'Not logged in'}, 
+            Loading: {userLoading ? 'Yes' : 'No'}, 
+            Sessions: {sessions.length}, 
+            Error: {error || 'None'}
           </Alert>
         )}
 
@@ -589,6 +664,14 @@ const PostureHistory = () => {
       >
         <ImageIcon />
       </Fab>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={6000}
+        onClose={() => setSnackbarOpen(false)}
+        message={snackbarMessage}
+      />
     </Box>
   );
 };

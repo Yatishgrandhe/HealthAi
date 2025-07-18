@@ -594,14 +594,23 @@ export default function TherapistChatPage() {
     try {
       if (user) {
         // Save to Supabase for logged-in users
-        await healthDataService.saveTherapistChatSession({
-          session_title: updatedChat.title,
-          messages: updatedChat.messages,
-          ai_model_used: 'openrouter', // or your model name
-          session_duration: 0, // Add real duration if available
-          mood_score: undefined, // Add mood score if available
-          tags: []
-        });
+        try {
+          await healthDataService.saveTherapistChatSession({
+            session_title: updatedChat.title,
+            messages: updatedChat.messages,
+            ai_model_used: 'openrouter', // or your model name
+            session_duration: 0, // Add real duration if available
+            mood_score: undefined, // Add mood score if available
+            tags: []
+          });
+        } catch (dbError) {
+          console.warn('Database save failed, falling back to localStorage:', dbError);
+          // Fall back to localStorage if database fails
+          const updatedSessions = chatSessions.map(chat => 
+            chat.id === updatedChat.id ? updatedChat : chat
+          );
+          localStorage.setItem('therapist-chats', JSON.stringify(updatedSessions));
+        }
       } else {
         // Save to localStorage for guests
         const updatedSessions = chatSessions.map(chat => 

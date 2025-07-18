@@ -182,9 +182,19 @@ Requirements:
 
       console.log('📝 Raw AI response received:', aiResponse.substring(0, 200) + '...');
 
+      // Clean the response to extract JSON from markdown if present
+      let cleanedResponse = aiResponse.trim();
+      
+      // Remove markdown code blocks if present
+      if (cleanedResponse.startsWith('```json')) {
+        cleanedResponse = cleanedResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleanedResponse.startsWith('```')) {
+        cleanedResponse = cleanedResponse.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+      
       // Try to parse the JSON response
       try {
-        const planData = JSON.parse(aiResponse.trim());
+        const planData = JSON.parse(cleanedResponse);
         console.log('✅ Successfully parsed AI-generated fitness plan with', planData.length, 'days');
         return {
           success: true,

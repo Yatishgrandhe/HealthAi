@@ -364,7 +364,7 @@ export default function TherapistChatPage() {
 
     // Force immediate save to localStorage for voice messages (only for logged-in users)
     try {
-      if (user) {
+      if (user && !userLoading) {
         console.log('Saving voice message to localStorage for logged-in user...');
         const updatedSessions = chatSessions.map(chat => 
           chat.id === updatedChat.id ? updatedChat : chat
@@ -378,8 +378,8 @@ export default function TherapistChatPage() {
           setLastSavedMessage("");
         }, 3000);
       } else {
-        // Guest users - no saving, just display the message
-        console.log('Guest user - voice message not saved to any storage');
+        // Guest users or loading - no saving, just display the message
+        console.log('Guest user or loading - voice message not saved to any storage');
       }
     } catch (error) {
       console.error('Failed to save voice message:', error);
@@ -393,8 +393,10 @@ export default function TherapistChatPage() {
   useEffect(() => {
     if (hasInitialized) return; // Prevent multiple initializations
     
+    console.log('User loading state:', userLoading, 'User:', user ? 'logged in' : 'not logged in');
+    
     // Only load saved chats for logged-in users
-    if (user) {
+    if (user && !userLoading) {
       try {
         console.log('Loading therapist chats for logged-in user...');
         const savedChats = localStorage.getItem('therapist-chats');
@@ -409,7 +411,17 @@ export default function TherapistChatPage() {
             }))
           }));
           setChatSessions(parsedChats);
-          console.log('Loaded', parsedChats.length, 'chat sessions from localStorage');
+          console.log('✅ Loaded', parsedChats.length, 'chat sessions from localStorage for logged-in user');
+          console.log('📝 Chat titles:', parsedChats.map((chat: ChatSession) => chat.title));
+          
+          // Log the first few messages of each chat for debugging
+          parsedChats.forEach((chat: ChatSession, index: number) => {
+            console.log(`Chat ${index + 1} (${chat.title}):`, chat.messages.length, 'messages');
+            if (chat.messages.length > 0) {
+              console.log('  First message:', chat.messages[0].text.substring(0, 50) + '...');
+              console.log('  Last message:', chat.messages[chat.messages.length - 1].text.substring(0, 50) + '...');
+            }
+          });
           
           // Clean up empty chats after loading
           setTimeout(() => {
@@ -425,6 +437,11 @@ export default function TherapistChatPage() {
           
           // Set the first existing chat as current
           setCurrentChat(parsedChats[0]);
+          
+          // Verify localStorage usage after loading
+          setTimeout(() => {
+            verifyLocalStorageUsage();
+          }, 500);
         } else {
           // Create a new chat if no saved chats exist
           const newChat: ChatSession = {
@@ -473,24 +490,35 @@ export default function TherapistChatPage() {
     setTimeout(() => {
       inputRef.current?.focus();
     }, 100);
-  }, [hasInitialized, user]);
+  }, [hasInitialized, user, userLoading]);
 
   // Save chats to localStorage whenever they change - with error handling
   useEffect(() => {
+    console.log('Save useEffect triggered - User:', user ? 'logged in' : 'not logged in', 'Chat sessions:', chatSessions.length);
+    
     // Only save chats for logged-in users
-    if (user && chatSessions.length > 0) {
+    if (user && !userLoading && chatSessions.length > 0) {
       try {
-        console.log('Saving therapist chats to localStorage for logged-in user...');
+        console.log('💾 Saving therapist chats to localStorage for logged-in user...');
         localStorage.setItem('therapist-chats', JSON.stringify(chatSessions));
-        console.log('Successfully saved', chatSessions.length, 'chat sessions to localStorage');
+        console.log('✅ Successfully saved', chatSessions.length, 'chat sessions to localStorage');
+        console.log('📝 Saved chat titles:', chatSessions.map((chat: ChatSession) => chat.title));
       } catch (error) {
         console.error('Failed to save chats to localStorage:', error);
       }
-    } else if (!user) {
-      // Guest users - no saving allowed
-      console.log('Guest user - chat sessions not saved to localStorage');
+    } else if (user && !userLoading && chatSessions.length === 0) {
+      // Clear localStorage if user is logged in but has no chats
+      try {
+        localStorage.removeItem('therapist-chats');
+        console.log('Cleared therapist chats from localStorage for logged-in user');
+      } catch (error) {
+        console.error('Failed to clear chats from localStorage:', error);
+      }
+    } else if (!user || userLoading) {
+      // Guest users or still loading - no saving allowed
+      console.log('Guest user or loading - chat sessions not saved to localStorage');
     }
-  }, [chatSessions, user]);
+  }, [chatSessions, user, userLoading]);
 
   // Scroll to bottom when new messages are added (but not during typing)
   useEffect(() => {
@@ -566,7 +594,7 @@ export default function TherapistChatPage() {
     }
     
     // Remove from localStorage (only for logged-in users)
-    if (user) {
+    if (user && !userLoading) {
       try {
         console.log('Deleting chat from localStorage for logged-in user...');
         const savedChats = localStorage.getItem('therapist-chats');
@@ -580,7 +608,7 @@ export default function TherapistChatPage() {
         console.error('Failed to delete chat from localStorage:', error);
       }
     } else {
-      console.log('Guest user - chat deletion not saved to localStorage');
+      console.log('Guest user or loading - chat deletion not saved to localStorage');
     }
     
     setDeleteDialogOpen(false);
@@ -629,38 +657,39 @@ export default function TherapistChatPage() {
     const messageText = inputText.trim();
     setInputText("");
     
-    // Force immediate save to localStorage or Supabase
+    // Force immediate save to localStorage for logged-in users
     try {
-      if (user) {
-        // Save to Supabase for logged-in users
+      if (user && !userLoading) {
+        // Save to localStorage immediately for logged-in users
+        const updatedSessions = chatSessions.map(chat => 
+          chat.id === updatedChat.id ? updatedChat : chat
+        );
+        localStorage.setItem('therapist-chats', JSON.stringify(updatedSessions));
+        console.log('User message saved to localStorage immediately:', messageText);
+        
+        // Also try to save to database (but don't block on it)
         try {
           await healthDataService.saveTherapistChatSession({
             session_title: updatedChat.title,
             messages: updatedChat.messages,
-            ai_model_used: 'openrouter', // or your model name
-            session_duration: 0, // Add real duration if available
-            mood_score: undefined, // Add mood score if available
+            ai_model_used: 'openrouter',
+            session_duration: 0,
+            mood_score: undefined,
             tags: []
           });
-          console.log('User message saved to database');
+          console.log('User message also saved to database');
         } catch (dbError) {
-          console.warn('Database save failed, falling back to localStorage:', dbError);
-          // Fall back to localStorage if database fails
-          const updatedSessions = chatSessions.map(chat => 
-            chat.id === updatedChat.id ? updatedChat : chat
-          );
-          localStorage.setItem('therapist-chats', JSON.stringify(updatedSessions));
-          console.log('User message saved to localStorage as fallback');
+          console.warn('Database save failed, but localStorage save succeeded:', dbError);
         }
+        
         setLastSavedMessage(messageText);
-        console.log('User message saved immediately:', messageText);
         // Clear the saved message indicator after 3 seconds
         setTimeout(() => {
           setLastSavedMessage("");
         }, 3000);
       } else {
-        // Guest users - no saving, just display the message
-        console.log('Guest user - message not saved to any storage');
+        // Guest users or loading - no saving, just display the message
+        console.log('Guest user or loading - message not saved to any storage');
       }
     } catch (error) {
       console.error('Failed to save user message:', error);
@@ -707,11 +736,28 @@ export default function TherapistChatPage() {
       const saved = localStorage.getItem('therapist-chats');
       if (saved) {
         const parsed = JSON.parse(saved);
-        console.log('Saved chats in localStorage:', parsed);
-        console.log('Current chat sessions:', chatSessions);
-        console.log('Current chat:', currentChat);
+        console.log('🔍 DEBUG: Saved chats in localStorage:', parsed);
+        console.log('🔍 DEBUG: Current chat sessions:', chatSessions);
+        console.log('🔍 DEBUG: Current chat:', currentChat);
+        console.log('🔍 DEBUG: User status:', user ? 'logged in' : 'not logged in');
+        console.log('🔍 DEBUG: User loading:', userLoading);
+        
+        // Verify data integrity
+        if (parsed.length !== chatSessions.length) {
+          console.warn('⚠️ WARNING: localStorage and state have different numbers of chats!');
+        }
+        
+        // Check if current chat is in localStorage
+        if (currentChat) {
+          const foundInStorage = parsed.find((chat: any) => chat.id === currentChat.id);
+          if (!foundInStorage) {
+            console.warn('⚠️ WARNING: Current chat not found in localStorage!');
+          } else {
+            console.log('✅ Current chat found in localStorage');
+          }
+        }
       } else {
-        console.log('No saved chats found in localStorage');
+        console.log('🔍 DEBUG: No saved chats found in localStorage');
       }
     } catch (error) {
       console.error('Error reading saved messages:', error);
@@ -719,18 +765,45 @@ export default function TherapistChatPage() {
   };
 
   const clearAllChats = () => {
-    if (user && confirm('Are you sure you want to clear all chat history? This cannot be undone.')) {
+    if (user && !userLoading && confirm('Are you sure you want to clear all chat history? This cannot be undone.')) {
       try {
-        console.log('Clearing all therapist chats for logged-in user...');
+        console.log('🗑️ Clearing all therapist chats for logged-in user...');
         localStorage.removeItem('therapist-chats');
         setChatSessions([]);
         setCurrentChat(null);
-        console.log('All therapist chats cleared from localStorage');
+        console.log('✅ All therapist chats cleared from localStorage');
       } catch (error) {
         console.error('Error clearing therapist chats:', error);
       }
-    } else if (!user) {
-      console.log('Guest user - cannot clear chat data');
+    } else if (!user || userLoading) {
+      console.log('Guest user or loading - cannot clear chat data');
+    }
+  };
+
+  // Function to verify localStorage is being used correctly
+  const verifyLocalStorageUsage = () => {
+    if (!user || userLoading) {
+      console.log('🔍 Verification skipped - user not logged in or still loading');
+      return;
+    }
+
+    try {
+      const saved = localStorage.getItem('therapist-chats');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        console.log('🔍 VERIFICATION: localStorage contains', parsed.length, 'chats');
+        console.log('🔍 VERIFICATION: State contains', chatSessions.length, 'chats');
+        
+        if (parsed.length === chatSessions.length) {
+          console.log('✅ VERIFICATION: localStorage and state are in sync');
+        } else {
+          console.warn('⚠️ VERIFICATION: localStorage and state are out of sync!');
+        }
+      } else {
+        console.log('🔍 VERIFICATION: No data in localStorage');
+      }
+    } catch (error) {
+      console.error('Error during verification:', error);
     }
   };
 
@@ -792,24 +865,44 @@ export default function TherapistChatPage() {
               </Typography>
             </Box>
             {process.env.NODE_ENV === 'development' && (
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={debugSavedMessages}
-                sx={{
-                  borderColor: "rgba(255, 255, 255, 0.3)",
-                  color: "white",
-                  "&:hover": {
-                    borderColor: "white",
-                    background: "rgba(255, 255, 255, 0.1)",
-                  },
-                  textTransform: "none",
-                  fontWeight: 500,
-                  fontSize: "12px"
-                }}
-              >
-                Debug
-              </Button>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={debugSavedMessages}
+                  sx={{
+                    borderColor: "rgba(255, 255, 255, 0.3)",
+                    color: "white",
+                    "&:hover": {
+                      borderColor: "white",
+                      background: "rgba(255, 255, 255, 0.1)",
+                    },
+                    textTransform: "none",
+                    fontWeight: 500,
+                    fontSize: "12px"
+                  }}
+                >
+                  Debug
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={verifyLocalStorageUsage}
+                  sx={{
+                    borderColor: "rgba(255, 255, 255, 0.3)",
+                    color: "white",
+                    "&:hover": {
+                      borderColor: "white",
+                      background: "rgba(255, 255, 255, 0.1)",
+                    },
+                    textTransform: "none",
+                    fontWeight: 500,
+                    fontSize: "12px"
+                  }}
+                >
+                  Verify
+                </Button>
+              </Box>
             )}
           </Box>
           <Button
@@ -839,18 +932,33 @@ export default function TherapistChatPage() {
         
         {/* Chat History */}
         <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
-          <Typography 
-            variant="body2" 
-            sx={{ 
-              color: "#7B61FF", 
-              fontSize: "12px", 
-              fontWeight: 600, 
-              mb: 2, 
-              px: 1 
-            }}
-          >
-            CHATS
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, px: 1 }}>
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: "#7B61FF", 
+                fontSize: "12px", 
+                fontWeight: 600
+              }}
+            >
+              CHATS
+            </Typography>
+            {user && !userLoading && (
+              <Chip
+                label="Local Storage"
+                size="small"
+                color="success"
+                sx={{
+                  fontSize: '10px',
+                  height: '20px',
+                  '& .MuiChip-label': {
+                    px: 1,
+                    fontSize: '10px'
+                  }
+                }}
+              />
+            )}
+          </Box>
           {chatSessions.map((chat) => (
             <Box
               key={chat.id}

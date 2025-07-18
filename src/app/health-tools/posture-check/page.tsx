@@ -605,36 +605,51 @@ export default function PostureCheckPage() {
         const blob = await res.blob();
         const file = new File([blob], `posture_${Date.now()}.jpg`, { type: blob.type });
         
-        // Upload to Supabase Storage and get public URL
-        const uploadResult = await imageUploadService.uploadImageToStorage(file, 'posture', 'Posture Check Image');
+        let imageUrl = '';
+        
+        try {
+          // Try to upload to Supabase Storage first
+          const uploadResult = await imageUploadService.uploadImageToStorage(file, 'posture', 'Posture Check Image');
+          imageUrl = uploadResult.url;
+        } catch (uploadError) {
+          console.warn('Failed to upload to storage, using data URL:', uploadError);
+          // Fallback to data URL if storage upload fails
+          imageUrl = `data:image/jpeg;base64,${capturedImage.split(',')[1]}`;
+        }
         
         // Save to Supabase with proper error handling
         const sessionData = {
           session_title: `${analysis.status.charAt(0).toUpperCase() + analysis.status.slice(1)} Posture Check`,
           posture_score: analysis.score,
           analysis_data: analysis,
-          image_urls: [uploadResult.url],
+          image_urls: [imageUrl],
           recommendations: analysis.recommendations || [],
           duration_seconds: Math.floor((Date.now() - (analysis.timestamp ? new Date(analysis.timestamp).getTime() : Date.now())) / 1000)
         };
         
-        await healthDataService.savePostureCheckSession(sessionData);
-        
-        // Reload progress reports from database
-        const sessions = await healthDataService.getPostureCheckSessions();
-        setProgressReports(sessions.map(session => ({
-          id: session.id || '',
-          timestamp: session.created_at || new Date().toISOString(),
-          score: session.posture_score || 0,
-          status: session.session_title?.includes('Good') ? 'good' : 
-                  session.session_title?.includes('Fair') ? 'fair' : 
-                  session.session_title?.includes('Poor') ? 'poor' : 
-                  session.session_title?.includes('Excellent') ? 'excellent' : 'fair',
-          imageUrl: session.image_urls?.[0] || '',
-          analysis: session.analysis_data || {}
-        })));
+        try {
+          await healthDataService.savePostureCheckSession(sessionData);
+          
+          // Reload progress reports from database
+          const sessions = await healthDataService.getPostureCheckSessions();
+          setProgressReports(sessions.map(session => ({
+            id: session.id || '',
+            timestamp: session.created_at || new Date().toISOString(),
+            score: session.posture_score || 0,
+            status: session.session_title?.includes('Good') ? 'good' : 
+                    session.session_title?.includes('Fair') ? 'fair' : 
+                    session.session_title?.includes('Poor') ? 'poor' : 
+                    session.session_title?.includes('Excellent') ? 'excellent' : 'fair',
+            imageUrl: session.image_urls?.[0] || '',
+            analysis: session.analysis_data || {}
+          })));
+        } catch (dbError) {
+          console.error('Database save error:', dbError);
+          // If database save fails, fall back to localStorage
+          throw new Error('Database connection failed. Saving locally instead.');
+        }
       } else {
-        // Save to localStorage for guests
+        // Save to localStorage for guests or when supabase is not available
         const imageUrl = `data:image/jpeg;base64,${capturedImage.split(',')[1]}`;
         const progressReport = {
           id: Date.now().toString(),
@@ -655,8 +670,25 @@ export default function PostureCheckPage() {
       setSnackbarOpen(true);
     } catch (error) {
       console.error('Error saving progress report:', error);
-      setSnackbarMessage("Failed to save progress report: " + (error instanceof Error ? error.message : 'Unknown error'));
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to save progress report';
+      if (error instanceof Error) {
+        if (error.message.includes('Database connection failed')) {
+          errorMessage = 'Database connection failed. Your data has been saved locally.';
+        } else if (error.message.includes('storage')) {
+          errorMessage = 'Image upload failed. Your posture analysis has been saved without the image.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      setSnackbarMessage(errorMessage);
       setSnackbarOpen(true);
+      
+      // Even if saving fails, clear the captured image to allow new captures
+      setShowImageOptions(false);
+      setCapturedImage(null);
     }
   };
 
@@ -671,20 +703,29 @@ export default function PostureCheckPage() {
     try {
       if (user) {
         // Load from database for logged-in users
-        const sessions = await healthDataService.getPostureCheckSessions();
-        setProgressReports(sessions.map(session => ({
-          id: session.id || '',
-          timestamp: session.created_at || new Date().toISOString(),
-          score: session.posture_score || 0,
-          status: session.session_title?.includes('Good') ? 'good' : 
-                  session.session_title?.includes('Fair') ? 'fair' : 
-                  session.session_title?.includes('Poor') ? 'poor' : 
-                  session.session_title?.includes('Excellent') ? 'excellent' : 'fair',
-          imageUrl: session.image_urls?.[0] || '',
-          analysis: session.analysis_data || {}
-        })));
+        try {
+          const sessions = await healthDataService.getPostureCheckSessions();
+          setProgressReports(sessions.map(session => ({
+            id: session.id || '',
+            timestamp: session.created_at || new Date().toISOString(),
+            score: session.posture_score || 0,
+            status: session.session_title?.includes('Good') ? 'good' : 
+                    session.session_title?.includes('Fair') ? 'fair' : 
+                    session.session_title?.includes('Poor') ? 'poor' : 
+                    session.session_title?.includes('Excellent') ? 'excellent' : 'fair',
+            imageUrl: session.image_urls?.[0] || '',
+            analysis: session.analysis_data || {}
+          })));
+        } catch (dbError) {
+          console.error('Database load error:', dbError);
+          // If database fails, try to load from localStorage as fallback
+          const savedReports = localStorage.getItem('postureProgressReports');
+          if (savedReports) {
+            setProgressReports(JSON.parse(savedReports));
+          }
+        }
       } else {
-        // Load from localStorage for guests
+        // Load from localStorage for guests or when supabase is not available
         const savedReports = localStorage.getItem('postureProgressReports');
         if (savedReports) {
           setProgressReports(JSON.parse(savedReports));

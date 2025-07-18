@@ -33,7 +33,8 @@ import {
   Score as ScoreIcon,
   Image as ImageIcon,
   ArrowBack as ArrowBackIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  ErrorOutline as ErrorOutlineIcon
 } from '@mui/icons-material';
 import { supabase, useUser } from '@/utils/supabaseClient';
 import BackButton from '@/components/BackButton';
@@ -60,29 +61,54 @@ const PostureHistory = () => {
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      loadPostureHistory();
-    }
+    loadPostureHistory();
   }, [user]);
 
   const loadPostureHistory = async () => {
-    if (!user || !supabase) return;
-
     try {
       setLoading(true);
       setError(null);
 
-      const { data, error } = await supabase
-        .from('posture_check_sessions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+      if (user && supabase) {
+        // Load from database for logged-in users
+        const { data, error } = await supabase
+          .from('posture_check_sessions')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
 
-      if (error) {
-        throw error;
+        if (error) {
+          console.error('Database error:', error);
+          // If table doesn't exist, show empty state
+          if (error.code === '42P01') { // Table doesn't exist
+            setSessions([]);
+            setError('Posture history feature is not yet set up. Please try again later.');
+          } else {
+            throw error;
+          }
+        } else {
+          setSessions(data || []);
+        }
+      } else {
+        // Load from localStorage for guests or when supabase is not available
+        const savedReports = localStorage.getItem('postureProgressReports');
+        if (savedReports) {
+          const parsedReports = JSON.parse(savedReports);
+          setSessions(parsedReports.map((report: any) => ({
+            id: report.id,
+            user_id: 'guest',
+            session_title: `${report.status.charAt(0).toUpperCase() + report.status.slice(1)} Posture Check`,
+            posture_score: report.score,
+            analysis_data: report.analysis,
+            image_urls: [report.imageUrl],
+            recommendations: report.analysis?.recommendations || [],
+            duration_seconds: 0,
+            created_at: report.timestamp
+          })));
+        } else {
+          setSessions([]);
+        }
       }
-
-      setSessions(data || []);
     } catch (err) {
       console.error('Error loading posture history:', err);
       setError('Failed to load posture history. Please try again.');
@@ -189,6 +215,7 @@ const PostureHistory = () => {
           <BackButton href="/health-tools" label="Back to Health Tools" />
         </Box>
       )}
+      
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
@@ -215,6 +242,13 @@ const PostureHistory = () => {
             </IconButton>
           </Tooltip>
         </Box>
+
+        {/* Guest User Notice */}
+        {!user && (
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <strong>Guest User Notice:</strong> As a guest, your posture checks are saved locally and cannot be viewed in the history page.
+          </Alert>
+        )}
 
         {/* Stats Summary */}
         {sessions.length > 0 && (
@@ -308,20 +342,34 @@ const PostureHistory = () => {
                   }}
                   onClick={() => handleViewImage(session)}
                 >
-                  <img
-                    src={session.image_urls?.[0] || ''}
-                    alt="Posture check"
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      transition: 'transform 0.3s'
-                    }}
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                    }}
-                  />
+                  {session.image_urls?.[0] ? (
+                    <img
+                      src={session.image_urls[0]}
+                      alt="Posture check"
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        transition: 'transform 0.3s'
+                      }}
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: '100%',
+                        color: 'text.secondary'
+                      }}
+                    >
+                      <ErrorOutlineIcon sx={{ fontSize: 48 }} />
+                    </Box>
+                  )}
                   <Box
                     sx={{
                       position: 'absolute',
@@ -445,16 +493,32 @@ const PostureHistory = () => {
             <DialogContent>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 3 }}>
                 <Box>
-                  <img
-                    src={selectedSession.image_urls?.[0] || ''}
-                    alt="Posture check"
-                    style={{
-                      width: '100%',
-                      height: 'auto',
-                      borderRadius: 8,
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                    }}
-                  />
+                  {selectedSession.image_urls?.[0] ? (
+                    <img
+                      src={selectedSession.image_urls[0]}
+                      alt="Posture check"
+                      style={{
+                        width: '100%',
+                        height: 'auto',
+                        borderRadius: 8,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                      }}
+                    />
+                  ) : (
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: 200,
+                        bgcolor: 'grey.100',
+                        borderRadius: 2,
+                        color: 'text.secondary'
+                      }}
+                    >
+                      <ErrorOutlineIcon sx={{ fontSize: 64 }} />
+                    </Box>
+                  )}
                 </Box>
                 <Box>
                   <Stack spacing={2}>

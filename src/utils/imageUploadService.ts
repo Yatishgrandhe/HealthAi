@@ -13,6 +13,13 @@ export interface ImageUploadResult {
 }
 
 class ImageUploadService {
+  // Check if supabase is available
+  private checkSupabase() {
+    if (!supabase) {
+      throw new Error('Supabase client not initialized');
+    }
+  }
+
   // Convert image file to base64 URL (for demo purposes)
   // In production, you would upload to a cloud storage service like AWS S3, Cloudinary, etc.
   private async fileToDataURL(file: File): Promise<string> {
@@ -42,10 +49,12 @@ class ImageUploadService {
     altText?: string,
     tags?: string[]
   ): Promise<ImageUploadResult> {
+    this.checkSupabase();
+    
     // Generate a unique file path
     const filePath = `${imageType}/${Date.now()}_${file.name}`;
     // Upload to Supabase Storage
-    const { data: storageData, error: storageError } = await supabase.storage
+    const { data: storageData, error: storageError } = await supabase!.storage
       .from('user-images')
       .upload(filePath, file, {
         cacheControl: '3600',
@@ -53,7 +62,7 @@ class ImageUploadService {
       });
     if (storageError) throw storageError;
     // Get public URL
-    const { data: publicUrlData } = supabase.storage
+    const { data: publicUrlData } = supabase!.storage
       .from('user-images')
       .getPublicUrl(filePath);
     const publicUrl = publicUrlData?.publicUrl;
@@ -73,7 +82,7 @@ class ImageUploadService {
       tags: tags || []
     };
     // Save metadata to database
-    const { data, error } = await supabase
+    const { data, error } = await supabase!
       .from('image_metadata')
       .insert(metadata)
       .select()
@@ -115,27 +124,35 @@ class ImageUploadService {
       // Convert to data URL (in production, upload to cloud storage)
       const dataUrl = await this.fileToDataURL(file);
 
-      // Create metadata
-      const metadata: ImageMetadata = {
-        image_url: dataUrl,
-        image_type: imageType,
-        file_name: file.name,
-        file_size: file.size,
-        mime_type: file.type,
-        width: dimensions.width,
-        height: dimensions.height,
-        alt_text: altText || file.name,
-        tags: tags || []
-      };
+      // Only try to save metadata if supabase is available
+      if (supabase) {
+        try {
+          // Create metadata
+          const metadata: ImageMetadata = {
+            image_url: dataUrl,
+            image_type: imageType,
+            file_name: file.name,
+            file_size: file.size,
+            mime_type: file.type,
+            width: dimensions.width,
+            height: dimensions.height,
+            alt_text: altText || file.name,
+            tags: tags || []
+          };
 
-      // Save metadata to database
-      const { data, error } = await supabase
-        .from('image_metadata')
-        .insert(metadata)
-        .select()
-        .single();
+          // Save metadata to database
+          const { data, error } = await supabase
+            .from('image_metadata')
+            .insert(metadata)
+            .select()
+            .single();
 
-      if (error) throw error;
+          if (error) throw error;
+        } catch (dbError) {
+          console.warn('Failed to save image metadata to database:', dbError);
+          // Continue without saving metadata
+        }
+      }
 
       return {
         url: dataUrl,
@@ -182,7 +199,9 @@ class ImageUploadService {
   // Delete image (remove from database)
   async deleteImage(imageId: string): Promise<void> {
     try {
-      const { error } = await supabase
+      this.checkSupabase();
+      
+      const { error } = await supabase!
         .from('image_metadata')
         .delete()
         .eq('id', imageId);
@@ -197,7 +216,9 @@ class ImageUploadService {
   // Get images by type
   async getImagesByType(imageType: 'posture' | 'fitness' | 'progress' | 'routine' | 'profile'): Promise<ImageMetadata[]> {
     try {
-      const { data, error } = await supabase
+      this.checkSupabase();
+      
+      const { data, error } = await supabase!
         .from('image_metadata')
         .select('*')
         .eq('image_type', imageType)
@@ -214,7 +235,9 @@ class ImageUploadService {
   // Get all user images
   async getUserImages(): Promise<ImageMetadata[]> {
     try {
-      const { data, error } = await supabase
+      this.checkSupabase();
+      
+      const { data, error } = await supabase!
         .from('image_metadata')
         .select('*')
         .order('created_at', { ascending: false });
@@ -233,7 +256,9 @@ class ImageUploadService {
     updates: Partial<Pick<ImageMetadata, 'alt_text' | 'tags'>>
   ): Promise<ImageMetadata> {
     try {
-      const { data, error } = await supabase
+      this.checkSupabase();
+      
+      const { data, error } = await supabase!
         .from('image_metadata')
         .update(updates)
         .eq('id', imageId)

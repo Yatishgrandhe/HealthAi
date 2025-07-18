@@ -122,24 +122,27 @@ Respond as Dr. Sarah would - with genuine care, empathy, and helpful insight. Ma
         };
       }
 
-      const prompt = `Generate a complete ${userData.totalDays}-day fitness plan in JSON format. 
+      // Simplified prompt for faster generation
+      const prompt = `Generate a 90-day fitness plan in JSON format. 
 
-User Profile:
-- Dietary Preference: ${userData.dietaryPreference}
-- Fitness Goals: ${userData.fitnessGoals.join(', ')}
-- Fitness Level: ${userData.fitnessLevel}
+User: ${userData.dietaryPreference} diet, goals: ${userData.fitnessGoals.join(', ')}, level: ${userData.fitnessLevel}
 
 Requirements:
-1. Generate exactly ${userData.totalDays} daily plans
-2. Include rest days every 7th day
-3. Each day should have unique meals and exercises
-4. Format as JSON array with objects containing: day, meals (breakfast, lunch, dinner, snacks), exercises (cardio, strength, flexibility), tips
-5. Keep each meal/exercise description concise (1-2 sentences max)
-6. Ensure variety and progression throughout the plan
+- Generate 90 daily plans as JSON array
+- Each day: {day, meals: {breakfast, lunch, dinner, snacks}, exercises: {cardio, strength, flexibility}, tips}
+- Rest days every 7th day (light meals, gentle stretching)
+- Keep descriptions short (1 sentence max)
+- Return ONLY valid JSON array, no other text`;
 
-Return ONLY valid JSON, no additional text.`;
+      console.log('🚀 Starting AI generation with timeout...');
+      
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout - using local generation')), 30000); // 30 second timeout
+      });
 
-      const response = await fetch(`${API_CONFIG.GEMINI.BASE_URL}/${API_CONFIG.GEMINI.DEFAULT_MODEL}:generateContent?key=${apiKey}`, {
+      // Create the fetch promise
+      const fetchPromise = fetch(`${API_CONFIG.GEMINI.BASE_URL}/${API_CONFIG.GEMINI.DEFAULT_MODEL}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -152,11 +155,14 @@ Return ONLY valid JSON, no additional text.`;
             }
           ],
           generationConfig: {
-            maxOutputTokens: 8000, // Allow for complete plan
+            maxOutputTokens: 4000, // Reduced for faster generation
             temperature: 0.7,
           }
         })
       });
+
+      // Race between timeout and fetch
+      const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -174,17 +180,20 @@ Return ONLY valid JSON, no additional text.`;
         throw new APIError('No response received from AI model', 500, 'Gemini Fitness Plan');
       }
 
+      console.log('📝 Raw AI response received:', aiResponse.substring(0, 200) + '...');
+
       // Try to parse the JSON response
       try {
         const planData = JSON.parse(aiResponse.trim());
-        console.log('✅ Successfully parsed AI-generated fitness plan');
+        console.log('✅ Successfully parsed AI-generated fitness plan with', planData.length, 'days');
         return {
           success: true,
           plan: planData
         };
       } catch (parseError) {
-        console.warn('⚠️ Failed to parse AI response as JSON, using local generation');
+        console.warn('⚠️ Failed to parse AI response as JSON:', parseError);
         console.log('🔄 AI response was not valid JSON, falling back to templates');
+        console.log('📝 Response preview:', aiResponse.substring(0, 300));
         return {
           success: true,
           plan: null

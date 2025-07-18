@@ -194,6 +194,8 @@ export default function FitnessPlannerPage() {
 
   const generatePlan = async () => {
     setIsGenerating(true);
+    console.log('🎯 Starting plan generation...');
+    
     try {
       // Generate comprehensive fitness plan
       const newPlan: FitnessPlan = {
@@ -219,6 +221,7 @@ export default function FitnessPlannerPage() {
         }
       };
       setPlan(newPlan);
+      console.log('📋 Base plan created, calling AI service...');
 
       // Generate complete 90-day plan in a single API call
       const completePlanResult = await aiService.generateCompleteFitnessPlan({
@@ -228,21 +231,36 @@ export default function FitnessPlannerPage() {
         totalDays: 90
       });
 
+      console.log('📊 AI service response:', completePlanResult);
+
       let dailyPlansData: DailyPlan[] = [];
 
       if (completePlanResult.success && completePlanResult.plan) {
         // Use the AI-generated plan
         console.log('🤖 Using AI-generated fitness plan');
+        console.log('📝 AI plan data:', completePlanResult.plan);
         dailyPlansData = completePlanResult.plan;
+        
+        // Validate the plan structure
+        if (Array.isArray(dailyPlansData) && dailyPlansData.length > 0) {
+          console.log('✅ AI plan is valid array with', dailyPlansData.length, 'days');
+          console.log('📋 First day sample:', dailyPlansData[0]);
+        } else {
+          console.warn('⚠️ AI plan is not a valid array, using local fallback');
+          dailyPlansData = generateLocalPlan();
+        }
       } else {
         // Fallback: Generate plan locally with templates
         console.log('🔄 AI generation failed or unavailable, using local templates');
+        console.log('❌ AI error:', completePlanResult.error);
         dailyPlansData = generateLocalPlan();
       }
 
+      console.log('🎯 Setting daily plans:', dailyPlansData.length, 'days');
       setDailyPlans(dailyPlansData);
       setIsGenerating(false);
       setActiveStep(3);
+      console.log('✅ Plan generation complete, moved to step 3');
     } catch (error) {
       console.error('❌ Error generating plan:', error);
       console.log('🔄 Falling back to local template generation due to error');
@@ -1280,7 +1298,7 @@ export default function FitnessPlannerPage() {
                         {isGenerating ? (
                           <>
                             <CircularProgress size={20} sx={{ color: "white", mr: 1 }} />
-                            ⚡ Generating Plan (2 min or less)...
+                            ⚡ Generating Plan (30 sec max)...
                           </>
                         ) : (
                           "Generate My Plan"
@@ -1293,186 +1311,300 @@ export default function FitnessPlannerPage() {
                 {/* Step 4: Plan Display */}
                 {activeStep === 3 && plan && (
                   <Box>
-                    {/* Notice for logged-out users */}
-                    {!user && (
-                      <Alert severity="info" sx={{ mb: 3 }}>
+                    {/* Debug info - remove in production */}
+                    {process.env.NODE_ENV === 'development' && (
+                      <Alert severity="info" sx={{ mb: 2 }}>
                         <Typography variant="body2">
-                          <strong>Guest User Notice:</strong> As a guest, you can export your plan but cannot save it to your account or view it in the calendar. 
-                          <Link href="/register" style={{ color: '#1976d2', textDecoration: 'none', marginLeft: '8px' }}>
-                            Sign up to unlock all features!
-                          </Link>
+                          Debug: Plan loaded: {plan ? 'Yes' : 'No'}, Daily plans: {dailyPlans.length}, 
+                          Active step: {activeStep}
                         </Typography>
                       </Alert>
                     )}
                     
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-                      <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                        Your 90-Day Plan
-                      </Typography>
-                      <Box sx={{ display: "flex", gap: 2 }}>
-                        {/* Calendar and Save buttons - only for logged-in users */}
-                        {user && (
-                          <>
-                            <Button
-                              variant="outlined"
-                              startIcon={<CalendarToday />}
-                              onClick={() => setShowCalendar(!showCalendar)}
-                              sx={{
-                                borderColor: "#06D6A0",
-                                color: "#06D6A0",
-                                "&:hover": {
-                                  borderColor: "#00C853",
-                                  background: "rgba(6, 214, 160, 0.05)",
-                                },
-                              }}
-                            >
-                              {showCalendar ? "Hide Calendar" : "Show Calendar"}
-                            </Button>
-                      <Button
-                        variant="outlined"
-                        startIcon={<Save />}
-                              onClick={() => setSaveDialogOpen(true)}
-                        sx={{
-                          borderColor: "#FFD166",
-                          color: "#FFD166",
-                          "&:hover": {
-                            borderColor: "#FFC107",
-                            background: "rgba(255, 209, 102, 0.05)",
-                          },
-                        }}
-                      >
-                        Save Plan
-                      </Button>
-                          </>
-                        )}
-                        {/* Export button for logged-out users */}
+                    {dailyPlans.length === 0 ? (
+                      <Box sx={{ textAlign: "center", py: 4 }}>
+                        <CircularProgress size={60} sx={{ color: "#FFD166", mb: 2 }} />
+                        <Typography variant="h6" sx={{ mb: 1 }}>
+                          Loading Your Plan...
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Please wait while we prepare your personalized fitness journey.
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <Box>
+                        {/* Notice for logged-out users */}
                         {!user && (
+                          <Alert severity="info" sx={{ mb: 3 }}>
+                            <Typography variant="body2">
+                              <strong>Guest User Notice:</strong> As a guest, you can export your plan but cannot save it to your account or view it in the calendar. 
+                              <Link href="/register" style={{ color: '#1976d2', textDecoration: 'none', marginLeft: '8px' }}>
+                                Sign up to unlock all features!
+                              </Link>
+                            </Typography>
+                          </Alert>
+                        )}
+                        
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+                          <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                            Your 90-Day Plan
+                          </Typography>
+                          <Box sx={{ display: "flex", gap: 2 }}>
+                            {/* Calendar and Save buttons - only for logged-in users */}
+                            {user && (
+                              <>
+                                <Button
+                                  variant="outlined"
+                                  startIcon={<CalendarToday />}
+                                  onClick={() => setShowCalendar(!showCalendar)}
+                                  sx={{
+                                    borderColor: "#06D6A0",
+                                    color: "#06D6A0",
+                                    "&:hover": {
+                                      borderColor: "#00C853",
+                                      background: "rgba(6, 214, 160, 0.05)",
+                                    },
+                                  }}
+                                >
+                                  {showCalendar ? "Hide Calendar" : "Show Calendar"}
+                                </Button>
+                                <Button
+                                  variant="outlined"
+                                  startIcon={<Save />}
+                                  onClick={() => setSaveDialogOpen(true)}
+                                  sx={{
+                                    borderColor: "#FFD166",
+                                    color: "#FFD166",
+                                    "&:hover": {
+                                      borderColor: "#FFC107",
+                                      background: "rgba(255, 209, 102, 0.05)",
+                                    },
+                                  }}
+                                >
+                                  Save Plan
+                                </Button>
+                              </>
+                            )}
+                            {/* Export button for logged-out users */}
+                            {!user && (
+                              <Button
+                                variant="outlined"
+                                startIcon={<Download />}
+                                onClick={() => {
+                                  // Export plan as JSON
+                                  const planData = JSON.stringify({ plan, dailyPlans }, null, 2);
+                                  const blob = new Blob([planData], { type: 'application/json' });
+                                  const url = URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = '90-day-fitness-plan.json';
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  document.body.removeChild(a);
+                                  URL.revokeObjectURL(url);
+                                }}
+                                sx={{
+                                  borderColor: "#7B61FF",
+                                  color: "#7B61FF",
+                                  "&:hover": {
+                                    borderColor: "#6A4C93",
+                                    background: "rgba(123, 97, 255, 0.05)",
+                                  },
+                                }}
+                              >
+                                Export Plan
+                              </Button>
+                            )}
+                          </Box>
+                        </Box>
+
+                        {/* Calendar - only for logged-in users */}
+                        {user && showCalendar && renderCalendar()}
+
+                        {/* Plan Overview */}
+                        <Box sx={{ mb: 4 }}>
+                          <Card sx={{ borderRadius: 3 }}>
+                            <CardContent>
+                              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
+                                <Info sx={{ color: "#7B61FF" }} />
+                                Plan Overview
+                              </Typography>
+                              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mb: 2 }}>
+                                <Chip
+                                  label={`${plan.duration} Days`}
+                                  sx={{
+                                    background: "linear-gradient(135deg, #FFD166, #06D6A0)",
+                                    color: "white",
+                                    fontWeight: 600
+                                  }}
+                                />
+                                <Chip
+                                  label={plan.difficulty}
+                                  sx={{
+                                    background: "rgba(6, 214, 160, 0.1)",
+                                    color: "#06D6A0",
+                                    fontWeight: 500
+                                  }}
+                                />
+                                {plan.goals.map((goal) => (
+                                  <Chip
+                                    key={goal}
+                                    label={goal}
+                                    size="small"
+                                    sx={{
+                                      background: "rgba(123, 97, 255, 0.1)",
+                                      color: "#7B61FF",
+                                      fontWeight: 500
+                                    }}
+                                  />
+                                ))}
+                              </Box>
+                              <Typography variant="body2" color="text.secondary">
+                                Your personalized 90-day fitness journey includes {dailyPlans.length} days of structured workouts and meal plans, 
+                                with rest days every 7th day to ensure optimal recovery and progress.
+                              </Typography>
+                            </CardContent>
+                          </Card>
+                        </Box>
+
+                        {/* Sample Daily Plans */}
+                        <Box sx={{ mb: 4 }}>
+                          <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, display: "flex", alignItems: "center", gap: 1 }}>
+                            <CalendarToday sx={{ color: "#FFD166" }} />
+                            Sample Daily Plans
+                          </Typography>
+                          
+                          {/* Show first 3 days as examples */}
+                          {dailyPlans.slice(0, 3).map((dailyPlan, index) => (
+                            <Card key={dailyPlan.day} sx={{ borderRadius: 3, mb: 2 }}>
+                              <CardContent>
+                                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: "#FFD166" }}>
+                                  Day {dailyPlan.day}
+                                </Typography>
+                                
+                                <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 3 }}>
+                                  {/* Meals */}
+                                  <Box sx={{ flex: 1 }}>
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1, display: "flex", alignItems: "center", gap: 1 }}>
+                                      <Restaurant sx={{ color: "#FFD166", fontSize: 20 }} />
+                                      Meals
+                                    </Typography>
+                                    <Box sx={{ mb: 1 }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 600, color: "#FFD166" }}>
+                                        Breakfast:
+                                      </Typography>
+                                      <Typography variant="body2" color="text.secondary">
+                                        {dailyPlan.meals.breakfast}
+                                      </Typography>
+                                    </Box>
+                                    <Box sx={{ mb: 1 }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 600, color: "#06D6A0" }}>
+                                        Lunch:
+                                      </Typography>
+                                      <Typography variant="body2" color="text.secondary">
+                                        {dailyPlan.meals.lunch}
+                                      </Typography>
+                                    </Box>
+                                    <Box sx={{ mb: 1 }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 600, color: "#7B61FF" }}>
+                                        Dinner:
+                                      </Typography>
+                                      <Typography variant="body2" color="text.secondary">
+                                        {dailyPlan.meals.dinner}
+                                      </Typography>
+                                    </Box>
+                                  </Box>
+                                  
+                                  {/* Exercises */}
+                                  <Box sx={{ flex: 1 }}>
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1, display: "flex", alignItems: "center", gap: 1 }}>
+                                      <DirectionsRun sx={{ color: "#06D6A0", fontSize: 20 }} />
+                                      Exercises
+                                    </Typography>
+                                    <Box sx={{ mb: 1 }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 600, color: "#FFD166" }}>
+                                        Cardio:
+                                      </Typography>
+                                      <Typography variant="body2" color="text.secondary">
+                                        {dailyPlan.exercises.cardio}
+                                      </Typography>
+                                    </Box>
+                                    <Box sx={{ mb: 1 }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 600, color: "#06D6A0" }}>
+                                        Strength:
+                                      </Typography>
+                                      <Typography variant="body2" color="text.secondary">
+                                        {dailyPlan.exercises.strength}
+                                      </Typography>
+                                    </Box>
+                                    <Box sx={{ mb: 1 }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 600, color: "#7B61FF" }}>
+                                        Flexibility:
+                                      </Typography>
+                                      <Typography variant="body2" color="text.secondary">
+                                        {dailyPlan.exercises.flexibility}
+                                      </Typography>
+                                    </Box>
+                                  </Box>
+                                </Box>
+                                
+                                {/* Daily Tip */}
+                                <Box sx={{ mt: 2, p: 2, background: "rgba(123, 97, 255, 0.05)", borderRadius: 2 }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 600, color: "#7B61FF", mb: 1 }}>
+                                    💡 Daily Tip:
+                                  </Typography>
+                                  <Typography variant="body2" color="text.secondary">
+                                    {dailyPlan.tips}
+                                  </Typography>
+                                </Box>
+                              </CardContent>
+                            </Card>
+                          ))}
+                          
+                          {/* Show more days button */}
+                          {dailyPlans.length > 3 && (
+                            <Box sx={{ textAlign: "center", mt: 2 }}>
+                              <Button
+                                variant="outlined"
+                                onClick={() => setShowCalendar(true)}
+                                sx={{
+                                  borderColor: "#06D6A0",
+                                  color: "#06D6A0",
+                                  "&:hover": {
+                                    borderColor: "#00C853",
+                                    background: "rgba(6, 214, 160, 0.05)",
+                                  },
+                                }}
+                              >
+                                View All {dailyPlans.length} Days
+                              </Button>
+                            </Box>
+                          )}
+                        </Box>
+
+                        <Box sx={{ mt: 4, textAlign: "center" }}>
                           <Button
-                            variant="outlined"
-                            startIcon={<Download />}
-                            onClick={() => {
-                              // Export plan as JSON
-                              const planData = JSON.stringify(plan, null, 2);
-                              const blob = new Blob([planData], { type: 'application/json' });
-                              const url = URL.createObjectURL(blob);
-                              const a = document.createElement('a');
-                              a.href = url;
-                              a.download = '90-day-fitness-plan.json';
-                              document.body.appendChild(a);
-                              a.click();
-                              document.body.removeChild(a);
-                              URL.revokeObjectURL(url);
-                            }}
+                            variant="contained"
+                            component={Link}
+                            href="/health-tools/saved-routines"
                             sx={{
-                              borderColor: "#7B61FF",
-                              color: "#7B61FF",
+                              background: "linear-gradient(135deg, #FFD166, #06D6A0)",
                               "&:hover": {
-                                borderColor: "#6A4C93",
-                                background: "rgba(123, 97, 255, 0.05)",
+                                background: "linear-gradient(135deg, #FFC107, #00C853)",
                               },
+                              px: 6,
+                              py: 2,
+                              borderRadius: 3,
+                              fontSize: "1.2rem",
+                              fontWeight: 600,
+                              textTransform: "none"
                             }}
                           >
-                            Export Plan
+                            Start My Journey
                           </Button>
-                        )}
+                        </Box>
                       </Box>
-                    </Box>
-
-                    {/* Calendar - only for logged-in users */}
-                    {user && showCalendar && renderCalendar()}
-
-                    <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 3 }}>
-                      <Box sx={{ width: { xs: "100%", md: "50%" } }}>
-                        <Card sx={{ borderRadius: 3, height: "100%" }}>
-                          <CardContent>
-                            <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
-                              <Restaurant sx={{ color: "#FFD166" }} />
-                              Sample Meals
-                            </Typography>
-                            <Box sx={{ mb: 2 }}>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#FFD166" }}>
-                                Breakfast
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {plan.meals.breakfast[0]}
-                              </Typography>
-                            </Box>
-                            <Box sx={{ mb: 2 }}>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#06D6A0" }}>
-                                Lunch
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {plan.meals.lunch[0]}
-                              </Typography>
-                            </Box>
-                            <Box>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#7B61FF" }}>
-                                Dinner
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {plan.meals.dinner[0]}
-                              </Typography>
-                            </Box>
-                          </CardContent>
-                        </Card>
-                      </Box>
-                      <Box sx={{ width: { xs: "100%", md: "50%" } }}>
-                        <Card sx={{ borderRadius: 3, height: "100%" }}>
-                          <CardContent>
-                            <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
-                              <DirectionsRun sx={{ color: "#06D6A0" }} />
-                              Sample Workouts
-                            </Typography>
-                            <Box sx={{ mb: 2 }}>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#FFD166" }}>
-                                Cardio
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {plan.workouts.cardio[0]}
-                              </Typography>
-                            </Box>
-                            <Box sx={{ mb: 2 }}>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#06D6A0" }}>
-                                Strength
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {plan.workouts.strength[0]}
-                              </Typography>
-                            </Box>
-                            <Box>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#7B61FF" }}>
-                                Flexibility
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {plan.workouts.flexibility[0]}
-                              </Typography>
-                            </Box>
-                          </CardContent>
-                        </Card>
-                      </Box>
-                    </Box>
-
-                    <Box sx={{ mt: 4, textAlign: "center" }}>
-                      <Button
-                        variant="contained"
-                        component={Link}
-                        href="/health-tools/saved-routines"
-                        sx={{
-                          background: "linear-gradient(135deg, #FFD166, #06D6A0)",
-                          "&:hover": {
-                            background: "linear-gradient(135deg, #FFC107, #00C853)",
-                          },
-                          px: 6,
-                          py: 2,
-                          borderRadius: 3,
-                          fontSize: "1.2rem",
-                          fontWeight: 600,
-                          textTransform: "none"
-                        }}
-                      >
-                        Start My Journey
-                      </Button>
-                    </Box>
+                    )}
                   </Box>
                 )}
               </Paper>

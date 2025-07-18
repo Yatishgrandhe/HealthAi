@@ -167,16 +167,22 @@ export default function PostureCheckPage() {
 
   // Zoom functions
   const zoomIn = useCallback(() => {
-    if (zoomLevel < maxZoom) {
-      setZoomLevel(prev => Math.min(prev + 0.25, maxZoom));
-    }
-  }, [zoomLevel, maxZoom]);
+    setZoomLevel(prev => {
+      if (prev < maxZoom) {
+        return Math.min(prev + 0.25, maxZoom);
+      }
+      return prev;
+    });
+  }, [maxZoom]);
 
   const zoomOut = useCallback(() => {
-    if (zoomLevel > minZoom) {
-      setZoomLevel(prev => Math.max(prev - 0.25, minZoom));
-    }
-  }, [zoomLevel, minZoom]);
+    setZoomLevel(prev => {
+      if (prev > minZoom) {
+        return Math.max(prev - 0.25, minZoom);
+      }
+      return prev;
+    });
+  }, [minZoom]);
 
   const resetZoom = useCallback(() => {
     setZoomLevel(1);
@@ -200,24 +206,56 @@ export default function PostureCheckPage() {
   const handleTouchStart = useCallback((event: TouchEvent) => {
     if (event.touches.length === 2) {
       setIsZooming(true);
-      setZoomStartDistance(getDistance(event.touches[0], event.touches[1]));
+      const distance = Math.sqrt(
+        Math.pow(event.touches[0].clientX - event.touches[1].clientX, 2) +
+        Math.pow(event.touches[0].clientY - event.touches[1].clientY, 2)
+      );
+      setZoomStartDistance(distance);
       setZoomStartLevel(zoomLevel);
     }
-  }, [getDistance, zoomLevel]);
+  }, [zoomLevel]);
 
   const handleTouchMove = useCallback((event: TouchEvent) => {
     if (isZooming && event.touches.length === 2) {
       event.preventDefault();
-      const currentDistance = getDistance(event.touches[0], event.touches[1]);
+      const currentDistance = Math.sqrt(
+        Math.pow(event.touches[0].clientX - event.touches[1].clientX, 2) +
+        Math.pow(event.touches[0].clientY - event.touches[1].clientY, 2)
+      );
       const scale = currentDistance / zoomStartDistance;
       const newZoom = Math.max(minZoom, Math.min(maxZoom, zoomStartLevel * scale));
       setZoomLevel(newZoom);
     }
-  }, [isZooming, getDistance, zoomStartDistance, zoomStartLevel, minZoom, maxZoom]);
+  }, [isZooming, zoomStartDistance, zoomStartLevel, minZoom, maxZoom]);
 
   const handleTouchEnd = useCallback(() => {
     setIsZooming(false);
   }, []);
+
+  const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    if (isCameraOn) {
+      if ((event.ctrlKey || event.metaKey) && event.key === '=') {
+        event.preventDefault();
+        setZoomLevel(prev => {
+          if (prev < maxZoom) {
+            return Math.min(prev + 0.25, maxZoom);
+          }
+          return prev;
+        });
+      } else if ((event.ctrlKey || event.metaKey) && event.key === '-') {
+        event.preventDefault();
+        setZoomLevel(prev => {
+          if (prev > minZoom) {
+            return Math.max(prev - 0.25, minZoom);
+          }
+          return prev;
+        });
+      } else if ((event.ctrlKey || event.metaKey) && event.key === '0') {
+        event.preventDefault();
+        setZoomLevel(1);
+      }
+    }
+  }, [isCameraOn, maxZoom, minZoom]);
 
   const checkApiStatus = async () => {
     try {
@@ -385,7 +423,7 @@ export default function PostureCheckPage() {
     } catch (error) {
       console.error('Error loading progress reports:', error);
     }
-  }, [user, userLoading, healthDataService]);
+  }, [user, userLoading]);
 
   // Check API status and request camera permission on component mount
   useEffect(() => {
@@ -410,24 +448,9 @@ export default function PostureCheckPage() {
 
   // Add keyboard shortcuts for zoom
   useEffect(() => {
-    const handleKeyDown = useCallback((event: KeyboardEvent) => {
-      if (isCameraOn) {
-        if ((event.ctrlKey || event.metaKey) && event.key === '=') {
-          event.preventDefault();
-          zoomIn();
-        } else if ((event.ctrlKey || event.metaKey) && event.key === '-') {
-          event.preventDefault();
-          zoomOut();
-        } else if ((event.ctrlKey || event.metaKey) && event.key === '0') {
-          event.preventDefault();
-          resetZoom();
-        }
-      }
-    }, [isCameraOn, zoomIn, zoomOut, resetZoom]);
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isCameraOn, zoomIn, zoomOut, resetZoom]);
+  }, [handleKeyDown]);
 
   // Add touch and wheel zoom event listeners
   useEffect(() => {
@@ -445,7 +468,7 @@ export default function PostureCheckPage() {
         container.removeEventListener('touchend', handleTouchEnd);
       };
     }
-  }, [isCameraOn, zoomLevel, maxZoom, minZoom, isZooming, zoomStartDistance, zoomStartLevel, handleWheel, handleTouchStart, handleTouchMove, handleTouchEnd]);
+  }, [isCameraOn, handleWheel, handleTouchStart, handleTouchMove, handleTouchEnd]);
 
   const stopCamera = () => {
     if (streamRef.current) {

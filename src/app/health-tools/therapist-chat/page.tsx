@@ -365,6 +365,7 @@ export default function TherapistChatPage() {
     // Force immediate save to localStorage for voice messages (only for logged-in users)
     try {
       if (user) {
+        console.log('Saving voice message to localStorage for logged-in user...');
         const updatedSessions = chatSessions.map(chat => 
           chat.id === updatedChat.id ? updatedChat : chat
         );
@@ -378,7 +379,7 @@ export default function TherapistChatPage() {
         }, 3000);
       } else {
         // Guest users - no saving, just display the message
-        console.log('Guest user - voice message not saved');
+        console.log('Guest user - voice message not saved to any storage');
       }
     } catch (error) {
       console.error('Failed to save voice message:', error);
@@ -394,34 +395,52 @@ export default function TherapistChatPage() {
     
     // Only load saved chats for logged-in users
     if (user) {
-      const savedChats = localStorage.getItem('therapist-chats');
-      if (savedChats) {
-        const parsedChats = JSON.parse(savedChats).map((chat: ChatSession) => ({
-          ...chat,
-          createdAt: new Date(chat.createdAt),
-          updatedAt: new Date(chat.updatedAt),
-          messages: chat.messages.map((msg: Message) => ({
-            ...msg,
-            timestamp: new Date(msg.timestamp)
-          }))
-        }));
-        setChatSessions(parsedChats);
-        
-        // Clean up empty chats after loading
-        setTimeout(() => {
-          const emptyChats = parsedChats.filter((chat: ChatSession) =>
-            chat.messages.length === 0 || 
-            (chat.messages.length === 1 && chat.messages[0].sender === 'ai')
-          );
+      try {
+        console.log('Loading therapist chats for logged-in user...');
+        const savedChats = localStorage.getItem('therapist-chats');
+        if (savedChats) {
+          const parsedChats = JSON.parse(savedChats).map((chat: ChatSession) => ({
+            ...chat,
+            createdAt: new Date(chat.createdAt),
+            updatedAt: new Date(chat.updatedAt),
+            messages: chat.messages.map((msg: Message) => ({
+              ...msg,
+              timestamp: new Date(msg.timestamp)
+            }))
+          }));
+          setChatSessions(parsedChats);
+          console.log('Loaded', parsedChats.length, 'chat sessions from localStorage');
           
-          emptyChats.forEach((chat: ChatSession) => {
-            deleteChat(chat.id);
-          });
-        }, 1000);
-      }
-      
-      // Only create a new chat if there are no existing chats
-      if (!savedChats || JSON.parse(savedChats).length === 0) {
+          // Clean up empty chats after loading
+          setTimeout(() => {
+            const emptyChats = parsedChats.filter((chat: ChatSession) =>
+              chat.messages.length === 0 || 
+              (chat.messages.length === 1 && chat.messages[0].sender === 'ai')
+            );
+            
+            emptyChats.forEach((chat: ChatSession) => {
+              deleteChat(chat.id);
+            });
+          }, 1000);
+          
+          // Set the first existing chat as current
+          setCurrentChat(parsedChats[0]);
+        } else {
+          // Create a new chat if no saved chats exist
+          const newChat: ChatSession = {
+            id: Date.now().toString(),
+            title: "New Chat",
+            messages: [],
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+          
+          setChatSessions([newChat]);
+          setCurrentChat(newChat);
+        }
+      } catch (error) {
+        console.error('Error loading therapist chats from localStorage:', error);
+        // Create a new chat if loading fails
         const newChat: ChatSession = {
           id: Date.now().toString(),
           title: "New Chat",
@@ -430,23 +449,12 @@ export default function TherapistChatPage() {
           updatedAt: new Date()
         };
         
-        setChatSessions(prev => [newChat, ...prev]);
+        setChatSessions([newChat]);
         setCurrentChat(newChat);
-      } else {
-        // Set the first existing chat as current
-        const parsedChats = JSON.parse(savedChats).map((chat: ChatSession) => ({
-          ...chat,
-          createdAt: new Date(chat.createdAt),
-          updatedAt: new Date(chat.updatedAt),
-          messages: chat.messages.map((msg: Message) => ({
-            ...msg,
-            timestamp: new Date(msg.timestamp)
-          }))
-        }));
-        setCurrentChat(parsedChats[0]);
       }
     } else {
       // For guest users, create a new temporary chat that won't be saved
+      console.log('Creating temporary chat for guest user');
       const newChat: ChatSession = {
         id: Date.now().toString(),
         title: "Temporary Chat (Not Saved)",
@@ -472,11 +480,15 @@ export default function TherapistChatPage() {
     // Only save chats for logged-in users
     if (user && chatSessions.length > 0) {
       try {
+        console.log('Saving therapist chats to localStorage for logged-in user...');
         localStorage.setItem('therapist-chats', JSON.stringify(chatSessions));
-        console.log('Chats saved to localStorage:', chatSessions.length, 'sessions');
+        console.log('Successfully saved', chatSessions.length, 'chat sessions to localStorage');
       } catch (error) {
         console.error('Failed to save chats to localStorage:', error);
       }
+    } else if (!user) {
+      // Guest users - no saving allowed
+      console.log('Guest user - chat sessions not saved to localStorage');
     }
   }, [chatSessions, user]);
 
@@ -556,15 +568,19 @@ export default function TherapistChatPage() {
     // Remove from localStorage (only for logged-in users)
     if (user) {
       try {
+        console.log('Deleting chat from localStorage for logged-in user...');
         const savedChats = localStorage.getItem('therapist-chats');
         if (savedChats) {
           const parsedChats = JSON.parse(savedChats);
           const filteredChats = parsedChats.filter((chat: ChatSession) => chat.id !== chatId);
           localStorage.setItem('therapist-chats', JSON.stringify(filteredChats));
+          console.log('Successfully deleted chat from localStorage');
         }
       } catch (error) {
         console.error('Failed to delete chat from localStorage:', error);
       }
+    } else {
+      console.log('Guest user - chat deletion not saved to localStorage');
     }
     
     setDeleteDialogOpen(false);
@@ -626,6 +642,7 @@ export default function TherapistChatPage() {
             mood_score: undefined, // Add mood score if available
             tags: []
           });
+          console.log('User message saved to database');
         } catch (dbError) {
           console.warn('Database save failed, falling back to localStorage:', dbError);
           // Fall back to localStorage if database fails
@@ -633,6 +650,7 @@ export default function TherapistChatPage() {
             chat.id === updatedChat.id ? updatedChat : chat
           );
           localStorage.setItem('therapist-chats', JSON.stringify(updatedSessions));
+          console.log('User message saved to localStorage as fallback');
         }
         setLastSavedMessage(messageText);
         console.log('User message saved immediately:', messageText);
@@ -642,7 +660,7 @@ export default function TherapistChatPage() {
         }, 3000);
       } else {
         // Guest users - no saving, just display the message
-        console.log('Guest user - message not saved');
+        console.log('Guest user - message not saved to any storage');
       }
     } catch (error) {
       console.error('Failed to save user message:', error);
@@ -700,6 +718,22 @@ export default function TherapistChatPage() {
     }
   };
 
+  const clearAllChats = () => {
+    if (user && confirm('Are you sure you want to clear all chat history? This cannot be undone.')) {
+      try {
+        console.log('Clearing all therapist chats for logged-in user...');
+        localStorage.removeItem('therapist-chats');
+        setChatSessions([]);
+        setCurrentChat(null);
+        console.log('All therapist chats cleared from localStorage');
+      } catch (error) {
+        console.error('Error clearing therapist chats:', error);
+      }
+    } else if (!user) {
+      console.log('Guest user - cannot clear chat data');
+    }
+  };
+
 
 
   return (
@@ -723,6 +757,7 @@ export default function TherapistChatPage() {
           <Alert severity="warning" sx={{ fontSize: '12px', py: 0.5 }}>
             <Typography variant="body2" sx={{ fontSize: '12px' }}>
               <strong>⚠️ Guest User Notice:</strong> Chat sessions are NOT saved and will be lost when you leave this page. 
+              You can use the therapist chat feature to test it, but your conversations will not be preserved.
               <Link href="/register" style={{ color: '#1976d2', textDecoration: 'none', marginLeft: '4px' }}>
                 Sign up to save your conversations permanently!
               </Link>

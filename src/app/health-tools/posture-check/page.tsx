@@ -233,25 +233,25 @@ export default function PostureCheckPage() {
   }, []);
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    if (isCameraOn) {
-      if ((event.ctrlKey || event.metaKey) && event.key === '=') {
-        event.preventDefault();
+      if (isCameraOn) {
+        if ((event.ctrlKey || event.metaKey) && event.key === '=') {
+          event.preventDefault();
         setZoomLevel(prev => {
           if (prev < maxZoom) {
             return Math.min(prev + 0.25, maxZoom);
           }
           return prev;
         });
-      } else if ((event.ctrlKey || event.metaKey) && event.key === '-') {
-        event.preventDefault();
+        } else if ((event.ctrlKey || event.metaKey) && event.key === '-') {
+          event.preventDefault();
         setZoomLevel(prev => {
           if (prev > minZoom) {
             return Math.max(prev - 0.25, minZoom);
           }
           return prev;
         });
-      } else if ((event.ctrlKey || event.metaKey) && event.key === '0') {
-        event.preventDefault();
+        } else if ((event.ctrlKey || event.metaKey) && event.key === '0') {
+          event.preventDefault();
         setZoomLevel(1);
       }
     }
@@ -388,17 +388,36 @@ export default function PostureCheckPage() {
           console.log('Attempting to load from database...');
           const sessions = await healthDataService.getPostureCheckSessions();
           console.log('Sessions loaded from database:', sessions);
-          setProgressReports(sessions.map(session => ({
+          
+          // Transform database sessions to progress report format
+          const dbReports = sessions.map(session => ({
             id: session.id || '',
             timestamp: session.created_at || new Date().toISOString(),
             score: session.posture_score || 0,
-            status: session.session_title?.includes('Good') ? 'good' : 
+            status: (session.session_title?.includes('Good') ? 'good' : 
                     session.session_title?.includes('Fair') ? 'fair' : 
                     session.session_title?.includes('Poor') ? 'poor' : 
-                    session.session_title?.includes('Excellent') ? 'excellent' : 'fair',
+                    session.session_title?.includes('Excellent') ? 'excellent' : 'fair') as 'excellent' | 'good' | 'fair' | 'poor',
             imageUrl: session.image_urls?.[0] || '',
             analysis: session.analysis_data || {}
-          })));
+          }));
+          
+          setProgressReports(dbReports);
+          
+          // Also sync with localStorage for consistency and offline access
+          const localStorageData = sessions.map(session => ({
+            id: session.id || Date.now().toString(),
+            user_id: user.id,
+            session_title: session.session_title,
+            posture_score: session.posture_score,
+            analysis_data: session.analysis_data,
+            image_urls: session.image_urls || [],
+            recommendations: session.recommendations || [],
+            duration_seconds: session.duration_seconds || 0,
+            created_at: session.created_at || new Date().toISOString()
+          }));
+          
+          localStorage.setItem('postureProgressReports', JSON.stringify(localStorageData));
         } catch (dbError) {
           console.error('Database load error:', dbError);
           // If database fails, try to load from localStorage as fallback
@@ -406,19 +425,24 @@ export default function PostureCheckPage() {
           const savedReports = localStorage.getItem('postureProgressReports');
           if (savedReports) {
             console.log('Loading from localStorage as fallback');
-            setProgressReports(JSON.parse(savedReports));
+            const parsedReports = JSON.parse(savedReports);
+            setProgressReports(parsedReports.map((report: any) => ({
+              id: report.id,
+              timestamp: report.created_at,
+              score: report.posture_score,
+              status: (report.session_title?.includes('Good') ? 'good' : 
+                      report.session_title?.includes('Fair') ? 'fair' : 
+                      report.session_title?.includes('Poor') ? 'poor' : 
+                      report.session_title?.includes('Excellent') ? 'excellent' : 'fair') as 'excellent' | 'good' | 'fair' | 'poor',
+              imageUrl: report.image_urls?.[0] || '',
+              analysis: report.analysis_data || {}
+            })));
           }
         }
       } else {
-        // Load from localStorage for guests or when supabase is not available
-        console.log('Loading from localStorage for guest user');
-        const savedReports = localStorage.getItem('postureProgressReports');
-        if (savedReports) {
-          console.log('Found saved reports in localStorage');
-          setProgressReports(JSON.parse(savedReports));
-        } else {
-          console.log('No saved reports found in localStorage');
-        }
+        // Guest users cannot load data from localStorage
+        console.log('Guest user - no data loading from localStorage');
+        setProgressReports([]);
       }
     } catch (error) {
       console.error('Error loading progress reports:', error);
@@ -656,7 +680,6 @@ export default function PostureCheckPage() {
           "Take regular breaks to stretch",
           "Consider ergonomic adjustments"
         ],
-        confidence: 0.3,
         personDetected: false,
         faceDetected: false,
         detectionMethods: [],
@@ -691,76 +714,82 @@ export default function PostureCheckPage() {
     if (!analysis || !capturedImage) return;
 
     try {
+      // Create a consistent data structure for both database and localStorage
+      const sessionData = {
+        session_title: `${analysis.status.charAt(0).toUpperCase() + analysis.status.slice(1)} Posture Check`,
+        posture_score: analysis.score,
+        analysis_data: analysis,
+        recommendations: analysis.recommendations || [],
+        duration_seconds: Math.floor((Date.now() - (analysis.timestamp ? new Date(analysis.timestamp).getTime() : Date.now())) / 1000)
+      };
+
+      // Create localStorage data structure that matches what posture history expects
+      const localStorageData = {
+        id: Date.now().toString(),
+        user_id: user?.id || 'guest',
+        session_title: sessionData.session_title,
+        posture_score: sessionData.posture_score,
+        analysis_data: sessionData.analysis_data,
+        image_urls: [`data:image/jpeg;base64,${capturedImage.split(',')[1]}`],
+        recommendations: sessionData.recommendations,
+        duration_seconds: sessionData.duration_seconds,
+        created_at: analysis.timestamp || new Date().toISOString()
+      };
+
       if (user) {
-        // Use the enhanced health data service for saving
-        const sessionData = {
-          session_title: `${analysis.status.charAt(0).toUpperCase() + analysis.status.slice(1)} Posture Check`,
-          posture_score: analysis.score,
-          analysis_data: analysis,
-          recommendations: analysis.recommendations || [],
-          duration_seconds: Math.floor((Date.now() - (analysis.timestamp ? new Date(analysis.timestamp).getTime() : Date.now())) / 1000)
-        };
-        
+        // Try to save to database first
         try {
           console.log('Saving posture session with image to database...');
           await healthDataService.savePostureCheckSessionWithImages(sessionData, capturedImage);
           console.log('Successfully saved to database with image');
           
-          // Reload progress reports from database
-          const sessions = await healthDataService.getPostureCheckSessions();
-          console.log('Loaded sessions from database:', sessions);
-          setProgressReports(sessions.map(session => ({
-            id: session.id || '',
-            timestamp: session.created_at || new Date().toISOString(),
-            score: session.posture_score || 0,
-            status: session.session_title?.includes('Good') ? 'good' : 
-                    session.session_title?.includes('Fair') ? 'fair' : 
-                    session.session_title?.includes('Poor') ? 'poor' : 
-                    session.session_title?.includes('Excellent') ? 'excellent' : 'fair',
-            imageUrl: session.image_urls?.[0] || '',
-            analysis: session.analysis_data || {}
+          // Also save to localStorage for consistency and offline access
+      const existingReports = JSON.parse(localStorage.getItem('postureProgressReports') || '[]');
+          const updatedReports = [localStorageData, ...existingReports];
+      localStorage.setItem('postureProgressReports', JSON.stringify(updatedReports));
+      
+          // Update progress reports display
+          setProgressReports(updatedReports.map(report => ({
+            id: report.id,
+            timestamp: report.created_at,
+            score: report.posture_score,
+            status: report.session_title?.includes('Good') ? 'good' : 
+                    report.session_title?.includes('Fair') ? 'fair' : 
+                    report.session_title?.includes('Poor') ? 'poor' : 
+                    report.session_title?.includes('Excellent') ? 'excellent' : 'fair',
+            imageUrl: report.image_urls?.[0] || '',
+            analysis: report.analysis_data || {}
           })));
           
           setSnackbarMessage("Progress report saved successfully with image!");
-          setSnackbarOpen(true);
+      setSnackbarOpen(true);
         } catch (dbError) {
           console.error('Database save error:', dbError);
-          // If database save fails, fall back to localStorage
+          // If database save fails, save to localStorage only
           console.log('Falling back to localStorage due to database error');
-          const imageUrl = `data:image/jpeg;base64,${capturedImage.split(',')[1]}`;
-          const progressReport = {
-            id: Date.now().toString(),
-            timestamp: analysis.timestamp || new Date().toISOString(),
-            score: analysis.score,
-            status: analysis.status,
-            imageUrl: imageUrl,
-            analysis: analysis
-          };
           const existingReports = JSON.parse(localStorage.getItem('postureProgressReports') || '[]');
-          const updatedReports = [...existingReports, progressReport];
+          const updatedReports = [localStorageData, ...existingReports];
           localStorage.setItem('postureProgressReports', JSON.stringify(updatedReports));
-          setProgressReports(updatedReports);
+          setProgressReports(updatedReports.map(report => ({
+            id: report.id,
+            timestamp: report.created_at,
+            score: report.posture_score,
+            status: report.session_title?.includes('Good') ? 'good' : 
+                    report.session_title?.includes('Fair') ? 'fair' : 
+                    report.session_title?.includes('Poor') ? 'poor' : 
+                    report.session_title?.includes('Excellent') ? 'excellent' : 'fair',
+            imageUrl: report.image_urls?.[0] || '',
+            analysis: report.analysis_data || {}
+          })));
           setSnackbarMessage("Database connection failed. Data saved locally.");
           setSnackbarOpen(true);
         }
       } else {
-        // Save to localStorage for guests or when supabase is not available
-        const imageUrl = `data:image/jpeg;base64,${capturedImage.split(',')[1]}`;
-        const progressReport = {
-          id: Date.now().toString(),
-          timestamp: analysis.timestamp || new Date().toISOString(),
-          score: analysis.score,
-          status: analysis.status,
-          imageUrl: imageUrl,
-          analysis: analysis
-        };
-        const existingReports = JSON.parse(localStorage.getItem('postureProgressReports') || '[]');
-        const updatedReports = [...existingReports, progressReport];
-        localStorage.setItem('postureProgressReports', JSON.stringify(updatedReports));
-        setProgressReports(updatedReports);
-        setSnackbarMessage("Progress report saved locally!");
+        // Guest users cannot save data - require sign up
+        setSnackbarMessage("Please sign up to save your posture check data!");
         setSnackbarOpen(true);
       }
+      
       setShowImageOptions(false);
       setCapturedImage(null);
     } catch (error) {
@@ -811,6 +840,8 @@ export default function PostureCheckPage() {
       default: return <Info />;
     }
   };
+
+
 
   useEffect(() => {
     return () => {
@@ -913,16 +944,16 @@ export default function PostureCheckPage() {
                   View History
                 </Button>
               )}
-              <Chip
-                label={isCameraOn ? "Camera Active" : "Camera Off"}
-                size="small"
-                icon={isCameraOn ? <Videocam /> : <VideocamOff />}
-                sx={{
-                  background: isCameraOn ? "rgba(76, 175, 80, 0.2)" : "rgba(255, 255, 255, 0.2)",
-                  color: "white",
-                  fontWeight: 500
-                }}
-              />
+            <Chip
+              label={isCameraOn ? "Camera Active" : "Camera Off"}
+              size="small"
+              icon={isCameraOn ? <Videocam /> : <VideocamOff />}
+              sx={{
+                background: isCameraOn ? "rgba(76, 175, 80, 0.2)" : "rgba(255, 255, 255, 0.2)",
+                color: "white",
+                fontWeight: 500
+              }}
+            />
               <Chip
                 label={
                   apiStatus === "ready" ? "AI Ready" :
@@ -976,6 +1007,7 @@ export default function PostureCheckPage() {
                   >
                     Debug
                   </Button>
+
                   <Button
                     variant="outlined"
                     size="small"
@@ -1026,11 +1058,11 @@ export default function PostureCheckPage() {
       <Container maxWidth="xl" sx={{ py: 4 }}>
         {/* Notice for logged-out users */}
         {!user && (
-          <Alert severity="info" sx={{ mb: 3 }}>
+          <Alert severity="warning" sx={{ mb: 3 }}>
             <Typography variant="body2">
-              <strong>Guest User Notice:</strong> As a guest, your posture checks are saved locally and cannot be viewed in the history page. 
+              <strong>Guest User Notice:</strong> As a guest, you can use the posture check feature but your data will not be saved. 
               <Link href="/register" style={{ color: '#1976d2', textDecoration: 'none', marginLeft: '8px' }}>
-                Sign up to unlock all features!
+                Sign up to save your posture check history!
               </Link>
             </Typography>
           </Alert>
@@ -1571,9 +1603,9 @@ export default function PostureCheckPage() {
                   ref={canvasRef}
                   style={{ display: 'none' }}
                 />
-              </Box>
+                </Box>
 
-              {/* Camera Controls */}
+                {/* Camera Controls */}
                 <Box sx={{ p: 3 }}>
                 <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
                     <Button

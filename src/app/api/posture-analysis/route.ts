@@ -790,9 +790,9 @@ function analyzeSpatialRelationships(bodyPartMap: BodyPartMap): SpatialAnalysis 
 // Comprehensive Posture Analysis Modules
 function analyzeHeadNeckPosition(faces: any[], bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAnalysis): BodyPartAnalysis {
   const issues: PostureIssue[] = [];
-  let score = 60; // Reduced base score from 85 to 60 - much harsher starting point
+  let score = 75; // Increased base score from 60 to 75 - more lenient starting point
 
-  // Enhanced face angle analysis with advanced measurements
+  // Enhanced face angle analysis with more realistic measurements
   if (faces.length > 0) {
     const face = faces[0];
     const rollAngle = Math.abs(face.rollAngle || 0);
@@ -800,15 +800,15 @@ function analyzeHeadNeckPosition(faces: any[], bodyPartMap: BodyPartMap, spatial
     const tiltAngle = Math.abs(face.tiltAngle || 0);
     const detectionConfidence = face.detectionConfidence || 0.8;
 
-    // Much harsher forward head posture detection
-    if (panAngle > 8) { // Reduced threshold from 12 to 8
-      const severity = panAngle > 15 ? 'critical' : panAngle > 12 ? 'major' : 'moderate';
-      const penalty = panAngle > 15 ? 50 : panAngle > 12 ? 35 : 25; // Increased penalties
+    // More lenient forward head posture detection with varied thresholds
+    if (panAngle > 12) { // Increased threshold from 8 to 12
+      const severity = panAngle > 20 ? 'critical' : panAngle > 15 ? 'major' : 'moderate';
+      const penalty = panAngle > 20 ? 35 : panAngle > 15 ? 25 : 15; // Reduced penalties
       
       issues.push({
         type: 'Forward Head Posture',
         severity,
-        description: `Head is positioned ${panAngle.toFixed(1)}° forward relative to the body (${panAngle > 15 ? 'severe' : panAngle > 12 ? 'moderate' : 'mild'} forward head posture)`,
+        description: `Head is positioned ${panAngle.toFixed(1)}° forward relative to the body (${panAngle > 20 ? 'severe' : panAngle > 15 ? 'moderate' : 'mild'} forward head posture)`,
         impact: 'Can cause neck strain, headaches, shoulder tension, and cervical spine compression',
         recommendations: [
           'Practice chin tucks to strengthen deep neck flexors',
@@ -821,10 +821,10 @@ function analyzeHeadNeckPosition(faces: any[], bodyPartMap: BodyPartMap, spatial
       score -= penalty;
     }
 
-    // Much harsher head tilt detection
-    if (rollAngle > 5) { // Reduced threshold from 8 to 5
-      const severity = rollAngle > 12 ? 'major' : 'moderate';
-      const penalty = rollAngle > 12 ? 30 : 20; // Increased penalties
+    // More lenient head tilt detection with varied thresholds
+    if (rollAngle > 8) { // Increased threshold from 5 to 8
+      const severity = rollAngle > 15 ? 'major' : 'moderate';
+      const penalty = rollAngle > 15 ? 20 : 15; // Reduced penalties
       
       issues.push({
         type: 'Head Tilt / Cervical Lateral Flexion',
@@ -842,10 +842,10 @@ function analyzeHeadNeckPosition(faces: any[], bodyPartMap: BodyPartMap, spatial
       score -= penalty;
     }
 
-    // Much harsher excessive tilt detection
-    if (tiltAngle > 10) { // Reduced threshold from 15 to 10
-      const severity = tiltAngle > 20 ? 'critical' : tiltAngle > 15 ? 'major' : 'moderate';
-      const penalty = tiltAngle > 20 ? 45 : tiltAngle > 15 ? 30 : 20; // Increased penalties
+    // More lenient excessive tilt detection with varied thresholds
+    if (tiltAngle > 15) { // Increased threshold from 10 to 15
+      const severity = tiltAngle > 25 ? 'critical' : tiltAngle > 20 ? 'major' : 'moderate';
+      const penalty = tiltAngle > 25 ? 30 : tiltAngle > 20 ? 20 : 15; // Reduced penalties
       
       issues.push({
         type: 'Excessive Head Tilt / Cervical Flexion-Extension',
@@ -863,10 +863,10 @@ function analyzeHeadNeckPosition(faces: any[], bodyPartMap: BodyPartMap, spatial
       score -= penalty;
     }
 
-    // Much harsher cervical alignment assessment
+    // More lenient cervical alignment assessment
     if (detectionConfidence > 0.7) {
       const totalDeviation = rollAngle + panAngle + tiltAngle;
-      if (totalDeviation > 20) { // Reduced threshold from 30 to 20
+      if (totalDeviation > 30) { // Increased threshold from 20 to 30
         issues.push({
           type: 'Poor Cervical Alignment',
           severity: 'major',
@@ -880,16 +880,16 @@ function analyzeHeadNeckPosition(faces: any[], bodyPartMap: BodyPartMap, spatial
             'Monitor progress with regular posture assessments'
           ]
         });
-        score -= 35; // Increased penalty from 25 to 35
+        score -= 25; // Reduced penalty from 35 to 25
       }
     }
   }
 
-  // Much harsher neck strain indicators
+  // More lenient neck strain indicators
   if (bodyPartMap.neck.length === 0 && bodyPartMap.head.length > 0) {
     issues.push({
       type: 'Potential Neck Strain / Poor Neck Visibility',
-      severity: 'moderate', // Changed from minor to moderate
+      severity: 'minor', // Changed back from moderate to minor
       description: 'Neck area may be under strain or not clearly visible for analysis',
       impact: 'Can lead to discomfort, reduced mobility, and undetected posture issues',
       recommendations: [
@@ -900,10 +900,10 @@ function analyzeHeadNeckPosition(faces: any[], bodyPartMap: BodyPartMap, spatial
         'Consider professional assessment for persistent neck issues'
       ]
     });
-    score -= 20; // Increased penalty from 10 to 20
+    score -= 10; // Reduced penalty from 20 to 10
   }
 
-  // Much harsher head-neck-shoulder relationship assessment
+  // More lenient head-neck-shoulder relationship assessment
   if (bodyPartMap.shoulders.length > 0 && bodyPartMap.head.length > 0) {
     issues.push({
       type: 'Head-Neck-Shoulder Relationship',
@@ -917,7 +917,7 @@ function analyzeHeadNeckPosition(faces: any[], bodyPartMap: BodyPartMap, spatial
         'Consider ergonomic adjustments for daily activities'
       ]
     });
-    score -= 10; // Increased penalty from 5 to 10
+    score -= 5; // Reduced penalty from 10 to 5
   }
 
   const riskLevel = score >= 70 ? 'low' : score >= 50 ? 'moderate' : score >= 30 ? 'high' : 'critical';
@@ -932,9 +932,9 @@ function analyzeHeadNeckPosition(faces: any[], bodyPartMap: BodyPartMap, spatial
 
 function analyzeShoulderPosition(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAnalysis): BodyPartAnalysis {
   const issues: PostureIssue[] = [];
-  let score = 60; // Reduced base score from 85 to 60 - much harsher starting point
+  let score = 75; // Increased base score from 60 to 75 - more lenient starting point
 
-  // Much harsher shoulder height comparison
+  // More lenient shoulder height comparison with varied assessment
   if (bodyPartMap.shoulders.length > 0) {
     // Check for shoulder elevation differences
     const shoulderLabels = bodyPartMap.shoulders.map(label => label.toLowerCase());
@@ -945,7 +945,7 @@ function analyzeShoulderPosition(bodyPartMap: BodyPartMap, spatialAnalysis: Spat
       // Both shoulders detected - check for asymmetry
       issues.push({
         type: 'Shoulder Asymmetry',
-        severity: 'moderate',
+        severity: 'minor', // Changed from moderate to minor
         description: 'Shoulders may be at different heights',
         impact: 'Can cause muscle imbalance and back pain',
         recommendations: [
@@ -954,15 +954,15 @@ function analyzeShoulderPosition(bodyPartMap: BodyPartMap, spatialAnalysis: Spat
           'Improve overall posture symmetry'
         ]
       });
-      score -= 30; // Increased penalty from 20 to 30
+      score -= 15; // Reduced penalty from 30 to 15
     }
   }
 
-  // Much harsher rounded shoulder detection
+  // More lenient rounded shoulder detection with varied assessment
   if (bodyPartMap.arms.length > 0 && bodyPartMap.torso.length > 0) {
     issues.push({
       type: 'Potential Rounded Shoulders',
-      severity: 'major', // Changed from moderate to major
+      severity: 'moderate', // Changed back from major to moderate
       description: 'Shoulders may be rounded forward',
       impact: 'Can cause upper back pain and breathing issues',
       recommendations: [
@@ -971,14 +971,14 @@ function analyzeShoulderPosition(bodyPartMap: BodyPartMap, spatialAnalysis: Spat
         'Improve chest flexibility'
       ]
     });
-    score -= 40; // Increased penalty from 25 to 40
+    score -= 20; // Reduced penalty from 40 to 20
   }
 
-  // Much harsher shoulder blade positioning
+  // More lenient shoulder blade positioning
   if (bodyPartMap.spine.length > 0) {
     issues.push({
       type: 'Shoulder Blade Positioning',
-      severity: 'moderate', // Changed from minor to moderate
+      severity: 'minor', // Changed back from moderate to minor
       description: 'Shoulder blades may need better positioning',
       impact: 'Affects overall upper body posture',
       recommendations: [
@@ -987,10 +987,10 @@ function analyzeShoulderPosition(bodyPartMap: BodyPartMap, spatialAnalysis: Spat
         'Improve thoracic spine mobility'
       ]
     });
-    score -= 25; // Increased penalty from 15 to 25
+    score -= 10; // Reduced penalty from 25 to 10
   }
 
-  const riskLevel = score >= 80 ? 'low' : score >= 60 ? 'moderate' : score >= 40 ? 'high' : 'critical';
+  const riskLevel = score >= 70 ? 'low' : score >= 50 ? 'moderate' : score >= 30 ? 'high' : 'critical';
 
   return {
     score: Math.round(Math.max(0, score)),
@@ -1002,9 +1002,9 @@ function analyzeShoulderPosition(bodyPartMap: BodyPartMap, spatialAnalysis: Spat
 
 function analyzeSpineAlignment(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAnalysis): BodyPartAnalysis {
   const issues: PostureIssue[] = [];
-  let score = 60; // Reduced base score from 85 to 60 - much harsher starting point
+  let score = 75; // Increased base score from 60 to 75 - more lenient starting point
 
-  // Much harsher spinal curvature analysis for detecting excessive kyphosis/lordosis
+  // More lenient spinal curvature analysis with varied assessment
   if (bodyPartMap.spine.length > 0) {
     const spineKeywords = bodyPartMap.spine.map(label => label.toLowerCase());
     const hasCurvedSpine = spineKeywords.some(keyword => 
@@ -1017,7 +1017,7 @@ function analyzeSpineAlignment(bodyPartMap: BodyPartMap, spatialAnalysis: Spatia
     if (hasCurvedSpine && !hasStraightSpine) {
       issues.push({
         type: 'Excessive Spinal Curvature',
-        severity: 'major',
+        severity: 'moderate', // Changed from major to moderate
         description: 'Spine shows excessive curvature (kyphosis/lordosis)',
         impact: 'Can cause back pain, breathing difficulties, and postural instability',
         recommendations: [
@@ -1028,11 +1028,11 @@ function analyzeSpineAlignment(bodyPartMap: BodyPartMap, spatialAnalysis: Spatia
           'Address underlying causes like muscle weakness or poor ergonomics'
         ]
       });
-      score -= 45; // Increased penalty from 30 to 45
+      score -= 25; // Reduced penalty from 45 to 25
     } else if (!hasStraightSpine) {
       issues.push({
         type: 'Spinal Alignment Assessment',
-        severity: 'moderate',
+        severity: 'minor', // Changed from moderate to minor
         description: 'Spine alignment needs improvement for optimal posture',
         impact: 'Affects overall posture and can contribute to back pain',
         recommendations: [
@@ -1043,11 +1043,11 @@ function analyzeSpineAlignment(bodyPartMap: BodyPartMap, spatialAnalysis: Spatia
           'Practice spinal mobility exercises'
         ]
       });
-      score -= 30; // Increased penalty from 20 to 30
+      score -= 15; // Reduced penalty from 30 to 15
     }
   }
 
-  // Much harsher critical forward flexion detection
+  // More lenient forward flexion detection with varied assessment
   if (bodyPartMap.torso.length > 0 && bodyPartMap.head.length > 0) {
     const torsoKeywords = bodyPartMap.torso.map(label => label.toLowerCase());
     const hasForwardLean = torsoKeywords.some(keyword => 
@@ -1059,12 +1059,11 @@ function analyzeSpineAlignment(bodyPartMap: BodyPartMap, spatialAnalysis: Spatia
 
     if (hasForwardLean && !hasUprightTorso) {
       issues.push({
-        type: 'Critical Forward Flexion',
-        severity: 'critical',
-        description: 'Upper body is significantly leaning forward, indicating dangerous bending position',
-        impact: 'High risk for back injury, muscle strain, and spinal compression',
+        type: 'Significant Forward Flexion',
+        severity: 'major', // Changed from critical to major
+        description: 'Upper body is significantly leaning forward, affecting spinal alignment',
+        impact: 'Can cause back strain and muscle tension over time',
         recommendations: [
-          'IMMEDIATE: Stop current activity and return to neutral position',
           'Practice standing tall exercises to improve posture',
           'Strengthen core and back muscles for better support',
           'Improve overall posture habits and awareness',
@@ -1072,13 +1071,13 @@ function analyzeSpineAlignment(bodyPartMap: BodyPartMap, spatialAnalysis: Spatia
           'Address ergonomic factors contributing to poor posture'
         ]
       });
-      score -= 60; // Increased penalty from 45 to 60
+      score -= 35; // Reduced penalty from 60 to 35
     } else if (hasForwardLean) {
       issues.push({
         type: 'Moderate Forward Flexion',
-        severity: 'major',
+        severity: 'moderate', // Changed from major to moderate
         description: 'Upper body is leaning forward, affecting spinal alignment',
-        impact: 'Can cause significant back strain and pain over time',
+        impact: 'Can cause back strain and pain over time',
         recommendations: [
           'Practice standing tall exercises to improve posture',
           'Strengthen core and back muscles for better support',
@@ -1087,11 +1086,11 @@ function analyzeSpineAlignment(bodyPartMap: BodyPartMap, spatialAnalysis: Spatia
           'Practice exercises that promote upright posture'
         ]
       });
-      score -= 40; // Increased penalty from 30 to 40
+      score -= 20; // Reduced penalty from 40 to 20
     }
   }
 
-  // Much harsher lateral deviation analysis
+  // More lenient lateral deviation analysis with varied assessment
   if (bodyPartMap.shoulders.length > 0 && bodyPartMap.hips.length > 0) {
     const shoulderKeywords = bodyPartMap.shoulders.map(label => label.toLowerCase());
     const hipKeywords = bodyPartMap.hips.map(label => label.toLowerCase());
@@ -1106,7 +1105,7 @@ function analyzeSpineAlignment(bodyPartMap: BodyPartMap, spatialAnalysis: Spatia
     if (hasAsymmetricShoulders && hasAsymmetricHips) {
       issues.push({
         type: 'Lateral Deviation / Potential Scoliosis',
-        severity: 'major',
+        severity: 'moderate', // Changed from major to moderate
         description: 'Body shows lateral deviation with asymmetric shoulders and hips',
         impact: 'May indicate scoliosis or muscle imbalance, can cause back pain and postural issues',
         recommendations: [
@@ -1118,11 +1117,11 @@ function analyzeSpineAlignment(bodyPartMap: BodyPartMap, spatialAnalysis: Spatia
           'Monitor for progression of lateral deviation'
         ]
       });
-      score -= 50; // Increased penalty from 35 to 50
+      score -= 30; // Reduced penalty from 50 to 30
     } else if (hasAsymmetricShoulders || hasAsymmetricHips) {
       issues.push({
         type: 'Lateral Deviation',
-        severity: 'moderate',
+        severity: 'minor', // Changed from moderate to minor
         description: 'Body is leaning to one side, indicating postural imbalance',
         impact: 'Can cause muscle imbalance, back pain, and walking difficulties',
         recommendations: [
@@ -1133,17 +1132,17 @@ function analyzeSpineAlignment(bodyPartMap: BodyPartMap, spatialAnalysis: Spatia
           'Practice exercises that promote balanced posture'
         ]
       });
-      score -= 35; // Increased penalty from 25 to 35
+      score -= 15; // Reduced penalty from 35 to 15
     }
   }
 
-  // Much harsher postural stability assessment
+  // More lenient postural stability assessment
   if (bodyPartMap.spine.length > 0 && bodyPartMap.torso.length > 0) {
     const totalSpineParts = bodyPartMap.spine.length + bodyPartMap.torso.length;
     if (totalSpineParts < 3) {
       issues.push({
         type: 'Limited Spine Visibility',
-        severity: 'moderate', // Changed from minor to moderate
+        severity: 'minor', // Changed back from moderate to minor
         description: 'Limited spine visibility may affect analysis accuracy',
         impact: 'Analysis may be incomplete or less accurate',
         recommendations: [
@@ -1153,7 +1152,7 @@ function analyzeSpineAlignment(bodyPartMap: BodyPartMap, spatialAnalysis: Spatia
           'Consider multiple angles for comprehensive assessment'
         ]
       });
-      score -= 20; // Increased penalty from 10 to 20
+      score -= 10; // Reduced penalty from 20 to 10
     }
   }
 
@@ -1169,9 +1168,9 @@ function analyzeSpineAlignment(bodyPartMap: BodyPartMap, spatialAnalysis: Spatia
 
 function analyzeHipPosition(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAnalysis): BodyPartAnalysis {
   const issues: PostureIssue[] = [];
-  let score = 60; // Reduced base score from 85 to 60 - much harsher starting point
+  let score = 75; // Increased base score from 60 to 75 - more lenient starting point
 
-  // Much harsher pelvic tilt detection for anterior/posterior tilt analysis
+  // More lenient pelvic tilt detection with varied assessment
   if (bodyPartMap.hips.length > 0) {
     const hipKeywords = bodyPartMap.hips.map(label => label.toLowerCase());
     const hasAnteriorTilt = hipKeywords.some(keyword => 
@@ -1187,7 +1186,7 @@ function analyzeHipPosition(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAn
     if (hasAnteriorTilt && !hasNeutralPelvis) {
       issues.push({
         type: 'Anterior Pelvic Tilt',
-        severity: 'major',
+        severity: 'moderate', // Changed from major to moderate
         description: 'Pelvis is tilted forward, causing increased lumbar lordosis',
         impact: 'Can cause lower back pain, hip flexor tightness, and postural imbalance',
         recommendations: [
@@ -1199,11 +1198,11 @@ function analyzeHipPosition(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAn
           'Address underlying causes like muscle imbalance or poor posture habits'
         ]
       });
-      score -= 45; // Increased penalty from 30 to 45
+      score -= 25; // Reduced penalty from 45 to 25
     } else if (hasPosteriorTilt && !hasNeutralPelvis) {
       issues.push({
         type: 'Posterior Pelvic Tilt',
-        severity: 'major',
+        severity: 'moderate', // Changed from major to moderate
         description: 'Pelvis is tilted backward, causing decreased lumbar lordosis',
         impact: 'Can cause lower back pain, glute weakness, and postural issues',
         recommendations: [
@@ -1215,11 +1214,11 @@ function analyzeHipPosition(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAn
           'Address ergonomic factors contributing to poor posture'
         ]
       });
-      score -= 30;
+      score -= 20; // Reduced penalty from 30 to 20
     } else if (!hasNeutralPelvis) {
       issues.push({
         type: 'Pelvic Tilt Assessment',
-        severity: 'moderate',
+        severity: 'minor', // Changed from moderate to minor
         description: 'Pelvis may be tilted anteriorly or posteriorly, affecting alignment',
         impact: 'Affects lower back alignment and can contribute to pain and postural issues',
         recommendations: [
@@ -1230,11 +1229,11 @@ function analyzeHipPosition(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAn
           'Consider professional assessment for persistent pelvic tilt'
         ]
       });
-      score -= 20;
+      score -= 10; // Reduced penalty from 20 to 10
     }
   }
 
-  // Enhanced hip level assessment for detecting uneven positioning
+  // More lenient hip level assessment with varied detection
   if (bodyPartMap.legs.length > 0) {
     const legKeywords = bodyPartMap.legs.map(label => label.toLowerCase());
     const hasUnevenLegs = legKeywords.some(keyword => 
@@ -1247,7 +1246,7 @@ function analyzeHipPosition(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAn
     if (hasUnevenLegs && !hasLevelLegs) {
       issues.push({
         type: 'Uneven Hip Level',
-        severity: 'moderate',
+        severity: 'minor', // Changed from moderate to minor
         description: 'Hips are not level, indicating postural imbalance',
         impact: 'Can cause muscle imbalance, walking difficulties, and back pain',
         recommendations: [
@@ -1259,7 +1258,7 @@ function analyzeHipPosition(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAn
           'Monitor for progression of hip level issues'
         ]
       });
-      score -= 25;
+      score -= 15; // Reduced penalty from 25 to 15
     } else if (!hasLevelLegs) {
       issues.push({
         type: 'Hip Level Assessment',
@@ -1273,11 +1272,11 @@ function analyzeHipPosition(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAn
           'Consider professional assessment for persistent hip level issues'
         ]
       });
-      score -= 15;
+      score -= 10; // Reduced penalty from 15 to 10
     }
   }
 
-  // Enhanced lower back alignment analysis relative to pelvis
+  // More lenient lower back alignment analysis with varied assessment
   if (bodyPartMap.spine.length > 0 && bodyPartMap.hips.length > 0) {
     const spineKeywords = bodyPartMap.spine.map(label => label.toLowerCase());
     const hasLumbarIssues = spineKeywords.some(keyword => 
@@ -1290,7 +1289,7 @@ function analyzeHipPosition(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAn
     if (hasLumbarIssues && !hasAlignedSpine) {
       issues.push({
         type: 'Lower Back Alignment Issues',
-        severity: 'major',
+        severity: 'moderate', // Changed from major to moderate
         description: 'Lower back (lumbar spine) needs better alignment with pelvis',
         impact: 'Affects overall posture and can cause significant back pain and instability',
         recommendations: [
@@ -1302,11 +1301,11 @@ function analyzeHipPosition(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAn
           'Consider professional assessment for persistent alignment issues'
         ]
       });
-      score -= 30;
+      score -= 20; // Reduced penalty from 30 to 20
     } else if (!hasAlignedSpine) {
       issues.push({
         type: 'Lower Back Alignment Assessment',
-        severity: 'moderate',
+        severity: 'minor', // Changed from moderate to minor
         description: 'Lower back alignment needs improvement for optimal posture',
         impact: 'Affects overall posture and can contribute to back pain',
         recommendations: [
@@ -1317,11 +1316,11 @@ function analyzeHipPosition(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAn
           'Practice spinal mobility and stability exercises'
         ]
       });
-      score -= 25;
+      score -= 15; // Reduced penalty from 25 to 15
     }
   }
 
-  // Core stability indicators based on hip positioning
+  // More lenient core stability indicators
   if (bodyPartMap.hips.length > 0 && bodyPartMap.torso.length > 0) {
     const totalHipParts = bodyPartMap.hips.length + bodyPartMap.torso.length;
     if (totalHipParts < 3) {
@@ -1337,11 +1336,11 @@ function analyzeHipPosition(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAn
           'Consider multiple angles for comprehensive assessment'
         ]
       });
-      score -= 10;
+      score -= 5; // Reduced penalty from 10 to 5
     }
   }
 
-  const riskLevel = score >= 80 ? 'low' : score >= 60 ? 'moderate' : score >= 40 ? 'high' : 'critical';
+  const riskLevel = score >= 70 ? 'low' : score >= 50 ? 'moderate' : score >= 30 ? 'high' : 'critical';
 
   return {
     score: Math.round(Math.max(0, score)),
@@ -1353,15 +1352,15 @@ function analyzeHipPosition(bodyPartMap: BodyPartMap, spatialAnalysis: SpatialAn
 
 function analyzeOverallPosture(bodyPartMap: BodyPartMap, faces: any[], imageProperties: any, spatialAnalysis: SpatialAnalysis): BodyPartAnalysis {
   const issues: PostureIssue[] = [];
-  let score = 60; // Reduced base score from 85 to 60 - much harsher starting point
+  let score = 75; // Increased base score from 60 to 75 - more lenient starting point
 
-  // Much harsher global alignment assessment
+  // More lenient global alignment assessment with varied detection
   const totalBodyParts = Object.values(bodyPartMap).reduce((sum: number, parts: string[]) => sum + parts.length, 0);
   
   if (totalBodyParts < 5) {
     issues.push({
       type: 'Limited Body Part Detection',
-      severity: 'major', // Changed from moderate to major
+      severity: 'moderate', // Changed back from major to moderate
       description: 'Not enough body parts detected for comprehensive analysis',
       impact: 'Analysis may be incomplete',
       recommendations: [
@@ -1370,14 +1369,14 @@ function analyzeOverallPosture(bodyPartMap: BodyPartMap, faces: any[], imageProp
         'Position camera to capture entire body'
       ]
     });
-    score -= 35; // Increased penalty from 20 to 35
+    score -= 20; // Reduced penalty from 35 to 20
   }
 
-  // Much harsher compensatory pattern detection
+  // More lenient compensatory pattern detection with varied assessment
   if (bodyPartMap.head.length > 0 && bodyPartMap.shoulders.length > 0) {
     issues.push({
       type: 'Potential Compensatory Patterns',
-      severity: 'moderate', // Changed from minor to moderate
+      severity: 'minor', // Changed back from moderate to minor
       description: 'Body may be using compensatory movements',
       impact: 'Can lead to muscle imbalance over time',
       recommendations: [
@@ -1386,17 +1385,17 @@ function analyzeOverallPosture(bodyPartMap: BodyPartMap, faces: any[], imageProp
         'Improve overall body awareness'
       ]
     });
-    score -= 25; // Increased penalty from 15 to 25
+    score -= 10; // Reduced penalty from 25 to 10
   }
 
-  // Much harsher risk factor analysis
+  // More lenient risk factor analysis with varied assessment
   const criticalIssues = issues.filter(issue => issue.severity === 'critical').length;
   const majorIssues = issues.filter(issue => issue.severity === 'major').length;
   
   if (criticalIssues > 0) {
-    score -= 50; // Increased penalty from 40 to 50
+    score -= 30; // Reduced penalty from 50 to 30
   } else if (majorIssues > 2) {
-    score -= 40; // Increased penalty from 30 to 40
+    score -= 25; // Reduced penalty from 40 to 25
   }
 
   const riskLevel = score >= 70 ? 'low' : score >= 50 ? 'moderate' : score >= 30 ? 'high' : 'critical';
@@ -1411,12 +1410,12 @@ function analyzeOverallPosture(bodyPartMap: BodyPartMap, faces: any[], imageProp
 
 // Intelligent Scoring Engine
 function calculateIntelligentScore(detailedAnalysis: any): ScoreCalculation {
-  // Enhanced weighted scoring algorithm with proper weighting
+  // More balanced weighted scoring algorithm with realistic weighting
   const weights: ScoringWeights = {
-    spine: 0.30,        // Most critical for health (30%)
+    spine: 0.25,        // Critical for health but not overly punitive (25%)
     shoulders: 0.20,    // Major postural component (20%)
     headNeck: 0.20,     // Critical for neck health (20%)
-    hips: 0.15,         // Foundation of posture (15%)
+    hips: 0.20,         // Foundation of posture (20%)
     overall: 0.15       // Global assessment (15%)
   };
 
@@ -1431,29 +1430,29 @@ function calculateIntelligentScore(detailedAnalysis: any): ScoreCalculation {
   const penalties: PosturePenalty[] = [];
   const bonuses: PostureBonus[] = [];
 
-  // Much harsher penalty system for different severity levels
+  // More lenient and varied penalty system with realistic severity levels
   Object.entries(detailedAnalysis).forEach(([region, analysis]: [string, any]) => {
     (analysis.issues as PostureIssue[]).forEach((issue: PostureIssue) => {
       let penaltyPoints = 0;
       let penaltyMultiplier = 1.0;
       
-      // Much harsher base penalty points by severity
+      // More lenient base penalty points by severity with better variation
       switch (issue.severity) {
         case 'critical':
-          penaltyPoints = 120; // Increased from 80 to 120 - much harsher critical penalties
-          penaltyMultiplier = 1.5; // Increased from 1.2 to 1.5
+          penaltyPoints = 60; // Reduced from 120 to 60 - more realistic critical penalties
+          penaltyMultiplier = 1.2; // Reduced from 1.5 to 1.2
           break;
         case 'major':
-          penaltyPoints = 70; // Increased from 45 to 70 - much harsher major penalties
-          penaltyMultiplier = 1.3; // Increased from 1.1 to 1.3
+          penaltyPoints = 35; // Reduced from 70 to 35 - more realistic major penalties
+          penaltyMultiplier = 1.1; // Reduced from 1.3 to 1.1
           break;
         case 'moderate':
-          penaltyPoints = 40; // Increased from 25 to 40 - much harsher moderate penalties
-          penaltyMultiplier = 1.1; // Increased from 1.0 to 1.1
+          penaltyPoints = 20; // Reduced from 40 to 20 - more realistic moderate penalties
+          penaltyMultiplier = 1.0; // Reduced from 1.1 to 1.0
           break;
         case 'minor':
-          penaltyPoints = 20; // Increased from 10 to 20 - much harsher minor penalties
-          penaltyMultiplier = 1.0; // Increased from 0.8 to 1.0
+          penaltyPoints = 10; // Reduced from 20 to 10 - more realistic minor penalties
+          penaltyMultiplier = 0.9; // Reduced from 1.0 to 0.9
           break;
       }
       
@@ -1470,45 +1469,50 @@ function calculateIntelligentScore(detailedAnalysis: any): ScoreCalculation {
     });
   });
 
-  // Much more restrictive bonus system - only for truly excellent posture
-  if (baseScore > 90) { // Increased threshold from 85 to 90
+  // More encouraging bonus system for good posture
+  if (baseScore > 85) { // Reduced threshold from 90 to 85
     bonuses.push({
       type: 'Exceptional Overall Posture',
-      points: 10, // Reduced from 15 to 10
+      points: 15, // Increased from 10 to 15
       description: 'Maintaining exceptional posture habits across all regions'
     });
-  } else if (baseScore > 85) { // Increased threshold from 75 to 85
+  } else if (baseScore > 75) { // Reduced threshold from 85 to 75
     bonuses.push({
       type: 'Excellent Overall Posture',
-      points: 5, // Reduced from 10 to 5
+      points: 10, // Increased from 5 to 10
       description: 'Maintaining excellent posture habits'
     });
+  } else if (baseScore > 65) { // Added new tier for good posture
+    bonuses.push({
+      type: 'Good Overall Posture',
+      points: 5,
+      description: 'Maintaining good posture habits with room for improvement'
+    });
   }
-  // Removed the 65+ bonus entirely - much harsher
 
-  // Much harsher consistency validation
+  // More lenient consistency validation
   const totalPenalties = penalties.reduce((sum, penalty) => sum + penalty.points, 0);
   const totalBonuses = bonuses.reduce((sum, bonus) => sum + bonus.points, 0);
   
   let finalScore = Math.max(0, Math.min(100, baseScore - totalPenalties + totalBonuses));
   
-  // Much harsher consistency adjustments based on overall pattern
+  // More lenient consistency adjustments based on overall pattern
   const criticalIssues = penalties.filter(p => p.severity === 'critical').length;
   const majorIssues = penalties.filter(p => p.severity === 'major').length;
   
-  // Ensure critical issues result in very poor scores
-  if (criticalIssues > 0 && finalScore > 25) { // Reduced from 40 to 25
-    finalScore = Math.min(finalScore, 25);
+  // More lenient critical issue handling
+  if (criticalIssues > 0 && finalScore > 35) { // Increased from 25 to 35
+    finalScore = Math.min(finalScore, 35);
   }
   
-  // Ensure multiple major issues result in poor scores
-  if (majorIssues > 1 && finalScore > 45) { // Reduced from 2 issues/60 score to 1 issue/45 score
-    finalScore = Math.min(finalScore, 45);
+  // More lenient multiple major issues handling
+  if (majorIssues > 2 && finalScore > 55) { // Increased from 1 issue/45 score to 2 issues/55 score
+    finalScore = Math.min(finalScore, 55);
   }
   
-  // Much more restrictive good score requirements
-  if (baseScore > 85 && totalPenalties < 10) { // Increased base score requirement from 80 to 85, reduced penalty tolerance from 20 to 10
-    finalScore = Math.max(finalScore, 75); // Reduced from 70 to 75
+  // More encouraging good score requirements
+  if (baseScore > 75 && totalPenalties < 20) { // Reduced base score requirement from 85 to 75, increased penalty tolerance from 10 to 20
+    finalScore = Math.max(finalScore, 70); // Increased from 75 to 70
   }
 
   return {
@@ -1521,9 +1525,9 @@ function calculateIntelligentScore(detailedAnalysis: any): ScoreCalculation {
 }
 
 function determineEnhancedStatus(score: number): "excellent" | "good" | "fair" | "poor" {
-  if (score >= 85) return "excellent";
-  if (score >= 70) return "good";
-  if (score >= 50) return "fair";
+  if (score >= 80) return "excellent"; // Reduced from 85 to 80
+  if (score >= 65) return "good"; // Reduced from 70 to 65
+  if (score >= 45) return "fair"; // Reduced from 50 to 45
   return "poor";
 }
 
@@ -1545,26 +1549,27 @@ function generateCategorizedFeedback(detailedAnalysis: any, scoreCalculation: Sc
     });
   });
 
-  // Enhanced score-based feedback with specific guidance
-  if (scoreCalculation.finalScore < 30) {
-    feedback.critical.push('🚨 CRITICAL: Immediate posture intervention required - Score indicates severe postural issues');
-    feedback.critical.push('⚠️ URGENT: Consult with a healthcare professional for comprehensive assessment');
-    feedback.critical.push('🛑 STOP: Avoid activities that may worsen current posture problems');
-  } else if (scoreCalculation.finalScore < 50) {
-    feedback.major.push('⚠️ MAJOR: Significant posture improvements needed - Multiple serious issues detected');
-    feedback.major.push('📋 ACTION: Create a structured posture improvement plan');
-    feedback.major.push('🏥 CONSIDER: Professional assessment may be beneficial');
-  } else if (scoreCalculation.finalScore < 70) {
-    feedback.moderate.push('📊 MODERATE: Some posture improvements recommended - Several areas need attention');
-    feedback.moderate.push('💪 FOCUS: Prioritize the most critical issues first');
+  // More encouraging and varied score-based feedback with specific guidance
+  if (scoreCalculation.finalScore < 35) {
+    feedback.critical.push('🚨 CRITICAL: Posture intervention recommended - Score indicates significant postural issues');
+    feedback.critical.push('⚠️ ACTION: Consider consulting with a healthcare professional for assessment');
+    feedback.critical.push('💪 IMPROVE: Focus on basic posture awareness and exercises');
+  } else if (scoreCalculation.finalScore < 55) {
+    feedback.major.push('⚠️ MAJOR: Posture improvements needed - Several areas require attention');
+    feedback.major.push('📋 PLAN: Create a structured posture improvement plan');
+    feedback.major.push('🏥 CONSIDER: Professional assessment may be helpful');
+  } else if (scoreCalculation.finalScore < 75) {
+    feedback.moderate.push('📊 MODERATE: Good foundation with room for improvement - Some areas need attention');
+    feedback.moderate.push('💪 FOCUS: Prioritize the most important issues first');
     feedback.moderate.push('📈 PROGRESS: Regular monitoring and exercises will help');
   } else if (scoreCalculation.finalScore < 85) {
-    feedback.minor.push('✅ MINOR: Minor posture adjustments suggested - Overall good posture with room for improvement');
+    feedback.minor.push('✅ MINOR: Excellent posture with minor adjustments suggested');
     feedback.minor.push('🎯 REFINE: Focus on maintaining good habits and minor corrections');
-    feedback.minor.push('🌟 MAINTAIN: Continue current good posture practices');
+    feedback.minor.push('🌟 MAINTAIN: Continue current excellent posture practices');
   } else {
-    feedback.minor.push('🏆 EXCELLENT: Outstanding posture! Continue maintaining these good habits');
+    feedback.minor.push('🏆 EXCELLENT: Outstanding posture! You\'re doing great!');
     feedback.minor.push('💎 PREVENT: Focus on maintaining current excellent posture');
+    feedback.minor.push('🌟 INSPIRE: Your posture can serve as an example for others');
   }
 
   // Add specific feedback based on detected issues
@@ -1579,13 +1584,15 @@ function generateCategorizedFeedback(detailedAnalysis: any, scoreCalculation: Sc
     feedback.major.push(`⚠️ ${majorIssues.length} major issue(s) detected requiring significant improvement`);
   }
 
-  // Add overall posture assessment
+  // More encouraging overall posture assessment
   const totalIssues = scoreCalculation.penalties.length;
   if (totalIssues === 0) {
-    feedback.minor.push('🎉 No posture issues detected - Excellent posture!');
+    feedback.minor.push('🎉 Perfect! No posture issues detected - Excellent posture!');
   } else if (totalIssues <= 2) {
     feedback.minor.push(`📊 Only ${totalIssues} minor issue(s) detected - Great posture overall!`);
-  } else if (totalIssues <= 5) {
+  } else if (totalIssues <= 4) {
+    feedback.moderate.push(`📊 ${totalIssues} posture issues detected - Good foundation with room for improvement`);
+  } else if (totalIssues <= 6) {
     feedback.moderate.push(`📊 ${totalIssues} posture issues detected - Several areas need attention`);
   } else {
     feedback.major.push(`📊 ${totalIssues} posture issues detected - Comprehensive improvement plan needed`);

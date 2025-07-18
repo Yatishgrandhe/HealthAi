@@ -151,10 +151,10 @@ export interface SpatialAnalysis {
 }
 
 export interface ScoringWeights {
-  spine: 0.30;
+  spine: 0.25;
   shoulders: 0.20;
   headNeck: 0.20;
-  hips: 0.15;
+  hips: 0.20;
   overall: 0.15;
 }
 

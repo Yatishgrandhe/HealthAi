@@ -163,7 +163,7 @@ export default function TherapistChatPage() {
   const [isVoiceChat, setIsVoiceChat] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [lastSavedMessage, setLastSavedMessage] = useState<string>("");
-  const [hasInitialized, setHasInitialized] = useState(false);
+  const [lastUserState, setLastUserState] = useState<string>("");
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -171,6 +171,16 @@ export default function TherapistChatPage() {
 
   const healthDataService = new HealthDataService();
   const { user, loading: userLoading } = useUser();
+
+  // Debug user state changes
+  useEffect(() => {
+    console.log('👤 User state changed:', {
+      user: user ? `logged-in-${user.id}` : 'not-logged-in',
+      userLoading,
+      chatSessionsCount: chatSessions.length,
+      currentChatId: currentChat?.id
+    });
+  }, [user, userLoading, chatSessions.length, currentChat?.id]);
 
   // Initialize speech recognition
   useEffect(() => {
@@ -391,15 +401,32 @@ export default function TherapistChatPage() {
 
   // Load chats from localStorage on component mount and create new chat
   useEffect(() => {
-    if (hasInitialized) return; // Prevent multiple initializations
+    console.log('Load useEffect triggered - User loading state:', userLoading, 'User:', user ? 'logged in' : 'not logged in');
     
-    console.log('User loading state:', userLoading, 'User:', user ? 'logged in' : 'not logged in');
+    // Don't initialize if still loading user
+    if (userLoading) {
+      console.log('Still loading user, skipping initialization');
+      return;
+    }
+    
+    // Create a unique key for the current user state
+    const currentUserState = user ? `logged-in-${user.id}` : 'guest';
+    
+    // Only re-initialize if user state has changed
+    if (currentUserState === lastUserState && chatSessions.length > 0) {
+      console.log('User state unchanged and chats already loaded, skipping initialization');
+      return;
+    }
+    
+    console.log('User state changed or no chats loaded, initializing...');
+    setLastUserState(currentUserState);
     
     // Only load saved chats for logged-in users
-    if (user && !userLoading) {
+    if (user) {
       try {
         console.log('Loading therapist chats for logged-in user...');
         const savedChats = localStorage.getItem('therapist-chats');
+        console.log('Raw localStorage data:', savedChats ? 'exists' : 'null');
         if (savedChats) {
           const parsedChats = JSON.parse(savedChats).map((chat: ChatSession) => ({
             ...chat,
@@ -435,8 +462,19 @@ export default function TherapistChatPage() {
             });
           }, 1000);
           
-          // Set the first existing chat as current
-          setCurrentChat(parsedChats[0]);
+          // Create a new chat for logged-in users after loading existing chats
+          const newChat: ChatSession = {
+            id: Date.now().toString(),
+            title: "New Chat",
+            messages: [],
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+          
+          // Add new chat to the beginning of the list and set as current
+          const updatedChatSessions = [newChat, ...parsedChats];
+          setChatSessions(updatedChatSessions);
+          setCurrentChat(newChat);
           
           // Verify localStorage usage after loading
           setTimeout(() => {
@@ -484,13 +522,11 @@ export default function TherapistChatPage() {
       setCurrentChat(newChat);
     }
     
-    setHasInitialized(true);
-    
     // Focus on input after initialization
     setTimeout(() => {
       inputRef.current?.focus();
     }, 100);
-  }, [hasInitialized, user, userLoading]);
+  }, [user, userLoading, lastUserState, chatSessions.length]);
 
   // Save chats to localStorage whenever they change - with error handling
   useEffect(() => {
@@ -807,6 +843,40 @@ export default function TherapistChatPage() {
     }
   };
 
+  // Function to manually load from localStorage
+  const manualLoadFromLocalStorage = () => {
+    if (!user || userLoading) {
+      console.log('Manual load skipped - user not logged in or still loading');
+      return;
+    }
+
+    try {
+      console.log('🔄 MANUAL LOAD: Attempting to load from localStorage...');
+      const savedChats = localStorage.getItem('therapist-chats');
+      console.log('🔄 MANUAL LOAD: Raw localStorage data:', savedChats ? 'exists' : 'null');
+      
+      if (savedChats) {
+        const parsedChats = JSON.parse(savedChats).map((chat: ChatSession) => ({
+          ...chat,
+          createdAt: new Date(chat.createdAt),
+          updatedAt: new Date(chat.updatedAt),
+          messages: chat.messages.map((msg: Message) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }))
+        }));
+        
+        setChatSessions(parsedChats);
+        setCurrentChat(parsedChats[0]);
+        console.log('✅ MANUAL LOAD: Successfully loaded', parsedChats.length, 'chats from localStorage');
+      } else {
+        console.log('🔄 MANUAL LOAD: No data found in localStorage');
+      }
+    } catch (error) {
+      console.error('Error during manual load:', error);
+    }
+  };
+
 
 
   return (
@@ -865,7 +935,7 @@ export default function TherapistChatPage() {
               </Typography>
             </Box>
             {process.env.NODE_ENV === 'development' && (
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                 <Button
                   variant="outlined"
                   size="small"
@@ -901,6 +971,24 @@ export default function TherapistChatPage() {
                   }}
                 >
                   Verify
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={manualLoadFromLocalStorage}
+                  sx={{
+                    borderColor: "rgba(255, 255, 255, 0.3)",
+                    color: "white",
+                    "&:hover": {
+                      borderColor: "white",
+                      background: "rgba(255, 255, 255, 0.1)",
+                    },
+                    textTransform: "none",
+                    fontWeight: 500,
+                    fontSize: "12px"
+                  }}
+                >
+                  Load
                 </Button>
               </Box>
             )}

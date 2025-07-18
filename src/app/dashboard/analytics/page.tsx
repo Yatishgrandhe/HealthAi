@@ -17,7 +17,8 @@ import {
   Psychology as BrainIcon,
   FitnessCenter as DumbbellIcon,
   Straighten as PostureIcon,
-  CalendarToday as CalendarIcon
+  CalendarToday as CalendarIcon,
+  Chat as ChatIcon
 } from '@mui/icons-material';
 import { useUser } from '@/utils/supabaseClient';
 import HealthDataService from '@/utils/healthDataService';
@@ -37,9 +38,101 @@ export default function AnalyticsPage() {
   const loadAnalytics = async () => {
     try {
       setLoading(true);
-      const healthDataService = new HealthDataService();
-      const summary = await healthDataService.getDashboardSummary();
-      setAnalytics(summary);
+      
+      // Get data from localStorage using the correct keys
+      const localTherapistChats = localStorage.getItem('therapist-chats');
+      const localPostureReports = localStorage.getItem('postureProgressReports');
+
+      let therapistSessions: any[] = [];
+      let postureSessions: any[] = [];
+
+      // Parse therapist chat data
+      if (localTherapistChats) {
+        try {
+          const parsed = JSON.parse(localTherapistChats);
+          therapistSessions = Array.isArray(parsed) ? parsed : [];
+          console.log('Analytics: Loaded therapist sessions from localStorage:', therapistSessions.length);
+        } catch (e) {
+          console.warn('Error parsing local therapist chat data:', e);
+        }
+      }
+
+      // Parse posture check data
+      if (localPostureReports) {
+        try {
+          const parsed = JSON.parse(localPostureReports);
+          postureSessions = Array.isArray(parsed) ? parsed : [];
+          console.log('Analytics: Loaded posture sessions from localStorage:', postureSessions.length);
+        } catch (e) {
+          console.warn('Error parsing local posture check data:', e);
+        }
+      }
+
+      // Calculate analytics from local data
+      const totalSessions = therapistSessions?.length || 0;
+      const postureChecks = postureSessions?.length || 0;
+      const totalMessages = therapistSessions?.reduce((acc: number, session: any) => acc + (session.messages?.length || 0), 0) || 0;
+      
+      // Calculate average posture score
+      let averagePostureScore = 0;
+      if (postureSessions && postureSessions.length > 0) {
+        const totalScore = postureSessions.reduce((acc: number, session: any) => {
+          const score = session.overall_score || session.posture_score || session.score || 0;
+          return acc + score;
+        }, 0);
+        averagePostureScore = Math.round(totalScore / postureSessions.length);
+      }
+
+      // Calculate health score
+      const baseScore = 50;
+      const sessionScore = totalSessions * 5;
+      const postureScore = averagePostureScore * 0.3;
+      const activityScore = Math.min(20, (totalSessions + postureChecks) * 2);
+      const healthScore = Math.min(100, Math.max(0, baseScore + sessionScore + postureScore + activityScore));
+
+      // Create recent activities
+      const recentActivities: any[] = [];
+
+      // Add therapist sessions
+      therapistSessions?.slice(0, 3).forEach((session: any) => {
+        recentActivities.push({
+          id: session.id || 'unknown',
+          type: 'therapy',
+          title: session.title || 'AI Therapy Session',
+          date: session.createdAt || session.created_at || new Date().toISOString(),
+          duration: session.messages?.length ? `${session.messages.length} messages` : '30 min'
+        });
+      });
+
+      // Add posture checks
+      postureSessions?.slice(0, 2).forEach((session: any) => {
+        recentActivities.push({
+          id: session.id || 'unknown',
+          type: 'posture',
+          title: session.session_title || 'Posture Check',
+          date: session.created_at || session.timestamp || new Date().toISOString(),
+          duration: session.duration_seconds ? `${Math.round(session.duration_seconds / 60)} min` : undefined
+        });
+      });
+
+      // Sort by date and take the most recent 5
+      const sortedActivities = recentActivities
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 5);
+
+      const analyticsData = {
+        healthScore: Math.round(healthScore),
+        totalSessions,
+        fitnessWorkouts: 0, // No fitness workouts feature currently
+        postureChecks,
+        averagePostureScore,
+        totalMessages,
+        recentActivities: sortedActivities
+      };
+
+      setAnalytics(analyticsData);
+      console.log('Analytics data loaded:', analyticsData);
+      
     } catch (err) {
       console.error('Error loading analytics:', err);
       setError('Failed to load analytics data');
@@ -112,19 +205,19 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        {/* Fitness Workouts */}
+        {/* Total Messages */}
         <Card sx={{ height: '100%' }}>
           <CardContent>
             <Box display="flex" alignItems="center" justifyContent="space-between">
               <Box>
                 <Typography variant="h4" fontWeight="bold" color="success.main">
-                  {analytics?.fitnessWorkouts || 0}
+                  {analytics?.totalMessages || 0}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Fitness Workouts
+                  Total Messages
                 </Typography>
               </Box>
-              <DumbbellIcon sx={{ fontSize: 40, color: 'success.main' }} />
+              <ChatIcon sx={{ fontSize: 40, color: 'success.main' }} />
             </Box>
           </CardContent>
         </Card>

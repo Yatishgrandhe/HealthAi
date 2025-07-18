@@ -26,7 +26,7 @@ const testimonials: Testimonial[] = [
     role: "Fitness Coach",
     company: "Personal Training Studio",
     avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
-    text: "The 90-day fitness planner is revolutionary. It creates personalized programs that actually work, and the progress tracking keeps clients motivated.",
+    text: "The posture tracking feature is revolutionary. It helps clients maintain proper alignment and the progress tracking keeps them motivated to improve.",
     rating: 5
   },
   {

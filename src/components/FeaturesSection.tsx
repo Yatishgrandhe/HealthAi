@@ -33,8 +33,8 @@ const features: FeatureItem[] = [
   },
   {
     icon: <FitnessCenter sx={{ fontSize: 48 }} />,
-    title: "90-Day Fitness Planner",
-    description: "Personalized 90-day fitness programs with AI-generated workouts, progress tracking, and adaptive recommendations.",
+    title: "Posture History",
+    description: "Track your posture improvement over time with detailed progress reports and personalized recommendations.",
     color: "#004499"
   },
   {

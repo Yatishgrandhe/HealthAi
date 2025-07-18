@@ -22,7 +22,6 @@ import {
 } from "@mui/material";
 import {
   Dashboard as DashboardIcon,
-  Person as ProfileIcon,
   Settings as SettingsIcon,
   AdminPanelSettings as AdminIcon,
   LocalHospital as HealthIcon,
@@ -30,7 +29,6 @@ import {
   FitnessCenter as FitnessIcon,
   Straighten as PostureIcon,
   Bookmark as SavedIcon,
-  Notifications as NotificationsIcon,
   Menu as MenuIcon,
   Logout as LogoutIcon,
   AccountCircle as AccountIcon,
@@ -73,7 +71,6 @@ const getMenuItems = (user: any): MenuItem[] => {
     { text: "Progress Calendar", icon: <CalendarIcon />, path: "/dashboard/calendar" },
     
     // Account & Settings
-    { text: "Profile", icon: <ProfileIcon />, path: "/profile", category: "Account" },
     { text: "Settings", icon: <SettingsIcon />, path: "/dashboard/settings" },
   ];
 
@@ -88,8 +85,6 @@ const getMenuItems = (user: any): MenuItem[] => {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [user, setUser] = useState<{ id: string; email?: string; user_metadata?: { full_name?: string; account_type?: string } } | null>(null);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [notifications] = useState(2); // Mock notifications
   const router = useRouter();
   const pathname = usePathname();
 
@@ -114,13 +109,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     setMobileOpen(!mobileOpen);
   };
 
-  const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
 
-  const handleProfileMenuClose = () => {
-    setAnchorEl(null);
-  };
 
   const handleSignOut = async () => {
     if (!supabase) {
@@ -374,31 +363,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             {menuItems?.find(item => isActive(item.path))?.text || 'Dashboard'}
           </Typography>
 
-          {/* Notifications */}
-          <IconButton 
-            color="inherit" 
-            sx={{ 
-              mr: 1,
-              background: 'rgba(0, 102, 204, 0.1)',
-              borderRadius: '50%',
-              '&:hover': {
-                background: 'rgba(0, 102, 204, 0.2)',
-              },
-              '& .MuiSvgIcon-root': {
-                background: 'transparent !important',
-                borderRadius: '0 !important',
-                boxShadow: 'none !important'
-              }
-            }}
-          >
-            <Badge badgeContent={notifications} color="error">
-              <NotificationsIcon sx={{ color: '#0066CC' }} />
-            </Badge>
-          </IconButton>
-
-          {/* Profile Menu */}
+          {/* Sign Out Button */}
           <IconButton
-            onClick={handleProfileMenuOpen}
+            onClick={handleSignOut}
             sx={{ 
               background: 'rgba(0, 102, 204, 0.1)',
               borderRadius: '50%',
@@ -412,97 +379,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               }
             }}
           >
-            <AccountIcon sx={{ color: '#0066CC' }} />
+            <LogoutIcon sx={{ color: '#0066CC' }} />
           </IconButton>
-          <Menu
-            anchorEl={anchorEl}
-            open={Boolean(anchorEl)}
-            onClose={handleProfileMenuClose}
-            PaperProps={{
-              sx: {
-                mt: 1,
-                minWidth: 200,
-                background: 'rgba(255, 255, 255, 0.95)',
-                backdropFilter: 'blur(20px)',
-                border: '1px solid rgba(0, 0, 0, 0.1)',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)'
-              }
-            }}
-          >
-            <MenuItem onClick={() => { router.push('/profile'); handleProfileMenuClose(); }}>
-              <ListItemIcon>
-                <Box
-                  sx={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #0066CC20, #0066CC40)',
-                    color: '#0066CC',
-                    '& .MuiSvgIcon-root': {
-                      background: 'transparent !important',
-                      borderRadius: '0 !important',
-                      boxShadow: 'none !important'
-                    }
-                  }}
-                >
-                  <ProfileIcon fontSize="small" />
-                </Box>
-              </ListItemIcon>
-              Profile
-            </MenuItem>
-            <MenuItem onClick={() => { router.push('/dashboard/settings'); handleProfileMenuClose(); }}>
-              <ListItemIcon>
-                <Box
-                  sx={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #0066CC20, #0066CC40)',
-                    color: '#0066CC',
-                    '& .MuiSvgIcon-root': {
-                      background: 'transparent !important',
-                      borderRadius: '0 !important',
-                      boxShadow: 'none !important'
-                    }
-                  }}
-                >
-                  <SettingsIcon fontSize="small" />
-                </Box>
-              </ListItemIcon>
-              Settings
-            </MenuItem>
-            <Divider />
-            <MenuItem onClick={handleSignOut}>
-              <ListItemIcon>
-                <Box
-                  sx={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #FF444420, #FF444440)',
-                    color: '#FF4444',
-                    '& .MuiSvgIcon-root': {
-                      background: 'transparent !important',
-                      borderRadius: '0 !important',
-                      boxShadow: 'none !important'
-                    }
-                  }}
-                >
-                  <LogoutIcon fontSize="small" />
-                </Box>
-              </ListItemIcon>
-              Sign Out
-            </MenuItem>
-          </Menu>
         </Toolbar>
       </AppBar>
 

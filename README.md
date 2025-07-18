@@ -159,7 +159,6 @@ Access the admin dashboard at `/admin` with admin credentials.
 
 ### Protected Pages
 - `/dashboard` - User health dashboard
-- `/profile` - User profile and health settings
 - `/admin` - Admin dashboard (admin only)
 
 ## 🔐 Security Features

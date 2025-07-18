@@ -79,7 +79,7 @@ const processSteps = [
     details: [
       "AI therapist chat for mental wellness",
       "Posture checker for alignment",
-      "90-day fitness planner for workouts",
+      "Posture history tracking",
       "Health conversations with AI assistant"
     ]
   },

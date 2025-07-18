@@ -28,7 +28,7 @@ const steps: Step[] = [
   {
     icon: <Psychology sx={{ fontSize: 48 }} />,
     title: "Access Health Tools",
-    description: "Use our AI therapist chat for mental health support, posture checker for alignment, and 90-day fitness planner for workouts.",
+    description: "Use our AI therapist chat for mental health support, posture checker for alignment, and posture history tracking.",
     step: 2,
     color: "#3399FF"
   },

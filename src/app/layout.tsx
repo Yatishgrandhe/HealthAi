@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Health AI - AI-Powered Healthcare Platform",
-  description: "AI-powered healthcare platform for personalized health monitoring and diagnostics. Therapist chat, posture checker, and 90-day fitness planner.",
+  description: "AI-powered healthcare platform for personalized health monitoring and diagnostics. Therapist chat, posture checker, and health analytics.",
 };
 
 export default function RootLayout({

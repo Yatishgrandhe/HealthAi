@@ -35,6 +35,7 @@ import {
   Bookmark as BookmarkIcon,
   Straighten as PostureIcon,
   TrendingUp as StreakIcon,
+  Chat as ChatIcon,
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
 import DataMigrationModal from "@/components/DataMigrationModal";
@@ -48,6 +49,7 @@ interface HealthStats {
   savedRoutinesCount?: number;
   averagePostureScore?: number;
   progressStreak?: number;
+  totalMessages?: number;
 }
 
 interface HealthActivity {
@@ -88,11 +90,9 @@ export default function DashboardPage() {
       await fetchHealthData(user.id);
       setLoading(false);
       
-      // Check if user should see migration modal
-      const hasBrowserData = localStorage.getItem('healthAI_therapistChat') || 
-                            localStorage.getItem('healthAI_postureCheck') || 
-                            localStorage.getItem('healthAI_savedRoutines') || 
-                            localStorage.getItem('healthAI_healthProgress');
+      // Check if user should see migration modal (using correct localStorage keys)
+      const hasBrowserData = localStorage.getItem('therapist-chats') || 
+                            localStorage.getItem('postureProgressReports');
       
       if (hasBrowserData) {
         setShowMigrationModal(true);
@@ -103,92 +103,81 @@ export default function DashboardPage() {
 
   const fetchHealthData = async (userId: string) => {
     try {
-      // First try to get data from localStorage for logged-in users
-      const localTherapistChat = localStorage.getItem('healthAI_therapistChat');
-      const localPostureCheck = localStorage.getItem('healthAI_postureCheck');
-      const localSavedRoutines = localStorage.getItem('healthAI_savedRoutines');
-      const localHealthProgress = localStorage.getItem('healthAI_healthProgress');
+      // Get data from localStorage using the correct keys
+      const localTherapistChats = localStorage.getItem('therapist-chats');
+      const localPostureReports = localStorage.getItem('postureProgressReports');
 
       let therapistSessions: any[] = [];
       let postureSessions: any[] = [];
       let savedRoutines: any[] = [];
       let healthProgress: any[] = [];
 
-      // Parse local data if available
-      if (localTherapistChat) {
+      // Parse therapist chat data
+      if (localTherapistChats) {
         try {
-          const parsed = JSON.parse(localTherapistChat);
+          const parsed = JSON.parse(localTherapistChats);
           therapistSessions = Array.isArray(parsed) ? parsed : [];
+          console.log('Loaded therapist sessions from localStorage:', therapistSessions.length);
         } catch (e) {
           console.warn('Error parsing local therapist chat data:', e);
         }
       }
 
-      if (localPostureCheck) {
+      // Parse posture check data
+      if (localPostureReports) {
         try {
-          const parsed = JSON.parse(localPostureCheck);
+          const parsed = JSON.parse(localPostureReports);
           postureSessions = Array.isArray(parsed) ? parsed : [];
+          console.log('Loaded posture sessions from localStorage:', postureSessions.length);
         } catch (e) {
           console.warn('Error parsing local posture check data:', e);
         }
       }
 
-      if (localSavedRoutines) {
-        try {
-          const parsed = JSON.parse(localSavedRoutines);
-          savedRoutines = Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-          console.warn('Error parsing local saved routines data:', e);
-        }
-      }
-
-      if (localHealthProgress) {
-        try {
-          const parsed = JSON.parse(localHealthProgress);
-          healthProgress = Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-          console.warn('Error parsing local health progress data:', e);
-        }
-      }
-
-      // If no local data, try to fetch from database
-      if (therapistSessions.length === 0 && postureSessions.length === 0 && savedRoutines.length === 0) {
+      // If no local data, try to fetch from database as fallback
+      if (therapistSessions.length === 0 && postureSessions.length === 0) {
         if (supabase) {
           try {
+            console.log('No local data found, trying database fallback...');
             const [
               dbTherapistSessions,
-              dbPostureSessions,
-              dbSavedRoutines,
-              dbHealthProgress
+              dbPostureSessions
             ] = await Promise.all([
               healthDataService.getTherapistChatSessions(),
-              healthDataService.getPostureCheckSessions(),
-              healthDataService.getSavedRoutines(),
-              healthDataService.getHealthProgress()
+              healthDataService.getPostureCheckSessions()
             ]);
 
             therapistSessions = dbTherapistSessions || [];
             postureSessions = dbPostureSessions || [];
-            savedRoutines = dbSavedRoutines || [];
-            healthProgress = dbHealthProgress || [];
+            console.log('Loaded from database - therapist:', therapistSessions.length, 'posture:', postureSessions.length);
           } catch (dbError) {
             console.warn('Error fetching from database, using local data only:', dbError);
           }
         }
       }
 
-      // Calculate stats
+      // Calculate stats from actual data
       const totalSessions = therapistSessions?.length || 0;
       const postureChecks = postureSessions?.length || 0;
-      const savedRoutinesCount = savedRoutines?.length || 0;
+      
+      // Calculate average posture score from actual posture data
+      let averagePostureScore = 0;
+      if (postureSessions && postureSessions.length > 0) {
+        const totalScore = postureSessions.reduce((acc: number, session: any) => {
+          // Handle different possible score formats
+          const score = session.overall_score || session.posture_score || session.score || 0;
+          return acc + score;
+        }, 0);
+        averagePostureScore = Math.round(totalScore / postureSessions.length);
+      }
 
       // Calculate health score based on actual data
       const baseScore = 50;
-      const sessionScore = totalSessions * 3;
-      const postureScore = postureSessions?.reduce((acc: number, session: any) => acc + (session.posture_score || 0), 0) / Math.max(postureSessions?.length || 1, 1);
-      const routineScore = savedRoutinesCount * 2;
+      const sessionScore = totalSessions * 5; // Each therapy session adds 5 points
+      const postureScore = averagePostureScore * 0.3; // Posture score contributes up to 30 points
+      const activityScore = Math.min(20, (totalSessions + postureChecks) * 2); // Activity bonus
       
-      const healthScore = Math.min(100, Math.max(0, baseScore + sessionScore + (postureScore * 0.1) + routineScore));
+      const healthScore = Math.min(100, Math.max(0, baseScore + sessionScore + postureScore + activityScore));
 
       // Create recent activities from actual data
       const recentActivities: HealthActivity[] = [];
@@ -198,10 +187,10 @@ export default function DashboardPage() {
         recentActivities.push({
           id: session.id || 'unknown',
           type: 'therapy',
-          title: session.session_title || 'AI Therapy Session',
-          date: session.created_at || new Date().toISOString(),
+          title: session.title || 'AI Therapy Session',
+          date: session.createdAt || session.created_at || new Date().toISOString(),
           status: 'completed',
-          duration: session.session_duration ? `${session.session_duration} min` : '30 min'
+          duration: session.messages?.length ? `${session.messages.length} messages` : '30 min'
         });
       });
 
@@ -211,20 +200,9 @@ export default function DashboardPage() {
           id: session.id || 'unknown',
           type: 'posture',
           title: session.session_title || 'Posture Check',
-          date: session.created_at || new Date().toISOString(),
+          date: session.created_at || session.timestamp || new Date().toISOString(),
           status: 'completed',
           duration: session.duration_seconds ? `${Math.round(session.duration_seconds / 60)} min` : undefined
-        });
-      });
-
-      // Add saved routines
-      savedRoutines?.slice(0, 2).forEach((routine: any) => {
-        recentActivities.push({
-          id: routine.id || 'unknown',
-          type: 'routine',
-          title: routine.routine_name || 'Saved Routine',
-          date: routine.created_at || new Date().toISOString(),
-          status: routine.is_favorite ? 'favorite' : 'completed'
         });
       });
 
@@ -260,14 +238,18 @@ export default function DashboardPage() {
         );
       }
 
+      // Calculate total messages from therapist sessions
+      const totalMessages = therapistSessions?.reduce((acc: number, session: any) => acc + (session.messages?.length || 0), 0) || 0;
+
       setStats({
         totalSessions,
         postureChecks,
         healthScore: Math.round(healthScore),
         recentActivities: sortedActivities,
-        savedRoutinesCount,
-        averagePostureScore: postureSessions?.length ? Math.round(postureScore) : undefined,
-        progressStreak: healthProgress?.length || 0
+        savedRoutinesCount: 0, // No saved routines feature currently
+        averagePostureScore: postureSessions?.length ? averagePostureScore : undefined,
+        progressStreak: 0, // No progress streak feature currently
+        totalMessages
       });
 
     } catch (error) {
@@ -424,12 +406,12 @@ export default function DashboardPage() {
             />
 
             <StatCard
-              title="Saved Routines"
-              value={stats.savedRoutinesCount || 0}
-              icon={<BookmarkIcon />}
+              title="Posture Score"
+              value={stats.averagePostureScore || 0}
+              icon={<RulerIcon />}
               color="#3399FF"
-              subtitle="Personal routines"
-              progress={Math.min(100, ((stats.savedRoutinesCount || 0) / 10) * 100)}
+              subtitle="Average score"
+              progress={stats.averagePostureScore || 0}
             />
 
             <StatCard
@@ -454,12 +436,12 @@ export default function DashboardPage() {
           {/* Additional Stats Row */}
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(2, 1fr)' }, gap: 3, mb: 6 }}>
             <StatCard
-              title="Avg Posture Score"
-              value={stats.averagePostureScore || 0}
-              icon={<PostureIcon />}
+              title="Total Messages"
+              value={stats.totalMessages || 0}
+              icon={<ChatIcon />}
               color="#FF9800"
-              subtitle="Last 7 days"
-              progress={stats.averagePostureScore || 0}
+              subtitle="Therapy conversations"
+              progress={Math.min(100, ((stats.totalMessages || 0) / 100) * 100)}
             />
 
             <StatCard
@@ -621,8 +603,8 @@ export default function DashboardPage() {
                       
                       <Button
                         variant="outlined"
-                        href="/health-tools/fitness-planner"
-                        startIcon={<DumbbellIcon />}
+                        href="/health-tools/posture-history"
+                        startIcon={<RulerIcon />}
                         sx={{
                           borderColor: "#0066CC",
                           color: "#0066CC",
@@ -633,7 +615,7 @@ export default function DashboardPage() {
                           },
                         }}
                       >
-                        View Fitness Plan
+                        View Posture History
                       </Button>
                       
                       <Button

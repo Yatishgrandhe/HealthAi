@@ -18,9 +18,9 @@ const slides = [
     bg: 'from-blue-500 to-blue-700',
   },
   {
-    title: '90-Day Fitness Planner',
-    description: 'Personalized fitness programs with AI-generated workouts and progress tracking.',
-    icon: <Dumbbell className="text-blue-700" size={48} aria-label="Fitness" />,
+    title: 'Posture History',
+    description: 'Track your posture improvement over time with detailed progress reports and insights.',
+    icon: <Ruler className="text-blue-700" size={48} aria-label="Posture History" />,
     bg: 'from-blue-700 to-blue-900',
   },
   {

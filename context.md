@@ -148,7 +148,7 @@ pulsepay/
 - `/register` (Sign up)
 - `/pay` (Payment)
 - `/success` (Payment confirmation)
-- `/profile` (User dashboard)
+- `/dashboard` (User dashboard)
 - `/history` (Payment history)
 - `/admin` (Admin dashboard, if needed)
 - `/api/*` (API routes if not using FastAPI)

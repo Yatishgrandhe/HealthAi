@@ -12,7 +12,6 @@ import {
 } from "@mui/material";
 import {
   Dashboard as DashboardIcon,
-  Person as ProfileIcon,
   Settings as SettingsIcon,
   AdminPanelSettings as AdminIcon,
   LocalHospital as HealthIcon,
@@ -51,7 +50,6 @@ export const getMenuItems = (user: any): MenuItem[] => {
     { text: "Health Analytics", icon: <AnalyticsIcon />, path: "/dashboard/analytics", category: "Analytics" },
     { text: "Progress Calendar", icon: <CalendarIcon />, path: "/dashboard/calendar" },
     // Account & Settings
-    { text: "Profile", icon: <ProfileIcon />, path: "/profile", category: "Account" },
     { text: "Settings", icon: <SettingsIcon />, path: "/dashboard/settings" },
   ];
   if (user?.user_metadata?.account_type === 'admin' || user?.user_metadata?.role === 'admin') {

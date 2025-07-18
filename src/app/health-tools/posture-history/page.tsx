@@ -22,7 +22,11 @@ import {
   Badge,
   Tooltip,
   Fab,
-  Snackbar
+  Snackbar,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon
 } from '@mui/material';
 import {
   Visibility as VisibilityIcon,
@@ -35,10 +39,18 @@ import {
   Image as ImageIcon,
   ArrowBack as ArrowBackIcon,
   Refresh as RefreshIcon,
-  ErrorOutline as ErrorOutlineIcon
+  ErrorOutline as ErrorOutlineIcon,
+  CheckCircle as CheckCircleIcon,
+  Warning as WarningIcon,
+  Info as InfoIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import { supabase, useUser } from '@/utils/supabaseClient';
 import BackButton from '@/components/BackButton';
+import { motion } from 'framer-motion';
+import Link from 'next/link';
+import { Container } from '@mui/material';
+import { AccessTime, ErrorOutline, CheckCircle, Warning, Info } from '@mui/icons-material';
 
 interface PostureSession {
   id: string;
@@ -62,6 +74,7 @@ const PostureHistory = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [showProgressReport, setShowProgressReport] = useState(false);
 
   // Debug logging
   useEffect(() => {
@@ -291,11 +304,87 @@ const PostureHistory = () => {
     return 'Poor';
   };
 
+  const getTimeAgo = (dateString: string) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) return `${diffInSeconds}s ago`;
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    return `${Math.floor(diffInSeconds / 86400)}d ago`;
+  };
+
+  const getStatusColor = (score: number) => {
+    if (score >= 80) return "#4CAF50";
+    if (score >= 60) return "#FF9800";
+    return "#F44336";
+  };
+
+  const getStatusLabel = (score: number) => {
+    if (score >= 80) return "EXCELLENT";
+    if (score >= 60) return "GOOD";
+    if (score >= 40) return "FAIR";
+    return "POOR";
+  };
+
+  const getStatusIcon = (score: number) => {
+    if (score >= 80) return <CheckCircleIcon />;
+    if (score >= 60) return <CheckCircleIcon />;
+    if (score >= 40) return <WarningIcon />;
+    return <ErrorOutlineIcon />;
+  };
+
   const getTrendIcon = (currentScore: number, previousScore?: number) => {
-    if (!previousScore) return <RemoveIcon color="action" />;
-    if (currentScore > previousScore) return <TrendingUpIcon color="success" />;
-    if (currentScore < previousScore) return <TrendingDownIcon color="error" />;
-    return <RemoveIcon color="action" />;
+    if (!previousScore) return <RemoveIcon />;
+    if (currentScore > previousScore) return <TrendingUpIcon sx={{ color: '#4CAF50' }} />;
+    if (currentScore < previousScore) return <TrendingDownIcon sx={{ color: '#F44336' }} />;
+    return <RemoveIcon />;
+  };
+
+  const handleViewProgressReport = (session: PostureSession) => {
+    setSelectedSession(session);
+    setShowProgressReport(true);
+  };
+
+  const handleCloseProgressReport = () => {
+    setShowProgressReport(false);
+    setSelectedSession(null);
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!confirm('Are you sure you want to delete this session?')) return;
+    
+    try {
+      if (user && supabase) {
+        // Delete from database
+        const { error } = await supabase
+          .from('posture_check_sessions')
+          .delete()
+          .eq('id', sessionId)
+          .eq('user_id', user.id);
+        
+        if (error) throw error;
+        
+        // Remove from local state
+        setSessions(prev => prev.filter(s => s.id !== sessionId));
+        setSnackbarMessage('Session deleted successfully');
+        setSnackbarOpen(true);
+      } else {
+        // Delete from localStorage
+        const savedReports = JSON.parse(localStorage.getItem('postureProgressReports') || '[]');
+        const updatedReports = savedReports.filter((report: any) => report.id !== sessionId);
+        localStorage.setItem('postureProgressReports', JSON.stringify(updatedReports));
+        
+        setSessions(prev => prev.filter(s => s.id !== sessionId));
+        setSnackbarMessage('Session deleted successfully');
+        setSnackbarOpen(true);
+      }
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      setSnackbarMessage('Failed to delete session');
+      setSnackbarOpen(true);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -313,20 +402,6 @@ const PostureHistory = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
-  };
-
-  const getTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInMs = now.getTime() - date.getTime();
-    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
-    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-
-    if (diffInDays > 0) return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
-    if (diffInHours > 0) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
-    if (diffInMinutes > 0) return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
-    return 'Just now';
   };
 
   if (loading) {
@@ -348,489 +423,545 @@ const PostureHistory = () => {
   }
 
   return (
-    <Box sx={{ 
-      p: 3, 
-      maxWidth: 1200, 
-      mx: 'auto',
-      minHeight: user ? "calc(100vh - 120px)" : "100vh"
-    }}>
+    <Box sx={{ minHeight: "100vh", background: "#f8f9ff" }}>
       {/* Back Button for logged-out users */}
       {!user && (
         <Box sx={{ mb: 2 }}>
           <BackButton href="/health-tools" label="Back to Health Tools" />
         </Box>
       )}
-      
+
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-          <Box display="flex" alignItems="center" gap={2}>
-            <Avatar sx={{ bgcolor: 'primary.main', width: 56, height: 56 }}>
-              <ImageIcon fontSize="large" />
-            </Avatar>
-            <Box>
-              <Typography variant="h4" fontWeight="bold" gutterBottom>
-                Posture History
-              </Typography>
-              <Typography variant="body1" color="text.secondary">
-                Track your posture improvement journey
-              </Typography>
+      <Box
+        sx={{
+          background: "linear-gradient(135deg, #7B61FF, #4CAF50)",
+          py: 4,
+          mb: 3
+        }}
+      >
+        <Container maxWidth="lg">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <Box sx={{ display: "flex", alignItems: "center" }}>
+              <img 
+                src="/health-ai-logo.png" 
+                alt="Health AI Logo" 
+                width={40} 
+                height={40} 
+                style={{
+                  borderRadius: '50%',
+                  background: 'transparent',
+                  display: 'block'
+                }}
+              />
+              <Box sx={{ ml: 2 }}>
+                <Typography
+                  variant="h4"
+                  sx={{
+                    color: "white",
+                    fontWeight: 700,
+                    display: { xs: "none", sm: "block" }
+                  }}
+                >
+                  Posture History
+                </Typography>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    color: "white",
+                    fontWeight: 400,
+                    display: { xs: "block", sm: "none" }
+                  }}
+                >
+                  Posture History
+                </Typography>
+              </Box>
             </Box>
-          </Box>
-          <Box display="flex" gap={1}>
-            <Tooltip title="Refresh">
+            <Box sx={{ display: "flex", gap: 1 }}>
               <IconButton
                 onClick={handleRefresh}
                 disabled={refreshing}
-                sx={{ bgcolor: 'background.paper', boxShadow: 1 }}
+                sx={{ color: "white" }}
               >
                 <RefreshIcon />
               </IconButton>
-            </Tooltip>
-            {process.env.NODE_ENV === 'development' && (
-              <>
-                <Tooltip title="Add Test Data">
-                  <IconButton
-                    onClick={() => {
-                      const testData = [
-                        {
-                          id: 'test-1',
-                          user_id: 'guest',
-                          session_title: 'Test Posture Check',
-                          posture_score: 85,
-                          analysis_data: { status: 'good', score: 85 },
-                          image_urls: ['data:image/jpeg;base64,test'],
-                          recommendations: ['Test recommendation'],
-                          duration_seconds: 30,
-                          created_at: new Date().toISOString()
-                        }
-                      ];
-                      localStorage.setItem('postureProgressReports', JSON.stringify(testData));
-                      setSessions(testData);
-                      setSnackbarMessage('Test data added');
-                      setSnackbarOpen(true);
-                    }}
-                    sx={{ bgcolor: 'background.paper', boxShadow: 1 }}
-                  >
-                    <ErrorOutlineIcon />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Force Reload">
-                  <IconButton
-                    onClick={() => {
-                      console.log('Force reloading data...');
-                      setLoading(true);
-                      loadPostureHistory();
-                    }}
-                    sx={{ bgcolor: 'background.paper', boxShadow: 1 }}
-                  >
-                    <RefreshIcon />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Migrate Old Data">
-                  <IconButton
-                    onClick={() => {
-                      console.log('Migrating old data format...');
-                      const savedReports = localStorage.getItem('postureProgressReports');
-                      if (savedReports) {
-                        try {
-                          const parsedReports = JSON.parse(savedReports);
-                          const migratedReports = parsedReports.map((report: any) => ({
-                            id: report.id,
-                            user_id: 'guest',
-                            session_title: `${report.status?.charAt(0).toUpperCase() + report.status?.slice(1)} Posture Check`,
-                            posture_score: report.score,
-                            analysis_data: report.analysis,
-                            image_urls: [report.imageUrl],
-                            recommendations: report.analysis?.recommendations || [],
-                            duration_seconds: 0,
-                            created_at: report.timestamp
-                          }));
-                          localStorage.setItem('postureProgressReports', JSON.stringify(migratedReports));
-                          setSessions(migratedReports);
-                          setSnackbarMessage('Data migrated successfully');
-                          setSnackbarOpen(true);
-                        } catch (error) {
-                          console.error('Migration error:', error);
-                          setSnackbarMessage('Migration failed');
-                          setSnackbarOpen(true);
-                        }
-                      }
-                    }}
-                    sx={{ bgcolor: 'background.paper', boxShadow: 1 }}
-                  >
-                    <ErrorOutlineIcon />
-                  </IconButton>
-                </Tooltip>
-              </>
-            )}
+            </Box>
           </Box>
-        </Box>
+        </Container>
+      </Box>
+
+      <Container maxWidth="lg">
+        {/* Error Alert */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
 
         {/* Guest User Notice */}
         {!user && (
           <Alert severity="info" sx={{ mb: 3 }}>
-            <strong>Guest User Notice:</strong> As a guest, your posture checks are saved locally and cannot be viewed in the history page.
-          </Alert>
-        )}
-
-        {/* Debug Info */}
-        {process.env.NODE_ENV === 'development' && (
-          <Alert severity="info" sx={{ mb: 3 }}>
-            <strong>Debug Info:</strong> User: {user ? user.email : 'Not logged in'}, 
-            Loading: {userLoading ? 'Yes' : 'No'}, 
-            Sessions: {sessions.length}, 
-            Error: {error || 'None'}
-          </Alert>
-        )}
-
-        {/* Stats Summary */}
-        {sessions.length > 0 && (
-          <Paper sx={{ p: 3, mb: 3, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(4, 1fr)' }, gap: 3 }}>
-              <Box textAlign="center" color="white">
-                <Typography variant="h4" fontWeight="bold">
-                  {sessions.length}
-                </Typography>
-                <Typography variant="body2">Total Sessions</Typography>
-              </Box>
-              <Box textAlign="center" color="white">
-                <Typography variant="h4" fontWeight="bold">
-                  {Math.round(sessions.reduce((acc, session) => acc + session.posture_score, 0) / sessions.length)}
-                </Typography>
-                <Typography variant="body2">Average Score</Typography>
-              </Box>
-              <Box textAlign="center" color="white">
-                <Typography variant="h4" fontWeight="bold">
-                  {Math.max(...sessions.map(s => s.posture_score))}
-                </Typography>
-                <Typography variant="body2">Best Score</Typography>
-              </Box>
-              <Box textAlign="center" color="white">
-                <Typography variant="h4" fontWeight="bold">
-                  {formatDate(sessions[0]?.created_at || '')}
-                </Typography>
-                <Typography variant="body2">Latest Session</Typography>
-              </Box>
-            </Box>
-          </Paper>
-        )}
-      </Box>
-
-      {/* Error Alert */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      )}
-
-      {/* Sessions List */}
-      {sessions.length === 0 ? (
-        <Card sx={{ textAlign: 'center', py: 8 }}>
-          <CardContent>
-            <ImageIcon sx={{ fontSize: 80, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h5" gutterBottom>
-              No Posture Sessions Yet
+            <Typography variant="body2">
+              <strong>Guest User Notice:</strong> As a guest, your posture checks are saved locally and cannot be viewed in the history page. 
+              <Link href="/register" style={{ color: '#1976d2', textDecoration: 'none', marginLeft: '8px' }}>
+                Sign up to unlock all features!
+              </Link>
             </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-              Start your posture improvement journey by taking your first posture check!
+          </Alert>
+        )}
+
+        {/* Loading State */}
+        {loading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+            <CircularProgress />
+          </Box>
+        )}
+
+        {/* Empty State */}
+        {!loading && sessions.length === 0 && (
+          <Box sx={{ textAlign: 'center', py: 8 }}>
+            <ErrorOutlineIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+            <Typography variant="h5" sx={{ mb: 2, color: 'text.secondary' }}>
+              No Posture History Found
+            </Typography>
+            <Typography variant="body1" sx={{ mb: 3, color: 'text.secondary' }}>
+              Complete your first posture check to see your history here.
             </Typography>
             <Button
               variant="contained"
-              size="large"
               href="/health-tools/posture-check"
-              sx={{ borderRadius: 2 }}
+              sx={{
+                background: "linear-gradient(135deg, #7B61FF, #4CAF50)",
+                px: 4,
+                py: 1.5,
+                "&:hover": {
+                  background: "linear-gradient(135deg, #6B51EF, #45A049)",
+                },
+              }}
             >
-              Take Posture Check
+              Start Posture Check
             </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3 }}>
-          {sessions.map((session, index) => (
-            <Box key={session.id}>
-              <Card
-                sx={{
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  transition: 'transform 0.2s, box-shadow 0.2s',
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: 4
-                  }
-                }}
-              >
-                <Box
-                  sx={{
-                    position: 'relative',
-                    height: 200,
-                    background: `linear-gradient(45deg, #f0f0f0 25%, transparent 25%), 
-                                linear-gradient(-45deg, #f0f0f0 25%, transparent 25%), 
-                                linear-gradient(45deg, transparent 75%, #f0f0f0 75%), 
-                                linear-gradient(-45deg, transparent 75%, #f0f0f0 75%)`,
-                    backgroundSize: '20px 20px',
-                    backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
-                    cursor: 'pointer',
-                    overflow: 'hidden'
-                  }}
-                  onClick={() => handleViewImage(session)}
-                >
-                  {session.image_urls?.[0] ? (
-                    <img
-                      src={session.image_urls[0]}
-                      alt="Posture check"
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        transition: 'transform 0.3s'
-                      }}
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        height: '100%',
-                        color: 'text.secondary'
-                      }}
-                    >
-                      <ErrorOutlineIcon sx={{ fontSize: 48 }} />
-                    </Box>
-                  )}
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      top: 8,
-                      right: 8,
-                      bgcolor: 'rgba(0,0,0,0.7)',
-                      borderRadius: 1,
-                      p: 0.5
-                    }}
-                  >
-                    <Chip
-                      label={`${session.posture_score}/100`}
-                      size="small"
-                      color={getScoreColor(session.posture_score) as any}
-                      sx={{ color: 'white', fontWeight: 'bold' }}
-                    />
-                  </Box>
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      bottom: 8,
-                      left: 8,
-                      bgcolor: 'rgba(0,0,0,0.7)',
-                      borderRadius: 1,
-                      p: 0.5
-                    }}
-                  >
-                    <Tooltip title="View full image">
-                      <IconButton size="small" sx={{ color: 'white' }}>
-                        <VisibilityIcon />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                </Box>
+          </Box>
+        )}
 
-                <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                  <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
-                    <Typography variant="h6" fontWeight="bold">
-                      {getScoreLabel(session.posture_score)}
-                    </Typography>
-                    <Box display="flex" alignItems="center" gap={0.5}>
-                      {getTrendIcon(session.posture_score, sessions[index + 1]?.posture_score)}
-                    </Box>
-                  </Box>
-
-                  <Box display="flex" alignItems="center" gap={1} mb={1}>
-                    <ScoreIcon fontSize="small" color="primary" />
-                    <Typography variant="body2" color="text.secondary">
-                      Score: {session.posture_score}/100
-                    </Typography>
-                  </Box>
-
-                  <Box display="flex" alignItems="center" gap={1} mb={1}>
-                    <CalendarIcon fontSize="small" color="primary" />
-                    <Typography variant="body2" color="text.secondary">
-                      {formatDate(session.created_at)}
-                    </Typography>
-                  </Box>
-
-                  <Box display="flex" alignItems="center" gap={1} mb={2}>
-                    <TimeIcon fontSize="small" color="primary" />
-                    <Typography variant="body2" color="text.secondary">
-                      {formatTime(session.created_at)} • {getTimeAgo(session.created_at)}
-                    </Typography>
-                  </Box>
-
-                  <Divider sx={{ my: 1 }} />
-
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    sx={{
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 3,
-                      WebkitBoxOrient: 'vertical',
-                      flexGrow: 1
-                    }}
-                  >
-                    {typeof session.analysis_data === 'string' ? session.analysis_data : 'Analysis available'}
-                  </Typography>
-
-                  <Box mt={2}>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      fullWidth
-                      onClick={() => handleViewImage(session)}
-                      startIcon={<VisibilityIcon />}
-                    >
-                      View Details
-                    </Button>
-                  </Box>
-                </CardContent>
-              </Card>
+        {/* Sessions Grid */}
+        {!loading && sessions.length > 0 && (
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+              <Typography variant="h5" sx={{ fontWeight: 600, color: "#7B61FF" }}>
+                Posture Sessions ({sessions.length})
+              </Typography>
+              <Chip
+                label={`Average Score: ${Math.round(sessions.reduce((acc, s) => acc + s.posture_score, 0) / sessions.length)}`}
+                color="primary"
+                variant="outlined"
+              />
             </Box>
-          ))}
-        </Box>
-      )}
+            
+            <Grid container spacing={3}>
+              {sessions.map((session, index) => (
+                <Grid item xs={12} sm={6} md={4} key={session.id}>
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: index * 0.1 }}
+                  >
+                    <Card
+                      sx={{
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          transform: 'translateY(-4px)',
+                          boxShadow: 4,
+                        }
+                      }}
+                      onClick={() => handleViewProgressReport(session)}
+                    >
+                      <CardContent sx={{ flexGrow: 1, p: 3 }}>
+                        {/* Score Circle */}
+                        <Box sx={{ textAlign: 'center', mb: 2 }}>
+                          <Box
+                            sx={{
+                              width: 80,
+                              height: 80,
+                              borderRadius: "50%",
+                              background: `conic-gradient(${getStatusColor(session.posture_score)} ${session.posture_score * 3.6}deg, #f0f0f0 0deg)`,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              mx: "auto",
+                              mb: 1,
+                              position: "relative"
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                width: 60,
+                                height: 60,
+                                borderRadius: "50%",
+                                background: "white",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexDirection: "column"
+                              }}
+                            >
+                              <Typography variant="h6" sx={{ fontWeight: 700, color: getStatusColor(session.posture_score) }}>
+                                {session.posture_score}
+                              </Typography>
+                            </Box>
+                          </Box>
+                          <Chip
+                            label={getStatusLabel(session.posture_score)}
+                            icon={getStatusIcon(session.posture_score)}
+                            sx={{
+                              background: `${getStatusColor(session.posture_score)}20`,
+                              color: getStatusColor(session.posture_score),
+                              fontWeight: 600,
+                              fontSize: "0.75rem"
+                            }}
+                          />
+                        </Box>
 
-      {/* Image Dialog */}
+                        {/* Session Info */}
+                        <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, textAlign: 'center' }}>
+                          {session.session_title || 'Posture Check'}
+                        </Typography>
+                        
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+                          <CalendarIcon sx={{ fontSize: 16, mr: 0.5, color: 'text.secondary' }} />
+                          <Typography variant="body2" color="text.secondary">
+                            {formatDate(session.created_at)}
+                          </Typography>
+                        </Box>
+
+                        {/* Image Preview */}
+                        {session.image_urls && session.image_urls.length > 0 && (
+                          <Box sx={{ textAlign: 'center', mb: 2 }}>
+                            <img 
+                              src={session.image_urls[0]} 
+                              alt="Posture check" 
+                              style={{
+                                maxWidth: "100%",
+                                maxHeight: "120px",
+                                borderRadius: "8px",
+                                border: "1px solid #e0e0e0"
+                              }}
+                            />
+                          </Box>
+                        )}
+
+                        {/* Action Buttons */}
+                        <Box sx={{ display: 'flex', gap: 1, mt: 'auto' }}>
+                          <Button
+                            fullWidth
+                            variant="outlined"
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewProgressReport(session);
+                            }}
+                            startIcon={<VisibilityIcon />}
+                          >
+                            View Details
+                          </Button>
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteSession(session.id);
+                            }}
+                            sx={{ color: 'error.main' }}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+        )}
+      </Container>
+
+      {/* Progress Report Dialog */}
       <Dialog
-        open={imageDialogOpen}
-        onClose={handleCloseImageDialog}
+        open={showProgressReport}
+        onClose={handleCloseProgressReport}
         maxWidth="md"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            maxHeight: '90vh'
+          }
+        }}
       >
-        {selectedSession && (
-          <>
-            <DialogTitle>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Typography variant="h6">
-                  Posture Analysis - {formatDate(selectedSession.created_at)}
+        <DialogTitle sx={{ 
+          background: "linear-gradient(135deg, #7B61FF, #4CAF50)",
+          color: "white",
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            Posture Analysis Report
+          </Typography>
+          <IconButton onClick={handleCloseProgressReport} sx={{ color: 'white' }}>
+            <RemoveIcon />
+          </IconButton>
+        </DialogTitle>
+        
+        <DialogContent sx={{ p: 3 }}>
+          {selectedSession && (
+            <Box>
+              {/* Score Display */}
+              <Box sx={{ textAlign: "center", mb: 4 }}>
+                <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
+                  Posture Score
                 </Typography>
-                <IconButton onClick={handleCloseImageDialog}>
-                  <ArrowBackIcon />
-                </IconButton>
+                <Box
+                  sx={{
+                    width: 140,
+                    height: 140,
+                    borderRadius: "50%",
+                    background: `conic-gradient(${getStatusColor(selectedSession.posture_score)} ${selectedSession.posture_score * 3.6}deg, #f0f0f0 0deg)`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    mx: "auto",
+                    mb: 2,
+                    position: "relative"
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 120,
+                      height: 120,
+                      borderRadius: "50%",
+                      background: "white",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexDirection: "column"
+                    }}
+                  >
+                    <Typography variant="h2" sx={{ fontWeight: 700, color: getStatusColor(selectedSession.posture_score) }}>
+                      {selectedSession.posture_score}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      / 100
+                    </Typography>
+                  </Box>
+                </Box>
+                <Chip
+                  label={getStatusLabel(selectedSession.posture_score)}
+                  icon={getStatusIcon(selectedSession.posture_score)}
+                  sx={{
+                    background: `${getStatusColor(selectedSession.posture_score)}20`,
+                    color: getStatusColor(selectedSession.posture_score),
+                    fontWeight: 600,
+                    fontSize: "1rem",
+                    px: 2,
+                    py: 1
+                  }}
+                />
               </Box>
-            </DialogTitle>
-            <DialogContent>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 3 }}>
-                <Box>
-                  {selectedSession.image_urls?.[0] ? (
-                    <img
-                      src={selectedSession.image_urls[0]}
-                      alt="Posture check"
-                      style={{
-                        width: '100%',
-                        height: 'auto',
-                        borderRadius: 8,
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                      }}
-                    />
-                  ) : (
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        height: 200,
-                        bgcolor: 'grey.100',
-                        borderRadius: 2,
-                        color: 'text.secondary'
-                      }}
-                    >
-                      <ErrorOutlineIcon sx={{ fontSize: 64 }} />
+
+              {/* Session Details */}
+              <Box sx={{ mb: 4 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                  Session Details
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={6}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <CalendarIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                      <Typography variant="body2">
+                        {formatDate(selectedSession.created_at)}
+                      </Typography>
                     </Box>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <AccessTime sx={{ mr: 1, color: 'text.secondary' }} />
+                      <Typography variant="body2">
+                        {formatTime(selectedSession.created_at)}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  {selectedSession.duration_seconds && (
+                    <Grid item xs={6}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <TimeIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                        <Typography variant="body2">
+                          Duration: {Math.round(selectedSession.duration_seconds / 60)}m
+                        </Typography>
+                      </Box>
+                    </Grid>
                   )}
-                </Box>
-                <Box>
-                  <Stack spacing={2}>
-                    <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
-                      <Typography variant="h6" gutterBottom>
-                        Session Details
-                      </Typography>
-                      <Box display="flex" alignItems="center" gap={1} mb={1}>
-                        <ScoreIcon color="primary" />
-                        <Typography variant="body1">
-                          <strong>Score:</strong> {selectedSession.posture_score}/100
-                        </Typography>
-                      </Box>
-                      <Box display="flex" alignItems="center" gap={1} mb={1}>
-                        <CalendarIcon color="primary" />
-                        <Typography variant="body1">
-                          <strong>Date:</strong> {formatDate(selectedSession.created_at)}
-                        </Typography>
-                      </Box>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <TimeIcon color="primary" />
-                        <Typography variant="body1">
-                          <strong>Time:</strong> {formatTime(selectedSession.created_at)}
-                        </Typography>
-                      </Box>
-                    </Paper>
-
-                    <Paper sx={{ p: 2 }}>
-                      <Typography variant="h6" gutterBottom>
-                        Analysis
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {typeof selectedSession.analysis_data === 'string' ? selectedSession.analysis_data : 'Analysis available'}
-                      </Typography>
-                    </Paper>
-
-                    <Box display="flex" gap={1}>
-                      <Chip
-                        label={getScoreLabel(selectedSession.posture_score)}
-                        color={getScoreColor(selectedSession.posture_score) as any}
-                        size="medium"
-                      />
-                      <Chip
-                        label={`${selectedSession.posture_score}/100`}
-                        variant="outlined"
-                        size="medium"
-                      />
-                    </Box>
-                  </Stack>
-                </Box>
+                </Grid>
               </Box>
-            </DialogContent>
-          </>
-        )}
+
+              {/* Image Display */}
+              {selectedSession.image_urls && selectedSession.image_urls.length > 0 && (
+                <Box sx={{ mb: 4, textAlign: "center" }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                    Captured Image
+                  </Typography>
+                  <img 
+                    src={selectedSession.image_urls[0]} 
+                    alt="Posture analysis" 
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "300px",
+                      borderRadius: "8px",
+                      border: "2px solid #e0e0e0"
+                    }}
+                  />
+                </Box>
+              )}
+
+              {/* Detailed Analysis */}
+              {selectedSession.analysis_data?.detailedAnalysis && (
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                    Detailed Body Analysis
+                  </Typography>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+                    {Object.entries(selectedSession.analysis_data.detailedAnalysis).map(([part, data]: [string, any]) => (
+                      <Box key={part}>
+                        <Card 
+                          sx={{ 
+                            p: 2, 
+                            border: `2px solid ${data.score >= 80 ? '#4CAF50' : data.score >= 60 ? '#FF9800' : '#F44336'}`,
+                            background: data.score >= 80 ? 'rgba(76, 175, 80, 0.05)' : data.score >= 60 ? 'rgba(255, 152, 0, 0.05)' : 'rgba(244, 67, 54, 0.05)'
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 600, textTransform: 'capitalize', flex: 1 }}>
+                              {part.replace(/([A-Z])/g, ' $1').trim()}
+                            </Typography>
+                            <Chip 
+                              label={`${data.score}/100`}
+                              size="small"
+                              sx={{
+                                background: data.score >= 80 ? '#4CAF50' : data.score >= 60 ? '#FF9800' : '#F44336',
+                                color: 'white',
+                                fontWeight: 600
+                              }}
+                            />
+                          </Box>
+                          {data.issues && data.issues.length > 0 && (
+                            <Box sx={{ mt: 1 }}>
+                              {data.issues.map((issue: string, index: number) => (
+                                <Typography 
+                                  key={index} 
+                                  variant="body2" 
+                                  sx={{ 
+                                    color: '#F44336', 
+                                    fontSize: '0.75rem',
+                                    mb: 0.5,
+                                    display: 'flex',
+                                    alignItems: 'flex-start'
+                                  }}
+                                >
+                                  <ErrorOutline sx={{ fontSize: 14, mr: 0.5, mt: 0.1 }} />
+                                  {issue}
+                                </Typography>
+                              ))}
+                            </Box>
+                          )}
+                          {data.score >= 80 && (
+                            <Typography variant="body2" sx={{ color: '#4CAF50', fontSize: '0.75rem', mt: 1 }}>
+                              <CheckCircle sx={{ fontSize: 14, mr: 0.5 }} />
+                              Good posture detected
+                            </Typography>
+                          )}
+                        </Card>
+                      </Box>
+                    ))}
+                  </Box>
+                </Box>
+              )}
+
+              {/* Feedback */}
+              {selectedSession.analysis_data?.feedback && (
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                    Analysis Feedback
+                  </Typography>
+                  <List>
+                    {selectedSession.analysis_data.feedback.map((item: string, index: number) => (
+                      <ListItem key={index} sx={{ px: 0 }}>
+                        <ListItemIcon sx={{ minWidth: 32 }}>
+                          {item.includes('🚨') || item.includes('❌') || item.includes('💀') ? (
+                            <ErrorOutline sx={{ color: "#F44336", fontSize: 20 }} />
+                          ) : item.includes('⚠️') ? (
+                            <Warning sx={{ color: "#FF9800", fontSize: 20 }} />
+                          ) : item.includes('✅') ? (
+                            <CheckCircle sx={{ color: "#4CAF50", fontSize: 20 }} />
+                          ) : (
+                            <Info sx={{ color: "#2196F3", fontSize: 20 }} />
+                          )}
+                        </ListItemIcon>
+                        <ListItemText primary={item} />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Box>
+              )}
+
+              {/* Recommendations */}
+              {selectedSession.analysis_data?.recommendations && (
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                    Recommendations
+                  </Typography>
+                  <List>
+                    {selectedSession.analysis_data.recommendations.map((item: string, index: number) => (
+                      <ListItem key={index} sx={{ px: 0 }}>
+                        <ListItemIcon sx={{ minWidth: 32 }}>
+                          <Box
+                            sx={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: "50%",
+                              background: "#7B61FF",
+                              mt: 0.5
+                            }}
+                          />
+                        </ListItemIcon>
+                        <ListItemText primary={item} />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Box>
+              )}
+            </Box>
+          )}
+        </DialogContent>
       </Dialog>
 
-      {/* Floating Action Button for Quick Access */}
-      <Fab
-        color="primary"
-        aria-label="Take new posture check"
-        sx={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          zIndex: 1000
-        }}
-        href="/health-tools/posture-check"
-      >
-        <ImageIcon />
-      </Fab>
-
-      {/* Snackbar for notifications */}
+      {/* Snackbar */}
       <Snackbar
         open={snackbarOpen}
         autoHideDuration={6000}
         onClose={() => setSnackbarOpen(false)}
-        message={snackbarMessage}
-      />
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setSnackbarOpen(false)} 
+          severity="success" 
+          sx={{ width: '100%' }}
+        >
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

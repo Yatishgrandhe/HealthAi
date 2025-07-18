@@ -66,8 +66,7 @@ const getMenuItems = (user: any): MenuItem[] => {
     { text: "Health Tools", icon: <HealthIcon />, path: "/health-tools?from=dashboard", category: "Health & Wellness" },
     { text: "Therapist Chat", icon: <TherapistIcon />, path: "/health-tools/therapist-chat?from=dashboard" },
     { text: "Posture Check", icon: <PostureIcon />, path: "/health-tools/posture-check?from=dashboard" },
-    { text: "Fitness Planner", icon: <FitnessIcon />, path: "/health-tools/fitness-planner?from=dashboard" },
-    { text: "Saved Routines", icon: <SavedIcon />, path: "/health-tools/saved-routines?from=dashboard" },
+    { text: "Posture History", icon: <CalendarIcon />, path: "/health-tools/posture-history?from=dashboard" },
     
     // Analytics & Progress
     { text: "Health Analytics", icon: <AnalyticsIcon />, path: "/dashboard/analytics", category: "Analytics" },
@@ -96,6 +95,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   useEffect(() => {
     const getUser = async () => {
+      if (!supabase) {
+        console.error('Supabase client not initialized');
+        router.push('/login');
+        return;
+      }
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push('/login');
@@ -119,6 +123,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   const handleSignOut = async () => {
+    if (!supabase) {
+      console.error('Supabase client not initialized');
+      router.push('/login');
+      return;
+    }
     await supabase.auth.signOut();
     router.push('/login');
   };

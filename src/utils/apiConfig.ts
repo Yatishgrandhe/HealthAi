@@ -5,7 +5,7 @@ export const API_CONFIG = {
   // Gemini API for AI chat and nutrition
   GEMINI: {
     BASE_URL: 'https://generativelanguage.googleapis.com/v1beta',
-    API_KEY: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '',
+    API_KEY: process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.NEXT_PUBLIC_OPENROUTER_API_KEY || '',
     DEFAULT_MODEL: 'models/gemini-1.5-flash',
     AVAILABLE_MODELS: [
       'models/gemini-1.5-flash',

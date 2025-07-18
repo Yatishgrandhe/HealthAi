@@ -122,23 +122,28 @@ Respond as Dr. Sarah would - with genuine care, empathy, and helpful insight. Ma
         };
       }
 
-      // Simplified prompt for faster generation
-      const prompt = `Generate a 90-day fitness plan in JSON format. 
+      // Enhanced prompt for comprehensive fitness planning
+      const prompt = `Generate a comprehensive 90-day fitness plan in JSON format. 
 
-User: ${userData.dietaryPreference} diet, goals: ${userData.fitnessGoals.join(', ')}, level: ${userData.fitnessLevel}
+User Profile: ${userData.dietaryPreference} diet, goals: ${userData.fitnessGoals.join(', ')}, fitness level: ${userData.fitnessLevel}
 
 Requirements:
-- Generate 90 daily plans as JSON array
-- Each day: {day, meals: {breakfast, lunch, dinner, snacks}, exercises: {cardio, strength, flexibility}, tips}
-- Rest days every 7th day (light meals, gentle stretching)
-- Keep descriptions short (1 sentence max)
-- Return ONLY valid JSON array, no other text`;
+- Generate exactly 90 daily plans as JSON array
+- Each day object: {day, meals: {breakfast, lunch, dinner, snacks}, exercises: {cardio, strength, flexibility}, tips}
+- Rest days every 7th day with light meals and gentle stretching
+- Progressive difficulty over 90 days
+- Realistic, achievable workouts and meals
+- Keep descriptions concise but specific
+- Return ONLY valid JSON array, no comments, no extra text, no markdown formatting
+- Do not include any explanatory text or comments in the response
+- Ensure the response is pure JSON that can be parsed directly
+- Make this a real, personalized plan, not a sample or template`;
 
       console.log('🚀 Starting AI generation with timeout...');
       
-      // Create a timeout promise
+      // Create a timeout promise - 4 minutes as requested
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout - using local generation')), 30000); // 30 second timeout
+        setTimeout(() => reject(new Error('AI generation timeout - using local templates')), 240000); // 4 minutes
       });
 
       // Create the fetch promise
@@ -155,7 +160,7 @@ Requirements:
             }
           ],
           generationConfig: {
-            maxOutputTokens: 4000, // Reduced for faster generation
+            maxOutputTokens: 8000, // Increased for comprehensive plans
             temperature: 0.7,
           }
         })
@@ -192,6 +197,14 @@ Requirements:
         cleanedResponse = cleanedResponse.replace(/^```\s*/, '').replace(/\s*```$/, '');
       }
       
+      // Remove any comments or invalid characters that might break JSON parsing
+      cleanedResponse = cleanedResponse
+        .replace(/\/\/.*$/gm, '') // Remove single-line comments
+        .replace(/\/\*[\s\S]*?\*\//g, '') // Remove multi-line comments
+        .replace(/,\s*}/g, '}') // Remove trailing commas
+        .replace(/,\s*]/g, ']') // Remove trailing commas in arrays
+        .trim();
+      
       // Try to parse the JSON response
       try {
         const planData = JSON.parse(cleanedResponse);
@@ -204,6 +217,40 @@ Requirements:
         console.warn('⚠️ Failed to parse AI response as JSON:', parseError);
         console.log('🔄 AI response was not valid JSON, falling back to templates');
         console.log('📝 Response preview:', aiResponse.substring(0, 300));
+        
+        // Try to extract partial JSON if possible
+        try {
+          // Look for array start and try to parse partial data
+          const arrayStart = cleanedResponse.indexOf('[');
+          if (arrayStart !== -1) {
+            // Find the last complete object in the array
+            let bracketCount = 0;
+            let lastValidIndex = arrayStart;
+            
+            for (let i = arrayStart; i < cleanedResponse.length; i++) {
+              if (cleanedResponse[i] === '{') bracketCount++;
+              if (cleanedResponse[i] === '}') bracketCount--;
+              
+              if (bracketCount === 0 && cleanedResponse[i] === '}') {
+                lastValidIndex = i;
+              }
+            }
+            
+            const partialJson = cleanedResponse.substring(arrayStart, lastValidIndex + 1);
+            const partialData = JSON.parse(partialJson);
+            
+            if (partialData.length > 0) {
+              console.log('✅ Successfully parsed partial AI response with', partialData.length, 'days');
+              return {
+                success: true,
+                plan: partialData
+              };
+            }
+          }
+        } catch (partialParseError) {
+          console.log('⚠️ Could not parse partial JSON either');
+        }
+        
         return {
           success: true,
           plan: null

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { 
   Box, 
   Container, 
@@ -165,65 +165,59 @@ export default function PostureCheckPage() {
     }
   };
 
-  // Check API status and request camera permission on component mount
-  useEffect(() => {
-    if (typeof window !== 'undefined' && isBrowserSupported()) {
-      // Check API status first
-      checkApiStatus();
-      
-      const timer = setTimeout(() => {
-        requestCameraPermission();
-      }, 500);
-      
-      return () => clearTimeout(timer);
+  // Zoom functions
+  const zoomIn = useCallback(() => {
+    if (zoomLevel < maxZoom) {
+      setZoomLevel(prev => Math.min(prev + 0.25, maxZoom));
     }
+  }, [zoomLevel, maxZoom]);
+
+  const zoomOut = useCallback(() => {
+    if (zoomLevel > minZoom) {
+      setZoomLevel(prev => Math.max(prev - 0.25, minZoom));
+    }
+  }, [zoomLevel, minZoom]);
+
+  const resetZoom = useCallback(() => {
+    setZoomLevel(1);
   }, []);
 
-  // Load progress reports on component mount and when user changes
-  useEffect(() => {
-    if (!userLoading) {
-      loadProgressReports();
+  const getDistance = useCallback((touch1: Touch, touch2: Touch) => {
+    return Math.sqrt(
+      Math.pow(touch1.clientX - touch2.clientX, 2) +
+      Math.pow(touch1.clientY - touch2.clientY, 2)
+    );
+  }, []);
+
+  const handleWheel = useCallback((event: WheelEvent) => {
+    if (isCameraOn) {
+      event.preventDefault();
+      const delta = event.deltaY > 0 ? -0.25 : 0.25;
+      setZoomLevel(prev => Math.max(minZoom, Math.min(maxZoom, prev + delta)));
     }
-  }, [user, userLoading]);
+  }, [isCameraOn, minZoom, maxZoom]);
 
-  // Add keyboard shortcuts for zoom
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (isCameraOn) {
-        if ((event.ctrlKey || event.metaKey) && event.key === '=') {
-          event.preventDefault();
-          zoomIn();
-        } else if ((event.ctrlKey || event.metaKey) && event.key === '-') {
-          event.preventDefault();
-          zoomOut();
-        } else if ((event.ctrlKey || event.metaKey) && event.key === '0') {
-          event.preventDefault();
-          resetZoom();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isCameraOn, zoomLevel, maxZoom, minZoom]);
-
-  // Add touch and wheel zoom event listeners
-  useEffect(() => {
-    const container = cameraContainerRef.current;
-    if (container && isCameraOn) {
-      container.addEventListener('wheel', handleWheel, { passive: false });
-      container.addEventListener('touchstart', handleTouchStart, { passive: false });
-      container.addEventListener('touchmove', handleTouchMove, { passive: false });
-      container.addEventListener('touchend', handleTouchEnd, { passive: false });
-
-      return () => {
-        container.removeEventListener('wheel', handleWheel);
-        container.removeEventListener('touchstart', handleTouchStart);
-        container.removeEventListener('touchmove', handleTouchMove);
-        container.removeEventListener('touchend', handleTouchEnd);
-      };
+  const handleTouchStart = useCallback((event: TouchEvent) => {
+    if (event.touches.length === 2) {
+      setIsZooming(true);
+      setZoomStartDistance(getDistance(event.touches[0], event.touches[1]));
+      setZoomStartLevel(zoomLevel);
     }
-  }, [isCameraOn, zoomLevel, maxZoom, minZoom, isZooming, zoomStartDistance, zoomStartLevel]);
+  }, [getDistance, zoomLevel]);
+
+  const handleTouchMove = useCallback((event: TouchEvent) => {
+    if (isZooming && event.touches.length === 2) {
+      event.preventDefault();
+      const currentDistance = getDistance(event.touches[0], event.touches[1]);
+      const scale = currentDistance / zoomStartDistance;
+      const newZoom = Math.max(minZoom, Math.min(maxZoom, zoomStartLevel * scale));
+      setZoomLevel(newZoom);
+    }
+  }, [isZooming, getDistance, zoomStartDistance, zoomStartLevel, minZoom, maxZoom]);
+
+  const handleTouchEnd = useCallback(() => {
+    setIsZooming(false);
+  }, []);
 
   const checkApiStatus = async () => {
     try {
@@ -347,6 +341,112 @@ export default function PostureCheckPage() {
     }
   };
 
+  const loadProgressReports = useCallback(async () => {
+    try {
+      console.log('Loading progress reports, user:', { user, userLoading });
+      
+      if (user && !userLoading) {
+        try {
+          console.log('Attempting to load from database...');
+          const sessions = await healthDataService.getPostureCheckSessions();
+          console.log('Sessions loaded from database:', sessions);
+          setProgressReports(sessions.map(session => ({
+            id: session.id || '',
+            timestamp: session.created_at || new Date().toISOString(),
+            score: session.posture_score || 0,
+            status: session.session_title?.includes('Good') ? 'good' : 
+                    session.session_title?.includes('Fair') ? 'fair' : 
+                    session.session_title?.includes('Poor') ? 'poor' : 
+                    session.session_title?.includes('Excellent') ? 'excellent' : 'fair',
+            imageUrl: session.image_urls?.[0] || '',
+            analysis: session.analysis_data || {}
+          })));
+        } catch (dbError) {
+          console.error('Database load error:', dbError);
+          // If database fails, try to load from localStorage as fallback
+          console.log('Falling back to localStorage due to database error');
+          const savedReports = localStorage.getItem('postureProgressReports');
+          if (savedReports) {
+            console.log('Loading from localStorage as fallback');
+            setProgressReports(JSON.parse(savedReports));
+          }
+        }
+      } else {
+        // Load from localStorage for guests or when supabase is not available
+        console.log('Loading from localStorage for guest user');
+        const savedReports = localStorage.getItem('postureProgressReports');
+        if (savedReports) {
+          console.log('Found saved reports in localStorage');
+          setProgressReports(JSON.parse(savedReports));
+        } else {
+          console.log('No saved reports found in localStorage');
+        }
+      }
+    } catch (error) {
+      console.error('Error loading progress reports:', error);
+    }
+  }, [user, userLoading, healthDataService]);
+
+  // Check API status and request camera permission on component mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isBrowserSupported()) {
+      // Check API status first
+      checkApiStatus();
+      
+      const timer = setTimeout(() => {
+        requestCameraPermission();
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  // Load progress reports on component mount and when user changes
+  useEffect(() => {
+    if (!userLoading) {
+      loadProgressReports();
+    }
+  }, [user, userLoading, loadProgressReports]);
+
+  // Add keyboard shortcuts for zoom
+  useEffect(() => {
+    const handleKeyDown = useCallback((event: KeyboardEvent) => {
+      if (isCameraOn) {
+        if ((event.ctrlKey || event.metaKey) && event.key === '=') {
+          event.preventDefault();
+          zoomIn();
+        } else if ((event.ctrlKey || event.metaKey) && event.key === '-') {
+          event.preventDefault();
+          zoomOut();
+        } else if ((event.ctrlKey || event.metaKey) && event.key === '0') {
+          event.preventDefault();
+          resetZoom();
+        }
+      }
+    }, [isCameraOn, zoomIn, zoomOut, resetZoom]);
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isCameraOn, zoomIn, zoomOut, resetZoom]);
+
+  // Add touch and wheel zoom event listeners
+  useEffect(() => {
+    const container = cameraContainerRef.current;
+    if (container && isCameraOn) {
+      container.addEventListener('wheel', handleWheel, { passive: false });
+      container.addEventListener('touchstart', handleTouchStart, { passive: false });
+      container.addEventListener('touchmove', handleTouchMove, { passive: false });
+      container.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+      return () => {
+        container.removeEventListener('wheel', handleWheel);
+        container.removeEventListener('touchstart', handleTouchStart);
+        container.removeEventListener('touchmove', handleTouchMove);
+        container.removeEventListener('touchend', handleTouchEnd);
+      };
+    }
+  }, [isCameraOn, zoomLevel, maxZoom, minZoom, isZooming, zoomStartDistance, zoomStartLevel, handleWheel, handleTouchStart, handleTouchMove, handleTouchEnd]);
+
   const stopCamera = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => {
@@ -381,64 +481,6 @@ export default function PostureCheckPage() {
     }
   };
 
-  const zoomIn = () => {
-    if (zoomLevel < maxZoom) {
-      setZoomLevel(prev => Math.min(prev + 0.25, maxZoom));
-    }
-  };
-
-  const zoomOut = () => {
-    if (zoomLevel > minZoom) {
-      setZoomLevel(prev => Math.max(prev - 0.25, minZoom));
-    }
-  };
-
-  const resetZoom = () => {
-    setZoomLevel(1);
-  };
-
-  // Calculate distance between two touch points
-  const getDistance = (touch1: Touch, touch2: Touch) => {
-    const dx = touch1.clientX - touch2.clientX;
-    const dy = touch1.clientY - touch2.clientY;
-    return Math.sqrt(dx * dx + dy * dy);
-  };
-
-  // Handle wheel zoom
-  const handleWheel = (event: WheelEvent) => {
-    if (isCameraOn) {
-      event.preventDefault();
-      const delta = event.deltaY > 0 ? -0.1 : 0.1;
-      const newZoom = Math.max(minZoom, Math.min(maxZoom, zoomLevel + delta));
-      setZoomLevel(newZoom);
-    }
-  };
-
-  // Handle touch start for pinch zoom
-  const handleTouchStart = (event: TouchEvent) => {
-    if (event.touches.length === 2) {
-      setIsZooming(true);
-      setZoomStartDistance(getDistance(event.touches[0], event.touches[1]));
-      setZoomStartLevel(zoomLevel);
-    }
-  };
-
-  // Handle touch move for pinch zoom
-  const handleTouchMove = (event: TouchEvent) => {
-    if (isZooming && event.touches.length === 2) {
-      event.preventDefault();
-      const currentDistance = getDistance(event.touches[0], event.touches[1]);
-      const scale = currentDistance / zoomStartDistance;
-      const newZoom = Math.max(minZoom, Math.min(maxZoom, zoomStartLevel * scale));
-      setZoomLevel(newZoom);
-    }
-  };
-
-  // Handle touch end
-  const handleTouchEnd = () => {
-    setIsZooming(false);
-  };
-
   const captureFrame = (): string | null => {
     if (!videoRef.current || !canvasRef.current) return null;
     
@@ -447,6 +489,12 @@ export default function PostureCheckPage() {
     const context = canvas.getContext('2d');
     
     if (!context) return null;
+    
+    // Additional safety checks to prevent React error #418
+    if (!video.readyState || video.readyState < 2) {
+      console.warn("Video not ready for capture");
+      return null;
+    }
     
     // Set canvas size to match video dimensions for better quality
     canvas.width = video.videoWidth;
@@ -722,52 +770,6 @@ export default function PostureCheckPage() {
     setShowImageOptions(false);
     setSnackbarMessage("Captured image deleted");
     setSnackbarOpen(true);
-  };
-
-  const loadProgressReports = async () => {
-    try {
-      console.log('Loading progress reports, user:', user);
-      if (user) {
-        // Load from database for logged-in users
-        try {
-          console.log('Attempting to load from database...');
-          const sessions = await healthDataService.getPostureCheckSessions();
-          console.log('Sessions loaded from database:', sessions);
-          setProgressReports(sessions.map(session => ({
-            id: session.id || '',
-            timestamp: session.created_at || new Date().toISOString(),
-            score: session.posture_score || 0,
-            status: session.session_title?.includes('Good') ? 'good' : 
-                    session.session_title?.includes('Fair') ? 'fair' : 
-                    session.session_title?.includes('Poor') ? 'poor' : 
-                    session.session_title?.includes('Excellent') ? 'excellent' : 'fair',
-            imageUrl: session.image_urls?.[0] || '',
-            analysis: session.analysis_data || {}
-          })));
-        } catch (dbError) {
-          console.error('Database load error:', dbError);
-          // If database fails, try to load from localStorage as fallback
-          console.log('Falling back to localStorage due to database error');
-          const savedReports = localStorage.getItem('postureProgressReports');
-          if (savedReports) {
-            console.log('Loading from localStorage as fallback');
-            setProgressReports(JSON.parse(savedReports));
-          }
-        }
-      } else {
-        // Load from localStorage for guests or when supabase is not available
-        console.log('Loading from localStorage for guest user');
-        const savedReports = localStorage.getItem('postureProgressReports');
-        if (savedReports) {
-          console.log('Found saved reports in localStorage');
-          setProgressReports(JSON.parse(savedReports));
-        } else {
-          console.log('No saved reports found in localStorage');
-        }
-      }
-    } catch (error) {
-      console.error('Error loading progress reports:', error);
-    }
   };
 
   const getStatusColor = (status: string) => {
@@ -1216,6 +1218,24 @@ export default function PostureCheckPage() {
                         transformOrigin: "center center",
                         transition: "transform 0.3s ease"
                       }}
+                      onLoadedMetadata={() => {
+                        console.log("Video metadata loaded");
+                        if (videoRef.current) {
+                          console.log("Video dimensions:", videoRef.current.videoWidth, "x", videoRef.current.videoHeight);
+                        }
+                      }}
+                      onCanPlay={() => {
+                        console.log("Video can play");
+                        setVideoReady(true);
+                      }}
+                      onPlay={() => {
+                        console.log("Video playing");
+                        setVideoReady(true);
+                      }}
+                      onError={(e) => {
+                        console.error("Video error:", e);
+                        setError("Video loading failed");
+                      }}
                     />
                     
                     {/* Zoom Controls */}
@@ -1529,9 +1549,9 @@ export default function PostureCheckPage() {
                   ref={canvasRef}
                   style={{ display: 'none' }}
                 />
-                </Box>
+              </Box>
 
-                {/* Camera Controls */}
+              {/* Camera Controls */}
                 <Box sx={{ p: 3 }}>
                 <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
                     <Button

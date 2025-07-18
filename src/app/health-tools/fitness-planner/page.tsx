@@ -194,15 +194,15 @@ export default function FitnessPlannerPage() {
 
   const generatePlan = async () => {
     setIsGenerating(true);
-    console.log('🎯 Starting plan generation...');
+    console.log('🎯 Starting comprehensive plan generation...');
     
     try {
       // Generate comprehensive fitness plan
       const newPlan: FitnessPlan = {
         id: Date.now().toString(),
-        name: "90-Day Wellness Journey",
+        name: "90-Day Personalized Wellness Journey",
         duration: 90,
-        difficulty: "Intermediate",
+        difficulty: "Progressive",
         goals: fitnessGoals.length > 0 ? fitnessGoals : ["Weight Loss", "Muscle Tone", "Overall Fitness"],
         meals: {
           breakfast: [],
@@ -237,7 +237,7 @@ export default function FitnessPlannerPage() {
 
       if (completePlanResult.success && completePlanResult.plan) {
         // Use the AI-generated plan
-        console.log('🤖 Using AI-generated fitness plan');
+        console.log('🤖 Using AI-generated personalized fitness plan');
         console.log('📝 AI plan data:', completePlanResult.plan);
         dailyPlansData = completePlanResult.plan;
         
@@ -245,6 +245,14 @@ export default function FitnessPlannerPage() {
         if (Array.isArray(dailyPlansData) && dailyPlansData.length > 0) {
           console.log('✅ AI plan is valid array with', dailyPlansData.length, 'days');
           console.log('📋 First day sample:', dailyPlansData[0]);
+          
+          // Ensure all days have proper structure
+          dailyPlansData = dailyPlansData.map((day, index) => ({
+            ...day,
+            day: index + 1,
+            completed: false,
+            progress_notes: ''
+          }));
         } else {
           console.warn('⚠️ AI plan is not a valid array, using local fallback');
           dailyPlansData = generateLocalPlan();
@@ -281,16 +289,16 @@ export default function FitnessPlannerPage() {
     const weeklyMealRoutines = [
       // Week 1 Routine
       {
-        breakfast: [
-          "Oatmeal with berries and nuts",
+          breakfast: [
+            "Oatmeal with berries and nuts",
           "Greek yogurt with honey and granola", 
           "Whole grain toast with avocado and eggs",
           "Smoothie bowl with banana and protein powder",
           "Quinoa breakfast bowl with fruits",
           "Protein pancakes with maple syrup",
           "Chia pudding with coconut milk"
-        ],
-        lunch: [
+          ],
+          lunch: [
           "Grilled chicken salad with mixed greens",
           "Quinoa bowl with roasted vegetables",
           "Turkey and avocado sandwich on whole grain bread",
@@ -298,12 +306,12 @@ export default function FitnessPlannerPage() {
           "Tuna salad with mixed greens",
           "Vegetable stir-fry with brown rice",
           "Chickpea and spinach curry"
-        ],
-        dinner: [
+          ],
+          dinner: [
           "Baked salmon with quinoa and asparagus",
           "Lean beef stir-fry with vegetables",
           "Grilled chicken with sweet potato and broccoli",
-          "Vegetarian pasta with tomato sauce",
+            "Vegetarian pasta with tomato sauce",
           "Fish tacos with cabbage slaw",
           "Turkey meatballs with whole grain pasta",
           "Stuffed bell peppers with quinoa"
@@ -375,24 +383,24 @@ export default function FitnessPlannerPage() {
     const weeklyWorkoutRoutines = [
       // Week 1 Routine
       {
-        cardio: [
-          "30 minutes brisk walking",
+          cardio: [
+            "30 minutes brisk walking",
           "25 minutes jogging",
           "20 minutes cycling",
           "15 minutes HIIT training",
           "30 minutes swimming",
           "20 minutes elliptical training"
-        ],
-        strength: [
+          ],
+          strength: [
           "Push-ups, squats, and lunges (3 sets each)",
           "Dumbbell rows and shoulder presses (3 sets each)",
           "Planks and mountain climbers (3 sets each)",
           "Burpees and jumping jacks (3 sets each)",
           "Wall sits and calf raises (3 sets each)",
           "Tricep dips and bicep curls (3 sets each)"
-        ],
-        flexibility: [
-          "10 minutes stretching routine",
+          ],
+          flexibility: [
+            "10 minutes stretching routine",
           "15 minutes yoga flow",
           "12 minutes pilates exercises",
           "10 minutes foam rolling",
@@ -533,7 +541,7 @@ export default function FitnessPlannerPage() {
 
   const handleSavePlan = async () => {
     if (!user) {
-      alert("Please log in to save your plan!");
+      alert("Please log in to save your personalized plan!");
       return;
     }
 
@@ -542,7 +550,7 @@ export default function FitnessPlannerPage() {
       if (saveToDatabase) {
         // Save to database
         const fitnessPlanData = {
-          plan_name: plan?.name || "90-Day Wellness Journey",
+          plan_name: plan?.name || "90-Day Personalized Wellness Journey",
           plan_type: "general" as const,
           duration_days: plan?.duration || 90,
           difficulty_level: "intermediate" as const,
@@ -552,17 +560,19 @@ export default function FitnessPlannerPage() {
           is_active: true
         };
 
-        console.log('💾 Saving fitness plan to database:', fitnessPlanData);
+        console.log('💾 Saving comprehensive fitness plan to database:', fitnessPlanData);
         
         const savedPlan = await healthDataService.saveFitnessPlanWithImages(
           fitnessPlanData,
           saveImage && uploadedImage ? uploadedImage : undefined
         );
 
-        console.log('✅ Fitness plan saved:', savedPlan);
+        console.log('✅ Fitness plan saved to database:', savedPlan);
 
-        // Save daily plans
-        console.log('💾 Saving daily plans:', dailyPlans.length, 'days');
+        // Save daily plans with progress tracking
+        console.log('💾 Saving daily plans with progress tracking:', dailyPlans.length, 'days');
+        let savedDays = 0;
+        
         for (const dailyPlan of dailyPlans) {
           try {
             await healthDataService.saveDailyFitnessPlan({
@@ -571,33 +581,37 @@ export default function FitnessPlannerPage() {
               meals: dailyPlan.meals,
               exercises: dailyPlan.exercises,
               tips: dailyPlan.tips,
-              progress_notes: dailyPlan.progress_notes
+              progress_notes: dailyPlan.progress_notes || '',
+              completed: dailyPlan.completed || false
             });
+            savedDays++;
           } catch (dailyPlanError) {
             console.error('❌ Error saving daily plan for day', dailyPlan.day, ':', dailyPlanError);
             // Continue with other days even if one fails
           }
         }
 
-        console.log('✅ All daily plans saved successfully');
-        alert("Plan saved to your account successfully!");
+        console.log(`✅ Successfully saved ${savedDays} out of ${dailyPlans.length} daily plans`);
+        alert(`Your personalized 90-day fitness plan has been saved successfully! ${savedDays} days saved to your account.`);
       } else {
-        // Save to localStorage
+        // Save to localStorage with enhanced data structure
         const planData = {
           plan,
           dailyPlans,
           image: saveImage ? uploadedImage : null,
-          savedAt: new Date().toISOString()
+          savedAt: new Date().toISOString(),
+          user: user.email,
+          version: '2.0'
         };
         localStorage.setItem('fitnessPlan', JSON.stringify(planData));
-        console.log('💾 Plan saved to localStorage');
-        alert("Plan saved locally!");
+        console.log('💾 Plan saved to localStorage with enhanced structure');
+        alert("Your personalized plan has been saved locally!");
       }
     } catch (error) {
       console.error('❌ Error saving plan:', error);
       
       // Provide more specific error messages
-      let errorMessage = "Failed to save plan. Please try again.";
+      let errorMessage = "Failed to save your personalized plan. Please try again.";
       if (error instanceof Error) {
         if (error.message.includes('network') || error.message.includes('fetch')) {
           errorMessage = "Network error. Please check your connection and try again.";
@@ -605,6 +619,8 @@ export default function FitnessPlannerPage() {
           errorMessage = "Permission denied. Please log in again.";
         } else if (error.message.includes('storage')) {
           errorMessage = "Storage error. Please try again or contact support.";
+        } else if (error.message.includes('database')) {
+          errorMessage = "Database connection error. Your plan has been saved locally.";
         }
       }
       
@@ -642,7 +658,12 @@ export default function FitnessPlannerPage() {
       weeks.push(weekDays);
     }
 
-    console.log(`📅 Rendering calendar with ${totalDays} days in ${weeks.length} weeks`);
+    console.log(`📅 Rendering comprehensive calendar with ${totalDays} days in ${weeks.length} weeks`);
+
+    // Calculate progress statistics
+    const completedDays = dailyPlans.filter(plan => plan.completed).length;
+    const progressPercentage = Math.round((completedDays / totalDays) * 100);
+    const currentWeek = Math.floor((completedDays) / 7) + 1;
 
     return (
       <Box sx={{ mt: 3 }}>
@@ -650,6 +671,27 @@ export default function FitnessPlannerPage() {
           <CalendarToday sx={{ color: '#06D6A0' }} />
           90-Day Progress Calendar
         </Typography>
+        
+        {/* Progress Statistics */}
+        <Box sx={{ mb: 3, p: 2, background: 'linear-gradient(135deg, #f8f9ff, #e3f2fd)', borderRadius: 2 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+            Progress Overview
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+            <Box>
+              <Typography variant="body2" color="text.secondary">Completed Days</Typography>
+              <Typography variant="h6" sx={{ color: '#4CAF50', fontWeight: 700 }}>{completedDays}/90</Typography>
+            </Box>
+            <Box>
+              <Typography variant="body2" color="text.secondary">Progress</Typography>
+              <Typography variant="h6" sx={{ color: '#06D6A0', fontWeight: 700 }}>{progressPercentage}%</Typography>
+            </Box>
+            <Box>
+              <Typography variant="body2" color="text.secondary">Current Week</Typography>
+              <Typography variant="h6" sx={{ color: '#FF9800', fontWeight: 700 }}>{currentWeek}/13</Typography>
+            </Box>
+          </Box>
+        </Box>
         
         {/* Calendar Legend */}
         <Box sx={{ mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -704,16 +746,20 @@ export default function FitnessPlannerPage() {
                 // Determine background color based on day type
                 let backgroundColor = 'rgba(255, 255, 255, 0.8)';
                 let borderColor = '1px solid rgba(0,0,0,0.1)';
+                let textColor = '#333';
                 
                 if (isCompleted) {
                   backgroundColor = 'linear-gradient(135deg, #4CAF50, #45a049)';
                   borderColor = '1px solid #4CAF50';
+                  textColor = 'white';
                 } else if (isToday) {
                   backgroundColor = 'linear-gradient(135deg, #FFD166, #06D6A0)';
                   borderColor = '2px solid #FFD166';
+                  textColor = 'white';
                 } else if (isRestDay) {
                   backgroundColor = 'linear-gradient(135deg, #FF9800, #F57C00)';
                   borderColor = '1px solid #FF9800';
+                  textColor = 'white';
                 }
 
                 const tooltipText = dailyPlan 
@@ -724,53 +770,47 @@ export default function FitnessPlannerPage() {
                   <Tooltip 
                     key={dayNumber} 
                     title={tooltipText}
-                    placement="top"
+                    arrow
                   >
-                    <Card
+                    <Box
+                      onClick={() => setSelectedDay(dayNumber)}
                       sx={{
                         width: 60,
                         height: 60,
                         display: 'flex',
+                        flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        cursor: 'pointer',
                         background: backgroundColor,
-                        color: isCompleted || isToday || isRestDay ? 'white' : 'text.primary',
                         border: borderColor,
+                        borderRadius: 2,
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
                         '&:hover': {
                           transform: 'scale(1.05)',
-                          boxShadow: 2
-                        },
-                        transition: 'all 0.3s ease'
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                        }
                       }}
-                      onClick={() => setSelectedDay(dayNumber)}
                     >
-                      <Box sx={{ textAlign: 'center' }}>
-                        <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
-                          {dayNumber}
-                        </Typography>
-                        {isCompleted && (
-                          <Check sx={{ fontSize: 16, display: 'block', mx: 'auto', mt: 0.5 }} />
-                        )}
-                        {isRestDay && !isCompleted && (
-                          <Typography variant="caption" sx={{ fontSize: '0.6rem', display: 'block', mt: 0.5 }}>
-                            REST
-                          </Typography>
-                        )}
-                      </Box>
-                    </Card>
+                      <Typography 
+                        variant="caption" 
+                        sx={{ 
+                          fontWeight: 600, 
+                          color: textColor,
+                          fontSize: '0.75rem'
+                        }}
+                      >
+                        {dayNumber}
+                      </Typography>
+                      {isCompleted && (
+                        <CheckCircle sx={{ fontSize: 16, color: 'white', mt: 0.5 }} />
+                      )}
+                    </Box>
                   </Tooltip>
                 );
               })}
             </Box>
           ))}
-        </Box>
-        
-        {/* Calendar Summary */}
-        <Box sx={{ mt: 3, p: 2, background: 'rgba(6, 214, 160, 0.1)', borderRadius: 2 }}>
-          <Typography variant="body2" sx={{ textAlign: 'center', color: '#06D6A0', fontWeight: 500 }}>
-            📊 90-Day Plan Summary: {Math.floor(totalDays / 7)} weeks • {Math.floor(totalDays / 7)} rest days • {totalDays - Math.floor(totalDays / 7)} active days
-          </Typography>
         </Box>
       </Box>
     );
@@ -780,6 +820,9 @@ export default function FitnessPlannerPage() {
     const dailyPlan = dailyPlans.find(p => p.day === day);
     if (!dailyPlan) return null;
 
+    const isCompleted = dailyPlan.completed;
+    const isRestDay = day % 7 === 0;
+
     return (
       <Dialog 
         open={selectedDay !== null} 
@@ -788,9 +831,30 @@ export default function FitnessPlannerPage() {
         fullWidth
       >
         <DialogTitle>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <CalendarToday sx={{ color: '#FFD166' }} />
-            Day {day} - Your Daily Plan
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <CalendarToday sx={{ color: '#FFD166' }} />
+              <Typography variant="h6">
+                Day {day} - Your Daily Plan
+                {isRestDay && (
+                  <Chip 
+                    label="Rest Day" 
+                    size="small" 
+                    sx={{ ml: 1, background: '#FF9800', color: 'white' }}
+                  />
+                )}
+                {isCompleted && (
+                  <Chip 
+                    label="Completed" 
+                    size="small" 
+                    sx={{ ml: 1, background: '#4CAF50', color: 'white' }}
+                  />
+                )}
+              </Typography>
+            </Box>
+            <IconButton onClick={() => setSelectedDay(null)}>
+              <Close />
+            </IconButton>
           </Box>
         </DialogTitle>
         <DialogContent>
@@ -872,40 +936,79 @@ export default function FitnessPlannerPage() {
               </Card>
             </Box>
           </Box>
+          
+          {/* Progress Notes Section */}
           <Box sx={{ mt: 3 }}>
             <Card>
               <CardContent>
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Info sx={{ color: '#7B61FF' }} />
-                  Daily Tip
+                  Daily Tip & Progress Notes
                 </Typography>
-                <Typography variant="body1" color="text.secondary">
+                <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
                   {dailyPlan.tips}
                 </Typography>
+                
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={3}
+                  label="Add your progress notes for today"
+                  variant="outlined"
+                  value={dailyPlan.progress_notes || ''}
+                  onChange={(e) => {
+                    setDailyPlans(prev => prev.map(p => 
+                      p.day === day ? { ...p, progress_notes: e.target.value } : p
+                    ));
+                  }}
+                  placeholder="How did your workout go? Any challenges or achievements?"
+                  sx={{ mt: 2 }}
+                />
               </CardContent>
             </Card>
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSelectedDay(null)}>Close</Button>
+        <DialogActions sx={{ p: 3 }}>
           <Button 
-            variant="contained"
-            onClick={() => {
-              // Mark day as completed
-              setDailyPlans(prev => prev.map(p => 
-                p.day === day ? { ...p, completed: true } : p
-              ));
-              setSelectedDay(null);
-            }}
-            sx={{
-              background: "linear-gradient(135deg, #FFD166, #06D6A0)",
-              "&:hover": {
-                background: "linear-gradient(135deg, #FFC107, #00C853)",
-              }
-            }}
+            onClick={() => setSelectedDay(null)}
+            variant="outlined"
           >
-            Mark Complete
+            Close
           </Button>
+          {!isCompleted ? (
+            <Button 
+              variant="contained"
+              onClick={() => {
+                // Mark day as completed
+                setDailyPlans(prev => prev.map(p => 
+                  p.day === day ? { ...p, completed: true } : p
+                ));
+                setSelectedDay(null);
+              }}
+              sx={{
+                background: "linear-gradient(135deg, #4CAF50, #45a049)",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #45a049, #388E3C)",
+                }
+              }}
+              startIcon={<CheckCircle />}
+            >
+              Mark Complete
+            </Button>
+          ) : (
+            <Button 
+              variant="outlined"
+              onClick={() => {
+                // Mark day as incomplete
+                setDailyPlans(prev => prev.map(p => 
+                  p.day === day ? { ...p, completed: false } : p
+                ));
+              }}
+              sx={{ color: '#FF6B6B', borderColor: '#FF6B6B' }}
+            >
+              Mark Incomplete
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
     );
@@ -1370,16 +1473,16 @@ export default function FitnessPlannerPage() {
                           </Alert>
                         )}
                         
-                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-                          <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                            Your 90-Day Plan
-                          </Typography>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+                      <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                        Your 90-Day Plan
+                      </Typography>
                           <Box sx={{ display: "flex", gap: 2 }}>
                             {/* Calendar and Save buttons - only for logged-in users */}
                             {user && (
                               <>
-                                                            <Button
-                              variant="outlined"
+                      <Button
+                        variant="outlined"
                               startIcon={<CalendarToday />}
                               onClick={() => setShowCalendar(!showCalendar)}
                               sx={{
@@ -1397,7 +1500,7 @@ export default function FitnessPlannerPage() {
                               variant="outlined"
                               component={Link}
                               href="/health-tools/saved-routines"
-                              startIcon={<Save />}
+                        startIcon={<Save />}
                               sx={{
                                 borderColor: "#7B61FF",
                                 color: "#7B61FF",
@@ -1413,17 +1516,17 @@ export default function FitnessPlannerPage() {
                                   variant="outlined"
                                   startIcon={<Save />}
                                   onClick={() => setSaveDialogOpen(true)}
-                                  sx={{
-                                    borderColor: "#FFD166",
-                                    color: "#FFD166",
-                                    "&:hover": {
-                                      borderColor: "#FFC107",
-                                      background: "rgba(255, 209, 102, 0.05)",
-                                    },
-                                  }}
-                                >
-                                  Save Plan
-                                </Button>
+                        sx={{
+                          borderColor: "#FFD166",
+                          color: "#FFD166",
+                          "&:hover": {
+                            borderColor: "#FFC107",
+                            background: "rgba(255, 209, 102, 0.05)",
+                          },
+                        }}
+                      >
+                        Save Plan
+                      </Button>
                               </>
                             )}
                             {/* Export button for logged-out users */}
@@ -1457,7 +1560,7 @@ export default function FitnessPlannerPage() {
                               </Button>
                             )}
                           </Box>
-                        </Box>
+                    </Box>
 
                         {/* Calendar - only for logged-in users */}
                         {user && showCalendar && renderCalendar()}
@@ -1465,11 +1568,11 @@ export default function FitnessPlannerPage() {
                         {/* Plan Overview */}
                         <Box sx={{ mb: 4 }}>
                           <Card sx={{ borderRadius: 3 }}>
-                            <CardContent>
-                              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
+                          <CardContent>
+                            <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
                                 <Info sx={{ color: "#7B61FF" }} />
                                 Plan Overview
-                              </Typography>
+                            </Typography>
                               <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mb: 2 }}>
                                 <Chip
                                   label={`${plan.duration} Days`}
@@ -1533,56 +1636,56 @@ export default function FitnessPlannerPage() {
                                     <Box sx={{ mb: 1 }}>
                                       <Typography variant="body2" sx={{ fontWeight: 600, color: "#FFD166" }}>
                                         Breakfast:
-                                      </Typography>
-                                      <Typography variant="body2" color="text.secondary">
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
                                         {dailyPlan.meals.breakfast}
-                                      </Typography>
-                                    </Box>
+                              </Typography>
+                            </Box>
                                     <Box sx={{ mb: 1 }}>
                                       <Typography variant="body2" sx={{ fontWeight: 600, color: "#06D6A0" }}>
                                         Lunch:
-                                      </Typography>
-                                      <Typography variant="body2" color="text.secondary">
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
                                         {dailyPlan.meals.lunch}
-                                      </Typography>
-                                    </Box>
+                              </Typography>
+                            </Box>
                                     <Box sx={{ mb: 1 }}>
                                       <Typography variant="body2" sx={{ fontWeight: 600, color: "#7B61FF" }}>
                                         Dinner:
-                                      </Typography>
-                                      <Typography variant="body2" color="text.secondary">
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
                                         {dailyPlan.meals.dinner}
-                                      </Typography>
-                                    </Box>
-                                  </Box>
+                              </Typography>
+                            </Box>
+                      </Box>
                                   
                                   {/* Exercises */}
                                   <Box sx={{ flex: 1 }}>
                                     <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1, display: "flex", alignItems: "center", gap: 1 }}>
                                       <DirectionsRun sx={{ color: "#06D6A0", fontSize: 20 }} />
                                       Exercises
-                                    </Typography>
+                            </Typography>
                                     <Box sx={{ mb: 1 }}>
                                       <Typography variant="body2" sx={{ fontWeight: 600, color: "#FFD166" }}>
                                         Cardio:
-                                      </Typography>
-                                      <Typography variant="body2" color="text.secondary">
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
                                         {dailyPlan.exercises.cardio}
-                                      </Typography>
-                                    </Box>
+                              </Typography>
+                            </Box>
                                     <Box sx={{ mb: 1 }}>
                                       <Typography variant="body2" sx={{ fontWeight: 600, color: "#06D6A0" }}>
                                         Strength:
-                                      </Typography>
-                                      <Typography variant="body2" color="text.secondary">
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
                                         {dailyPlan.exercises.strength}
-                                      </Typography>
-                                    </Box>
+                              </Typography>
+                            </Box>
                                     <Box sx={{ mb: 1 }}>
                                       <Typography variant="body2" sx={{ fontWeight: 600, color: "#7B61FF" }}>
                                         Flexibility:
-                                      </Typography>
-                                      <Typography variant="body2" color="text.secondary">
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
                                         {dailyPlan.exercises.flexibility}
                                       </Typography>
                                     </Box>
@@ -1596,10 +1699,10 @@ export default function FitnessPlannerPage() {
                                   </Typography>
                                   <Typography variant="body2" color="text.secondary">
                                     {dailyPlan.tips}
-                                  </Typography>
-                                </Box>
-                              </CardContent>
-                            </Card>
+                              </Typography>
+                            </Box>
+                          </CardContent>
+                        </Card>
                           ))}
                           
                           {/* Show more days button */}
@@ -1619,31 +1722,31 @@ export default function FitnessPlannerPage() {
                               >
                                 View All {dailyPlans.length} Days
                               </Button>
-                            </Box>
+                      </Box>
                           )}
-                        </Box>
+                    </Box>
 
-                        <Box sx={{ mt: 4, textAlign: "center" }}>
-                          <Button
-                            variant="contained"
-                            component={Link}
-                            href="/health-tools/saved-routines"
-                            sx={{
-                              background: "linear-gradient(135deg, #FFD166, #06D6A0)",
-                              "&:hover": {
-                                background: "linear-gradient(135deg, #FFC107, #00C853)",
-                              },
-                              px: 6,
-                              py: 2,
-                              borderRadius: 3,
-                              fontSize: "1.2rem",
-                              fontWeight: 600,
-                              textTransform: "none"
-                            }}
-                          >
+                    <Box sx={{ mt: 4, textAlign: "center" }}>
+                      <Button
+                        variant="contained"
+                        component={Link}
+                        href="/health-tools/saved-routines"
+                        sx={{
+                          background: "linear-gradient(135deg, #FFD166, #06D6A0)",
+                          "&:hover": {
+                            background: "linear-gradient(135deg, #FFC107, #00C853)",
+                          },
+                          px: 6,
+                          py: 2,
+                          borderRadius: 3,
+                          fontSize: "1.2rem",
+                          fontWeight: 600,
+                          textTransform: "none"
+                        }}
+                      >
                             {user ? "View Saved Routines" : "Start My Journey"}
-                          </Button>
-                        </Box>
+                      </Button>
+                    </Box>
                       </Box>
                     )}
                   </Box>

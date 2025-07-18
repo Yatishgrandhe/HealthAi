@@ -35,8 +35,8 @@ import {
   MoreVert,
   Delete,
   Edit,
-  PlayArrow,
-  Save,
+  PlayArrow, 
+  Save, 
   Download,
   Share,
   Favorite,
@@ -251,16 +251,16 @@ export default function SavedRoutinesPage() {
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <Box sx={{ display: "flex", alignItems: "center" }}>
               <img 
-                src="/health-ai-logo.png" 
-                alt="Health AI Logo" 
+              src="/health-ai-logo.png" 
+              alt="Health AI Logo" 
                 width={32} 
                 height={32} 
-                style={{
-                  borderRadius: '50%',
-                  background: 'transparent',
-                  display: 'block'
-                }}
-              />
+              style={{
+                borderRadius: '50%',
+                background: 'transparent',
+                display: 'block'
+              }}
+            />
               <Box sx={{ ml: 2 }}>
                 <Typography
                   variant="h6"
@@ -303,15 +303,15 @@ export default function SavedRoutinesPage() {
               >
                 Refresh
               </Button>
-              <Chip
+            <Chip
                 label={`${routines.length + fitnessPlans.length} Total`}
-                size="small"
-                sx={{
-                  background: "rgba(255, 255, 255, 0.2)",
-                  color: "white",
-                  fontWeight: 500
-                }}
-              />
+              size="small"
+              sx={{
+                background: "rgba(255, 255, 255, 0.2)",
+                color: "white",
+                fontWeight: 500
+              }}
+            />
             </Box>
           </Box>
         </Container>
@@ -323,7 +323,7 @@ export default function SavedRoutinesPage() {
             <CircularProgress size={60} sx={{ color: "#FFD166" }} />
           </Box>
         ) : (
-          <Box>
+            <Box>
             {/* Saved Routines Section */}
             <Box sx={{ mb: 6 }}>
               <Typography variant="h5" sx={{ fontWeight: 600, mb: 3, display: "flex", alignItems: "center", gap: 1 }}>
@@ -339,39 +339,39 @@ export default function SavedRoutinesPage() {
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
                     Create and save your favorite workout routines to access them anytime.
-                  </Typography>
-                  <Button
+              </Typography>
+            <Button
                     variant="outlined"
-                    component={Link}
-                    href="/health-tools/fitness-planner"
+              component={Link}
+              href="/health-tools/fitness-planner"
                     startIcon={<Add />}
-                    sx={{
+              sx={{
                       borderColor: "#FFD166",
                       color: "#FFD166",
-                      "&:hover": {
+                "&:hover": {
                         borderColor: "#FFC107",
                         background: "rgba(255, 209, 102, 0.05)",
-                      },
-                    }}
-                  >
+                },
+              }}
+            >
                     Create New Routine
-                  </Button>
+            </Button>
                 </Card>
               ) : (
                 <Grid container spacing={3}>
                   {routines.map((routine) => (
                     <Grid item xs={12} sm={6} md={4} key={routine.id}>
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
-                      >
-                        <Card 
-                          sx={{ 
-                            height: "100%",
+              >
+                <Card
+                  sx={{
+                    height: "100%",
                             cursor: "pointer",
-                            "&:hover": {
-                              transform: "translateY(-4px)",
+                    "&:hover": {
+                      transform: "translateY(-4px)",
                               boxShadow: 4
                             },
                             transition: "all 0.3s ease"
@@ -387,10 +387,10 @@ export default function SavedRoutinesPage() {
                                   alignItems: "center"
                                 }}>
                                   {getRoutineTypeIcon(routine.routine_type)}
-                                </Box>
+                        </Box>
                                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                                   {routine.routine_name}
-                                </Typography>
+                          </Typography>
                               </Box>
                               <IconButton
                                 size="small"
@@ -404,13 +404,13 @@ export default function SavedRoutinesPage() {
                               </IconButton>
                             </Box>
 
-                            <Chip
+                          <Chip
                               label={routine.routine_type}
-                              size="small"
-                              sx={{
+                            size="small"
+                            sx={{
                                 background: `${getRoutineTypeColor(routine.routine_type)}20`,
                                 color: getRoutineTypeColor(routine.routine_type),
-                                fontWeight: 500,
+                              fontWeight: 500,
                                 mb: 2
                               }}
                             />
@@ -523,7 +523,7 @@ export default function SavedRoutinesPage() {
                                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                                   {plan.plan_name}
                                 </Typography>
-                              </Box>
+                        </Box>
                               <IconButton
                                 size="small"
                                 onClick={(e) => {
@@ -534,68 +534,68 @@ export default function SavedRoutinesPage() {
                               >
                                 <MoreVert />
                               </IconButton>
-                            </Box>
+                      </Box>
 
                             <Box sx={{ display: "flex", gap: 1, mb: 2, flexWrap: "wrap" }}>
-                              <Chip
+                      <Chip
                                 label={`${plan.duration_days} Days`}
-                                size="small"
-                                sx={{
+                        size="small"
+                        sx={{
                                   background: "linear-gradient(135deg, #FFD166, #06D6A0)",
                                   color: "white",
-                                  fontWeight: 500
-                                }}
-                              />
-                              <Chip
+                          fontWeight: 500
+                        }}
+                      />
+                        <Chip
                                 label={plan.difficulty_level}
-                                size="small"
-                                sx={{
+                          size="small"
+                          sx={{
                                   background: "rgba(6, 214, 160, 0.1)",
                                   color: "#06D6A0",
                                   fontWeight: 500
                                 }}
                               />
                               {plan.is_active && (
-                                <Chip
+                        <Chip
                                   label="Active"
-                                  size="small"
+                          size="small"
                                   icon={<CheckCircle />}
-                                  sx={{
+                          sx={{
                                     background: "rgba(76, 175, 80, 0.1)",
                                     color: "#4CAF50",
                                     fontWeight: 500
-                                  }}
-                                />
-                              )}
-                            </Box>
+                          }}
+                        />
+                      )}
+                    </Box>
 
                             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
                               <AccessTime sx={{ fontSize: 16, color: "text.secondary" }} />
-                              <Typography variant="caption" color="text.secondary">
+                        <Typography variant="caption" color="text.secondary">
                                 {new Date(plan.created_at).toLocaleDateString()}
-                              </Typography>
-                            </Box>
+                        </Typography>
+                    </Box>
 
-                            <Box sx={{ display: "flex", gap: 1 }}>
-                              <Button
+                    <Box sx={{ display: "flex", gap: 1 }}>
+                      <Button
                                 size="small"
-                                startIcon={<PlayArrow />}
+                        startIcon={<PlayArrow />}
                                 variant="outlined"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   // Handle start plan
-                                }}
-                                sx={{
+                        }}
+                        sx={{
                                   borderColor: "#06D6A0",
                                   color: "#06D6A0",
-                                  "&:hover": {
+                          "&:hover": {
                                     borderColor: "#00C853",
                                     background: "rgba(6, 214, 160, 0.05)",
-                                  },
-                                }}
-                              >
+                          },
+                        }}
+                      >
                                 Start Plan
-                              </Button>
+                      </Button>
                               <Button
                                 size="small"
                                 startIcon={<CalendarToday />}
@@ -604,27 +604,27 @@ export default function SavedRoutinesPage() {
                                   e.stopPropagation();
                                   // Handle view calendar
                                 }}
-                                sx={{
+                        sx={{
                                   borderColor: "#FFD166",
                                   color: "#FFD166",
-                                  "&:hover": {
+                          "&:hover": {
                                     borderColor: "#FFC107",
                                     background: "rgba(255, 209, 102, 0.05)",
                                   },
-                                }}
-                              >
+                        }}
+                      >
                                 Calendar
                               </Button>
-                            </Box>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </motion.div>
                     </Grid>
                   ))}
                 </Grid>
               )}
             </Box>
-          </Box>
+        </Box>
         )}
       </Container>
 
@@ -710,7 +710,7 @@ export default function SavedRoutinesPage() {
             </DialogContent>
             <DialogActions>
               <Button onClick={() => setSelectedRoutine(null)}>Close</Button>
-              <Button 
+              <Button
                 variant="contained"
                 startIcon={<PlayArrow />}
                 sx={{
@@ -728,7 +728,7 @@ export default function SavedRoutinesPage() {
       </Dialog>
 
       {/* Plan Detail Dialog */}
-      <Dialog 
+      <Dialog
         open={Boolean(selectedPlan)} 
         onClose={() => setSelectedPlan(null)}
         maxWidth="md"
@@ -752,7 +752,7 @@ export default function SavedRoutinesPage() {
                 </Box>
                 <Typography variant="body2" color="text.secondary">
                   Created: {new Date(selectedPlan.created_at).toLocaleDateString()}
-                </Typography>
+                  </Typography>
               </Box>
               
               <Box sx={{ mb: 3 }}>
@@ -780,7 +780,7 @@ export default function SavedRoutinesPage() {
             </DialogContent>
             <DialogActions>
               <Button onClick={() => setSelectedPlan(null)}>Close</Button>
-              <Button 
+              <Button
                 variant="contained"
                 startIcon={<PlayArrow />}
                 sx={{
